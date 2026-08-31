@@ -1,7 +1,5 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:crypto/crypto.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,8 +9,8 @@ import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 
 import 'package:nudgee/core/di/injector.dart' as di;
 import 'package:nudgee/core/services/auth_service.dart';
+import 'package:nudgee/core/services/file_storage_service.dart';
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
-import 'package:nudgee/core/services/user_storage_service.dart';
 import 'package:nudgee/features/common/utils/crop_image.dart';
 import 'package:nudgee/features/common/utils/functions.dart';
 import 'package:nudgee/features/common/widgets/page_scaffold.dart';
@@ -72,6 +70,7 @@ class _AvatarUploadState extends State<AvatarUpload> {
                 return;
               }
 
+              // 压缩：缩略图（128px）+ 原图（512px）
               final Uint8List originalFileData = await getCompressedImage(
                   fileData,
                   minHeight: 512,
@@ -96,8 +95,9 @@ class _AvatarUploadState extends State<AvatarUpload> {
               }
 
               final qiniu = di.sl<QiniuStorageService>();
+              final fileStorage = di.sl<FileStorageService>();
 
-              // 上传头像到七牛: nudgee/{userId}/avatar.jpg + avatar_original.jpg
+              // ── 1. 上传到七牛（云端）──────────────────────────────────
               final avatarKey = 'nudgee/${user.id}/avatar.jpg';
               final avatarOriginalKey = 'nudgee/${user.id}/avatar_original.jpg';
 
@@ -106,32 +106,36 @@ class _AvatarUploadState extends State<AvatarUpload> {
               if (compressedUrl == null) {
                 SmartDialog.dismiss();
                 SmartDialog.showNotify(
-                    msg: '头像上传失败', notifyType: NotifyType.failure);
+                    msg: '头像上传到云端失败', notifyType: NotifyType.failure);
                 _cropping = false;
                 return;
               }
-
+              // 原图也上传
               await qiniu.uploadBytes(avatarOriginalKey, originalFileData);
+              debugPrint('[AvatarUpload] cloud upload done: $compressedUrl');
 
-              // 更新云端 profile 的 avatar 字段
-              final existing = await auth.fetchUserProfile(user.id);
-              if (existing != null) {
-                existing['avatar'] = compressedUrl;
-                final profileBytes = Uint8List.fromList(
-                    utf8.encode(jsonEncode(existing)));
-                await qiniu.uploadBytes(
-                    'nudgee/${user.id}/profile.json', profileBytes);
-              }
-
-              // 更新本地存储 + 内存状态
-              final updatedUser = AuthUser(
-                id: user.id,
-                name: user.name,
-                avatar: compressedUrl,
+              // ── 2. 保存到本地文件系统 ──────────────────────────────────
+              // 缩略图存到 avatars/ 目录，文件名用 userId
+              final localAvatarPath = await fileStorage.saveBytes(
+                FileStorageService.dirAvatars,
+                '${user.id}_avatar.jpg',
+                compressedFileData,
               );
-              final userStorage = di.sl<UserStorageService>();
-              await userStorage.saveProfile(updatedUser.toJson());
-              auth.currentUser.value = updatedUser;
+              // 原图也存一份
+              await fileStorage.saveBytes(
+                FileStorageService.dirAvatars,
+                '${user.id}_avatar_original.jpg',
+                originalFileData,
+              );
+              debugPrint('[AvatarUpload] local saved: $localAvatarPath');
+
+              // ── 3. 更新云端 profile 的 avatar 字段 ─────────────────────
+              final (profileOk, profileErr) =
+                  await auth.updateProfile({'avatar': compressedUrl});
+              if (!profileOk) {
+                debugPrint('[AvatarUpload] profile update failed: $profileErr');
+                // 头像已上传成功，profile 更新失败不阻断，继续更新本地
+              }
 
               SmartDialog.dismiss();
               SmartDialog.showNotify(
