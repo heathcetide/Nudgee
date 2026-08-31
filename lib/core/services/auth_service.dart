@@ -16,11 +16,15 @@ class AuthUser {
   final String id;
   final String name;
   final String? avatar;
+  final String? gender; // '男' | '女' | null
+  final String? phone;
 
   const AuthUser({
     required this.id,
     required this.name,
     this.avatar,
+    this.gender,
+    this.phone,
   });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
@@ -28,6 +32,8 @@ class AuthUser {
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
       avatar: json['avatar'] as String?,
+      gender: json['gender'] as String?,
+      phone: json['phone'] as String?,
     );
   }
 
@@ -35,6 +41,8 @@ class AuthUser {
         'id': id,
         'name': name,
         'avatar': avatar,
+        'gender': gender,
+        'phone': phone,
       };
 
   @override
@@ -323,6 +331,54 @@ class AuthService {
     } catch (e) {
       debugPrint('[Auth] Login error: $e');
       return false;
+    }
+  }
+
+  /// Update the current user's profile fields and sync to cloud + local.
+  ///
+  /// [updates] is a map of fields to update (e.g. {'gender': '男', 'phone': '...'}).
+  /// Downloads the current cloud profile, merges [updates], uploads back,
+  /// then updates local storage and in-memory state.
+  Future<(bool, String?)> updateProfile(Map<String, dynamic> updates) async {
+    try {
+      final user = currentUser.value;
+      if (user == null) return (false, '未登录');
+
+      // 1. Download current cloud profile (preserve passwordHash etc.)
+      final existing = await fetchUserProfile(user.id);
+      if (existing == null) {
+        return (false, '无法读取云端用户数据');
+      }
+
+      // 2. Merge updates
+      existing.addAll(updates);
+
+      // 3. Upload back to Qiniu
+      final qiniu = _qiniu ?? di.sl<QiniuStorageService>();
+      _qiniu = qiniu;
+      final key = _profileKey(user.id);
+      final bytes = Uint8List.fromList(utf8.encode(jsonEncode(existing)));
+      final url = await qiniu.uploadBytes(key, bytes);
+      if (url == null) {
+        return (false, '上传到七牛失败');
+      }
+
+      // 4. Update local + memory
+      final updatedUser = AuthUser(
+        id: user.id,
+        name: updates['name'] as String? ?? user.name,
+        avatar: updates['avatar'] as String? ?? user.avatar,
+        gender: updates['gender'] as String? ?? user.gender,
+        phone: updates['phone'] as String? ?? user.phone,
+      );
+      await _userStorage.saveProfile(updatedUser.toJson());
+      currentUser.value = updatedUser;
+
+      debugPrint('[Auth] Profile updated — ${updates.keys.toList()}');
+      return (true, null);
+    } catch (e) {
+      debugPrint('[Auth] updateProfile error: $e');
+      return (false, '更新异常: $e');
     }
   }
 

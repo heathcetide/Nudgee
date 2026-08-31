@@ -53,7 +53,7 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
     });
   }
 
-  /// 申请相册权限（Android 13+ 用 READ_MEDIA_IMAGES，低版本用 READ_EXTERNAL_STORAGE）
+  /// 申请相册权限
   Future<bool> _requestPhotoPermission() async {
     if (!Platform.isAndroid) return true;
     if (await Permission.photos.isGranted) return true;
@@ -65,11 +65,115 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
     return granted;
   }
 
+  /// 修改性别
+  Future<void> _editGender() async {
+    final current = _user?.gender;
+    String? selected = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('选择性别'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, '男'),
+            child: Row(
+              children: [
+                Icon(Icons.male,
+                    color: current == '男' ? Theme.of(ctx).primaryColor : null),
+                const SizedBox(width: 8),
+                const Text('男'),
+                if (current == '男')
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8),
+                    child: Icon(Icons.check, size: 18),
+                  ),
+              ],
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, '女'),
+            child: Row(
+              children: [
+                Icon(Icons.female,
+                    color: current == '女' ? Theme.of(ctx).primaryColor : null),
+                const SizedBox(width: 8),
+                const Text('女'),
+                if (current == '女')
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8),
+                    child: Icon(Icons.check, size: 18),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    if (selected == null || selected == current) return;
+
+    SmartDialog.showLoading(msg: '保存中...');
+    final (ok, err) = await sl<AuthService>().updateProfile({'gender': selected});
+    SmartDialog.dismiss();
+    if (ok) {
+      _loadUser();
+      SmartDialog.showNotify(msg: '修改成功', notifyType: NotifyType.success);
+    } else {
+      SmartDialog.showNotify(msg: err ?? '修改失败', notifyType: NotifyType.failure);
+    }
+  }
+
+  /// 修改手机号
+  Future<void> _editPhone() async {
+    final controller = TextEditingController(text: _user?.phone ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('修改手机号'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.phone,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: '手机号',
+            hintText: '请输入手机号',
+            prefixIcon: Icon(Icons.phone),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (result == null || result == _user?.phone) return;
+    if (result.isEmpty) {
+      SmartDialog.showNotify(msg: '手机号不能为空', notifyType: NotifyType.error);
+      return;
+    }
+
+    SmartDialog.showLoading(msg: '保存中...');
+    final (ok, err) = await sl<AuthService>().updateProfile({'phone': result});
+    SmartDialog.dismiss();
+    if (ok) {
+      _loadUser();
+      SmartDialog.showNotify(msg: '修改成功', notifyType: NotifyType.success);
+    } else {
+      SmartDialog.showNotify(msg: err ?? '修改失败', notifyType: NotifyType.failure);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final name = _user?.name ?? '未设置';
     final id = _user?.id ?? '未设置';
     final avatar = _user?.avatar;
+    final gender = _user?.gender ?? '未设置';
+    final phone = _user?.phone ?? '未设置';
 
     return PageScaffold(
       title: const Text('我的信息'),
@@ -77,7 +181,7 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
       child: ListView(
         children: ListTile.divideTiles(
           tiles: [
-            // 昵称（可点击修改）
+            // 昵称
             ListTile(
               onTap: () {
                 GoRouter.of(context).push('/profile/changeNickName',
@@ -86,7 +190,7 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
               title: const Text('昵称'),
               trailing: ListTileTrailingTextArrow(text: name),
             ),
-            // 头像（可点击更换）
+            // 头像
             ListTile(
               onTap: () async {
                 final bool granted = await _requestPhotoPermission();
@@ -118,17 +222,17 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
               title: const Text('用户ID'),
               trailing: ListTileTrailingTextArrow(text: id, arrow: false),
             ),
-            // 性别（只读，后续可扩展）
+            // 性别（可设置）
             ListTile(
-              enabled: false,
+              onTap: _editGender,
               title: const Text('性别'),
-              trailing: ListTileTrailingTextArrow(text: '未设置', arrow: false),
+              trailing: ListTileTrailingTextArrow(text: gender),
             ),
-            // 手机号（只读，后续可扩展）
+            // 手机号（可设置）
             ListTile(
-              enabled: false,
+              onTap: _editPhone,
               title: const Text('手机号'),
-              trailing: ListTileTrailingTextArrow(text: '未设置', arrow: false),
+              trailing: ListTileTrailingTextArrow(text: phone),
             ),
             // 注销账号
             TextButton(

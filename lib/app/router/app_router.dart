@@ -8,6 +8,7 @@ import 'package:nudgee/features/common/utils/route_observer.dart';
 import 'package:nudgee/features/profile/presentation/avatar_upload.dart';
 import 'package:nudgee/features/profile/presentation/change_nick_name.dart';
 import 'package:nudgee/features/profile/presentation/my_information.dart';
+import 'package:nudgee/features/profile/presentation/personal_home_page.dart';
 import 'package:nudgee/features/home/presentation/home_page.dart';
 import 'package:nudgee/features/splash/presentation/splash_page.dart';
 
@@ -28,6 +29,7 @@ class AppRouter {
   static const String myInformation = '/profile/myInformation';
   static const String changeNickName = '/profile/changeNickName';
   static const String avatarUpload = '/profile/avatarUpload';
+  static const String personalHome = '/profile/personalHome';
 
   /// Build the [GoRouter] instance.
   ///
@@ -83,6 +85,11 @@ class AppRouter {
           path: avatarUpload,
           name: 'avatarUpload',
           builder: (context, state) => const AvatarUpload(),
+        ),
+        GoRoute(
+          path: personalHome,
+          name: 'personalHome',
+          builder: (context, state) => const PersonalHomePage(),
         ),
       ],
       errorBuilder: (context, state) => _ErrorPage(error: state.error),

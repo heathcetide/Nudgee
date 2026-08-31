@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:icons_plus/icons_plus.dart';
 
+import 'package:nudgee/app/router/app_router.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/features/common/utils/route_observer.dart';
@@ -19,7 +20,13 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
   AuthUser? _user;
 
   final List<Map<String, dynamic>> actions = [
-    {'icon': Icons.person, 'text': '个人主页', 'onclick': (context) {}},
+    {
+      'icon': Icons.person,
+      'text': '个人主页',
+      'onclick': (context) {
+        GoRouter.of(context).push(AppRouter.personalHome);
+      }
+    },
     {'icon': Icons.settings, 'text': '软件设置', 'onclick': (centext) {}},
     {'icon': AntDesign.heart_fill, 'text': '点赞列表', 'onclick': (centext) {}},
     {'icon': Icons.settings, 'text': '任务记录', 'onclick': (centext) {}},
