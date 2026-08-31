@@ -23,6 +23,7 @@ import 'package:nudgee/core/services/connectivity_service.dart';
 import 'package:nudgee/core/services/download_service.dart';
 import 'package:nudgee/core/services/file_picker_service.dart';
 import 'package:nudgee/core/services/file_storage_service.dart';
+import 'package:nudgee/core/services/qiniu_storage_service.dart';
 import 'package:nudgee/core/services/frame_timing_monitor_service.dart';
 import 'package:nudgee/core/services/local_database_service.dart';
 import 'package:nudgee/core/services/log_file_service.dart';
@@ -43,6 +44,10 @@ final GetIt sl = GetIt.instance;
 /// doesn't prevent the rest from loading.
 Future<void> initDependencies() async {
   debugPrint('[Init] Starting initDependencies...');
+
+  // ── App Config (load config.yaml) ────────────────────────────────────
+  await AppConfig.load();
+  debugPrint('[Init] AppConfig loaded (storage: ${AppConfig.hasStorage ? "yes" : "no"})');
 
   // ── Log File Service (always available) ──────────────────────────────
   _safeRegister(() => sl.registerLazySingleton<LogFileService>(() => LogFileService()));
@@ -143,6 +148,14 @@ Future<void> initDependencies() async {
 
   // ── File Storage (local avatars / cache / downloads) ─────────────────
   _safeRegister(() => sl.registerLazySingleton<FileStorageService>(() => FileStorageService()));
+
+  // ── Qiniu Cloud Storage (object storage, config from config.yaml) ────
+  if (AppConfig.hasStorage) {
+    _safeRegister(() => sl.registerLazySingleton<QiniuStorageService>(() => QiniuStorageService()));
+    debugPrint('[Init] QiniuStorage registered');
+  } else {
+    debugPrint('[Init] QiniuStorage skipped (no config.yaml)');
+  }
 
   // ── Upload Service ───────────────────────────────────────────────────
   _safeRegister(() => sl.registerLazySingleton<UploadService>(

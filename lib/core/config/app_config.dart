@@ -1,12 +1,21 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:yaml/yaml.dart';
+
 /// Application environment configuration.
 ///
-/// Values are injected at compile time via `--dart-define`.
+/// Compile-time values are injected via `--dart-define`.
+/// Runtime secrets (Qiniu keys, etc.) are loaded from `config.yaml`
+/// (git-ignored, bundled as an asset).
+///
 /// Example:
 /// ```sh
 /// flutter run --dart-define=ENV=dev --dart-define=API_BASE_URL=http://...
 /// ```
 class AppConfig {
   AppConfig._();
+
+  // ── Compile-time config (--dart-define) ──────────────────────────────
 
   /// Current environment: `dev` | `staging` | `prod`
   static const String env = String.fromEnvironment('ENV', defaultValue: 'dev');
@@ -43,4 +52,65 @@ class AppConfig {
   /// Parsed list of ICE server URLs.
   static List<String> get iceServerList =>
       iceServers.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+
+  // ── Runtime config (config.yaml) ─────────────────────────────────────
+
+  static StorageConfig? _storage;
+  static bool _configLoaded = false;
+
+  /// Load runtime config from `assets/config.yaml`.
+  /// Call once at app startup before using [storage].
+  static Future<void> load() async {
+    if (_configLoaded) return;
+    try {
+      final yamlStr = await rootBundle.loadString('config.yaml');
+      final doc = loadYaml(yamlStr) as YamlMap;
+      final storage = doc['storage'] as YamlMap?;
+      if (storage != null) {
+        _storage = StorageConfig.fromYaml(storage);
+      }
+    } catch (e) {
+      debugPrint('[AppConfig] Failed to load config.yaml: $e');
+    }
+    _configLoaded = true;
+  }
+
+  /// Storage configuration, or `null` if not loaded / missing.
+  static StorageConfig? get storage => _storage;
+
+  /// Whether storage config is available.
+  static bool get hasStorage => _storage != null;
+}
+
+/// Storage configuration loaded from `config.yaml`.
+class StorageConfig {
+  final String kind;
+  final String qiniuAccessKey;
+  final String qiniuSecretKey;
+  final String qiniuBucket;
+  final String qiniuDomain;
+  final bool qiniuPrivate;
+  final String qiniuRegion;
+
+  const StorageConfig({
+    required this.kind,
+    required this.qiniuAccessKey,
+    required this.qiniuSecretKey,
+    required this.qiniuBucket,
+    required this.qiniuDomain,
+    required this.qiniuPrivate,
+    required this.qiniuRegion,
+  });
+
+  factory StorageConfig.fromYaml(YamlMap map) {
+    return StorageConfig(
+      kind: map['kind'] as String? ?? 'qiniu',
+      qiniuAccessKey: map['qiniuAccessKey'] as String? ?? '',
+      qiniuSecretKey: map['qiniuSecretKey'] as String? ?? '',
+      qiniuBucket: map['qiniuBucket'] as String? ?? '',
+      qiniuDomain: map['qiniuDomain'] as String? ?? '',
+      qiniuPrivate: map['qiniuPrivate'] as bool? ?? false,
+      qiniuRegion: map['qiniuRegion'] as String? ?? 'huanan',
+    );
+  }
 }

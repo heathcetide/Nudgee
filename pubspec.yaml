@@ -131,6 +131,7 @@ dependencies:
   geolocator: ^13.0.2
   url_launcher: ^6.3.1
   open_filex: ^4.7.0
+  yaml: ^3.1.4
 
   # NOTE: device_info_plus and flutter_webrtc are commented out for now
   # because their Web implementations use package:web which is incompatible
@@ -163,6 +164,7 @@ flutter:
   generate: true
   assets:
     - assets/images/
+    - config.yaml
 
 flutter_launcher_icons:
   android: true
