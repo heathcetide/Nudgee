@@ -164,7 +164,7 @@ flutter:
   generate: true
   assets:
     - assets/images/
-    - config.yaml
+    - assets/config/
 
 flutter_launcher_icons:
   android: true

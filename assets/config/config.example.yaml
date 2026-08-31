@@ -1,0 +1,8 @@
+storage:
+  kind: qiniu
+  qiniuAccessKey: YOUR_ACCESS_KEY
+  qiniuSecretKey: YOUR_SECRET_KEY
+  qiniuBucket: YOUR_BUCKET
+  qiniuDomain: https://your-cdn-domain.com
+  qiniuPrivate: false
+  qiniuRegion: huanan

@@ -12,6 +12,7 @@
 # Secrets / local config
 config.yaml
 config.local.yaml
+assets/config/config.yaml
 .env
 .env.*
 migrate_working_dir/

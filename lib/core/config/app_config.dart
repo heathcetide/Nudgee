@@ -63,7 +63,7 @@ class AppConfig {
   static Future<void> load() async {
     if (_configLoaded) return;
     try {
-      final yamlStr = await rootBundle.loadString('config.yaml');
+      final yamlStr = await rootBundle.loadString('assets/config/config.yaml');
       final doc = loadYaml(yamlStr) as YamlMap;
       final storage = doc['storage'] as YamlMap?;
       if (storage != null) {
