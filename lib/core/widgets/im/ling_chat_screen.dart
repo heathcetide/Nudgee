@@ -20,6 +20,7 @@ import 'package:nudgee/core/widgets/im/ling_message_list.dart';
 import 'package:nudgee/core/widgets/im/ling_message_multi_select.dart';
 import 'package:nudgee/core/widgets/im/ling_message_search.dart';
 import 'package:nudgee/core/widgets/im/ling_message_tooltip.dart';
+import 'package:nudgee/core/widgets/im/ling_typing_indicator.dart';
 
 /// A complete chat screen combining message list + input bar.
 ///
@@ -104,6 +105,11 @@ class _LingChatScreenState extends State<LingChatScreen> {
                 ? '${widget.conversation.members.length} 人'
                 : _getStatusText(widget.conversation.members);
 
+        // Build a typing indicator that shows the other party's avatar + loading bubble.
+        final otherUser = widget.conversation.members
+            .where((u) => u.id != widget.currentUserId)
+            .firstOrNull;
+
         return Scaffold(
           appBar: _buildAppBar(context, theme, subtitle),
           body: Column(
@@ -122,6 +128,12 @@ class _LingChatScreenState extends State<LingChatScreen> {
                   selfAvatarUrl: _selfAvatarUrl,
                   selectedMessageIds: _selectedIds,
                   multiSelectMode: _multiSelectMode,
+                  typingIndicator: otherUser != null
+                      ? _AvatarTypingIndicator(
+                          avatarUrl: otherUser.avatarUrl,
+                          userName: otherUser.name,
+                        )
+                      : null,
                   onMessageLongPress: (msg) {
                     if (_multiSelectMode) {
                       _toggleSelect(msg.id);
@@ -980,6 +992,42 @@ class _SettingsItem extends StatelessWidget {
             Icon(Icons.chevron_right, size: 20, color: theme.colorScheme.onSurfaceVariant),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Typing indicator with the other party's avatar + a loading bubble.
+///
+/// Shows the avatar on the left and a chat bubble with three bouncing dots
+/// on the right, matching the incoming message bubble layout.
+class _AvatarTypingIndicator extends StatelessWidget {
+  final String? avatarUrl;
+  final String? userName;
+
+  const _AvatarTypingIndicator({
+    this.avatarUrl,
+    this.userName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Avatar
+          LingAvatar(
+            imageUrl: avatarUrl,
+            name: userName,
+            size: LingAvatarSize.sm,
+          ),
+          const SizedBox(width: 8),
+          // Loading bubble with bouncing dots
+          const LingTypingIndicator(),
+        ],
       ),
     );
   }
