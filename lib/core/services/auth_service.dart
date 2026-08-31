@@ -41,18 +41,20 @@ class AuthUser {
 
 /// Authentication service backed by Qiniu object storage.
 ///
-/// User credentials are stored as JSON files on Qiniu:
-///   `users/{userId}.json` → { id, name, passwordHash, createdAt }
+/// Storage structure (tenant-style, one folder per user):
+///   nudgee/{userId}/profile.json  → { id, name, passwordHash, createdAt, avatar }
+///   nudgee/{userId}/data/...      → user data files
 ///
 /// Login flow:
 ///   1. Compute userId from username (SHA-256, first 16 chars)
-///   2. Download `users/{userId}.json` from Qiniu CDN
-///   3. Compare password hash
-///   4. On success, cache session in SecureStorage
+///   2. GET `nudgee/{userId}/profile.json` from Qiniu CDN
+///   3. Validate response is real user JSON (has passwordHash field)
+///   4. Compare password hash
+///   5. On success, cache session in SecureStorage
 ///
 /// Register flow:
-///   1. Check if `users/{userId}.json` already exists (download)
-///   2. If not, create user JSON and upload to Qiniu
+///   1. Check if `nudgee/{userId}/profile.json` already exists
+///   2. If not, create profile JSON and upload to Qiniu
 ///   3. Auto-login
 class AuthService {
   final SecureStorageService _storage;
@@ -61,7 +63,7 @@ class AuthService {
 
   static const _keySession = 'local_auth_session';
   static const _keyCurrentUser = 'local_auth_current_user';
-  static const _usersPrefix = 'users/';
+  static const _appPrefix = 'nudgee';
 
   /// Whether the user is currently authenticated.
   final ValueNotifier<bool> isAuthenticated = ValueNotifier<bool>(false);
@@ -79,6 +81,7 @@ class AuthService {
     _dio = Dio(BaseOptions(
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
+      responseType: ResponseType.plain, // always get raw string
     ));
   }
 
@@ -99,26 +102,64 @@ class AuthService {
         .substring(0, 16);
   }
 
-  String _userFileUrl(String userId) {
+  /// Storage key for a user's profile: `nudgee/{userId}/profile.json`
+  String _profileKey(String userId) => '$_appPrefix/$userId/profile.json';
+
+  /// CDN URL for a user's profile.
+  String _profileUrl(String userId) {
     final domain = AppConfig.storage?.qiniuDomain ?? '';
-    return '$domain/$_usersPrefix$userId.json';
+    return '$domain/${_profileKey(userId)}';
   }
 
-  /// Download user JSON from Qiniu CDN. Returns `null` if not found.
+  /// Download user profile from Qiniu CDN.
+  ///
+  /// Returns the parsed JSON if the file exists AND has a `passwordHash`
+  /// field (validating it's a real user file, not a CDN error page).
+  /// Returns `null` if not found or invalid.
   Future<Map<String, dynamic>?> _fetchUser(String userId) async {
     try {
-      final url = _userFileUrl(userId);
-      final response = await _dio.get<dynamic>(url);
-      if (response.statusCode != 200) return null;
-      final data = response.data;
-      if (data is String) {
-        return jsonDecode(data) as Map<String, dynamic>;
-      } else if (data is Map) {
-        return data.cast<String, dynamic>();
+      final url = _profileUrl(userId);
+      debugPrint('[Auth] Fetching user: $url');
+      final response = await _dio.get<String>(url);
+
+      if (response.statusCode != 200) {
+        debugPrint('[Auth] Fetch user — status ${response.statusCode}');
+        return null;
       }
-      return null;
+
+      final body = response.data ?? '';
+      if (body.isEmpty) {
+        debugPrint('[Auth] Fetch user — empty response');
+        return null;
+      }
+
+      // Parse JSON — if this fails, it's a CDN error page, not a user file
+      Map<String, dynamic> json;
+      try {
+        final decoded = jsonDecode(body);
+        if (decoded is! Map<String, dynamic>) {
+          debugPrint('[Auth] Fetch user — response is not a JSON object');
+          return null;
+        }
+        json = decoded;
+      } catch (e) {
+        debugPrint('[Auth] Fetch user — not valid JSON (CDN error page?)');
+        return null;
+      }
+
+      // Validate: must have passwordHash to be a real user profile
+      if (!json.containsKey('passwordHash')) {
+        debugPrint('[Auth] Fetch user — missing passwordHash field');
+        return null;
+      }
+
+      return json;
     } on DioException catch (e) {
-      if (e.response?.statusCode == 404) return null;
+      // 404 = user not found (normal for registration)
+      if (e.response?.statusCode == 404) {
+        debugPrint('[Auth] Fetch user — 404 not found (new user)');
+        return null;
+      }
       debugPrint('[Auth] Fetch user error: ${e.message}');
       return null;
     } catch (e) {
@@ -127,17 +168,22 @@ class AuthService {
     }
   }
 
-  /// Upload user JSON to Qiniu.
+  /// Upload user profile JSON to Qiniu.
   Future<bool> _uploadUser(Map<String, dynamic> userJson) async {
     if (_qiniu == null) {
       debugPrint('[Auth] QiniuStorage not available — cannot upload user');
       return false;
     }
     try {
-      final key = '$_usersPrefix${userJson['id']}.json';
+      final key = _profileKey(userJson['id'] as String);
       final bytes = Uint8List.fromList(utf8.encode(jsonEncode(userJson)));
-      final url = await _qiniu!.uploadBytes(key, bytes);
-      return url != null;
+      debugPrint('[Auth] Uploading user profile: $key');
+      final url = await _qiniu?.uploadBytes(key, bytes);
+      if (url != null) {
+        debugPrint('[Auth] Upload success: $url');
+        return true;
+      }
+      return false;
     } catch (e) {
       debugPrint('[Auth] Upload user error: $e');
       return false;
@@ -157,11 +203,11 @@ class AuthService {
       // Check if user already exists
       final existing = await _fetchUser(userId);
       if (existing != null) {
-        debugPrint('[Auth] Register failed — user already exists');
+        debugPrint('[Auth] Register failed — user "$username" already exists');
         return false;
       }
 
-      // Create user JSON
+      // Create user profile JSON
       final userJson = {
         'id': userId,
         'name': username,
@@ -177,6 +223,7 @@ class AuthService {
       }
 
       // Auto-login
+      debugPrint('[Auth] Register success — auto-logging in');
       return _doLogin(username, password);
     } catch (e) {
       debugPrint('[Auth] Register error: $e');
@@ -194,7 +241,7 @@ class AuthService {
       final userId = _userId(username);
       final userJson = await _fetchUser(userId);
       if (userJson == null) {
-        debugPrint('[Auth] Login failed — user not found');
+        debugPrint('[Auth] Login failed — user "$username" not found');
         return false;
       }
 
@@ -220,6 +267,7 @@ class AuthService {
 
       currentUser.value = authUser;
       isAuthenticated.value = true;
+      debugPrint('[Auth] Login success — ${authUser.name}');
       return true;
     } catch (e) {
       debugPrint('[Auth] Login error: $e');
