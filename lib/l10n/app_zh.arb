@@ -217,5 +217,20 @@
   "imageShareImage": "分享图片",
   "imageSaving": "保存图片中",
   "chatTitle": "聊天",
-  "unnamedPage": "未命名页面"
+  "unnamedPage": "未命名页面",
+
+  "aboutTitle": "关于软件",
+  "aboutAppName": "Nudgee",
+  "aboutAppDesc": "自律 · 记账 · AI 陪伴",
+  "aboutVersion": "版本",
+  "aboutChangelog": "更新日志",
+  "aboutChangelogContent": "v1.0.0\n• 初始发布\n• 七牛云存储集成\n• 用户认证与个人资料管理\n• 课程表功能\n• 国际化支持（中文/英文）",
+  "aboutOpenSource": "开源许可",
+  "aboutOpenSourceDesc": "Nudgee 使用了以下开源项目",
+  "aboutContact": "联系我们",
+  "aboutContactEmail": "反馈邮箱",
+  "aboutContactEmailValue": "support@nudgee.app",
+  "aboutPrivacyPolicy": "隐私政策",
+  "aboutUserAgreement": "用户协议",
+  "aboutCopyRight": "© 2024 Nudgee. All rights reserved."
 }

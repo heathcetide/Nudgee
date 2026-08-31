@@ -6,6 +6,7 @@ import 'package:nudgee/features/auth/presentation/nudgee_auth_page.dart';
 import 'package:nudgee/features/auth/presentation/nudgee_auth_widgets.dart';
 import 'package:nudgee/features/common/utils/route_observer.dart';
 import 'package:nudgee/features/profile/presentation/app_settings_page.dart';
+import 'package:nudgee/features/profile/presentation/about_page.dart';
 import 'package:nudgee/features/profile/presentation/avatar_upload.dart';
 import 'package:nudgee/features/profile/presentation/change_nick_name.dart';
 import 'package:nudgee/features/profile/presentation/my_information.dart';
@@ -25,6 +26,7 @@ class AppRouter {
   static const String splash = '/';
   static const String home = '/home';
   static const String settings = '/settings';
+  static const String about = '/about';
   static const String login = '/login';
   static const String register = '/register';
   static const String myInformation = '/profile/myInformation';
@@ -96,6 +98,11 @@ class AppRouter {
           path: settings,
           name: 'settings',
           builder: (context, state) => const AppSettingsPage(),
+        ),
+        GoRoute(
+          path: about,
+          name: 'about',
+          builder: (context, state) => const AboutPage(),
         ),
       ],
       errorBuilder: (context, state) => _ErrorPage(error: state.error),

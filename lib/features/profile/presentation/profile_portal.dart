@@ -51,6 +51,9 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
           GoRouter.of(context).push(AppRouter.personalHome);
         }
       },
+      {'icon': AntDesign.heart_fill, 'text': l10n.profileLikes, 'onclick': (centext) {}},
+      {'icon': Icons.assignment_outlined, 'text': l10n.profileTaskRecords, 'onclick': (centext) {}},
+      {'icon': Icons.help_outline, 'text': l10n.profileFeedback, 'onclick': (centext) {}},
       {
         'icon': Icons.settings,
         'text': l10n.profileAppSettings,
@@ -58,10 +61,13 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
           GoRouter.of(context).push(AppRouter.settings);
         }
       },
-      {'icon': AntDesign.heart_fill, 'text': l10n.profileLikes, 'onclick': (centext) {}},
-      {'icon': Icons.assignment_outlined, 'text': l10n.profileTaskRecords, 'onclick': (centext) {}},
-      {'icon': Icons.help_outline, 'text': l10n.profileFeedback, 'onclick': (centext) {}},
-      {'icon': Icons.info_outline, 'text': l10n.profileAbout, 'onclick': (centext) {}},
+      {
+        'icon': Icons.info_outline,
+        'text': l10n.profileAbout,
+        'onclick': (context) {
+          GoRouter.of(context).push(AppRouter.about);
+        }
+      },
     ];
 
     return Container(
