@@ -151,7 +151,7 @@ lib/
 
 ## 15. 禁止事项
 
-- ❌ 过早引入业务抽象（ASR/LLM/TTS/多租户/SIP外呼/AI插件）
+- ❌ 过早引入业务抽象（ASR/LLM/TTS/多租户/AI插件）
 - ❌ 在 `core/` 写业务逻辑
 - ❌ 硬编码 URL / 密钥（用 `--dart-define` 或 flavor）
 - ❌ `print()` 在业务代码

@@ -21,6 +21,7 @@ import 'package:nudgee/core/services/bluetooth_service.dart';
 import 'package:nudgee/core/services/connectivity_service.dart';
 import 'package:nudgee/core/services/download_service.dart';
 import 'package:nudgee/core/services/file_picker_service.dart';
+import 'package:nudgee/core/services/file_storage_service.dart';
 import 'package:nudgee/core/services/frame_timing_monitor_service.dart';
 import 'package:nudgee/core/services/local_database_service.dart';
 import 'package:nudgee/core/services/log_file_service.dart';
@@ -135,6 +136,9 @@ Future<void> initDependencies() async {
 
   // ── File Picker ──────────────────────────────────────────────────────
   _safeRegister(() => sl.registerLazySingleton<FilePickerService>(() => FilePickerService()));
+
+  // ── File Storage (local avatars / cache / downloads) ─────────────────
+  _safeRegister(() => sl.registerLazySingleton<FileStorageService>(() => FileStorageService()));
 
   // ── Upload Service ───────────────────────────────────────────────────
   _safeRegister(() => sl.registerLazySingleton<UploadService>(

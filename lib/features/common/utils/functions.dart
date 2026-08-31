@@ -1,16 +1,13 @@
-import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:nudgee/core/di/injector.dart';
+import 'package:nudgee/core/services/file_storage_service.dart';
 import 'package:nudgee/features/common/utils/consts.dart';
 import 'package:nudgee/features/common/utils/local_storage.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
-import 'package:image_gallery_saver/image_gallery_saver.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:qiniu_flutter_sdk/qiniu_flutter_sdk.dart';
 
 DateTime getZeroOclockOfDay(DateTime dateTime) {
   return DateTime(dateTime.year, dateTime.month, dateTime.day);
@@ -65,23 +62,19 @@ Future<void> saveUserInfo(userInfo) async {
 }
 
 Future<void> saveNetworkImage(String imageUrl, context) async {
-  // Request permissions (Android only)
-  if (Platform.isAndroid) {
-    final bool suc = await requestStoragePermission();
-    if (!suc) {
-      SmartDialog.showNotify(msg: '请先授权存储权限', notifyType: NotifyType.error);
-      return;
-    }
-  }
-
   try {
     // Download the image from the network
     var response = await dio.get(imageUrl, options: Options(responseType: ResponseType.bytes));
     Uint8List imageData = Uint8List.fromList(response.data);
 
-    // Save the image to the gallery
-    final result = await ImageGallerySaver.saveImage(imageData);
-    if (result['isSuccess']) {
+    // Save to app-private storage via FileStorageService (no permission needed)
+    final fileName = imageUrl.split('/').last.split('?').first;
+    final saved = await sl<FileStorageService>().saveBytes(
+      FileStorageService.dirDownloads,
+      fileName.isEmpty ? 'image_${DateTime.now().millisecondsSinceEpoch}.jpg' : fileName,
+      imageData,
+    );
+    if (saved != null) {
       SmartDialog.showNotify(msg: '已保存图片', notifyType: NotifyType.success);
     } else {
       SmartDialog.showNotify(msg: '保存失败', notifyType: NotifyType.failure);
@@ -90,28 +83,6 @@ Future<void> saveNetworkImage(String imageUrl, context) async {
     print(e);
     SmartDialog.showNotify(msg: '保存错误：$e', notifyType: NotifyType.error);
   }
-}
-
-Future<bool> requestStoragePermission() async {
-  final DeviceInfoPlugin info = DeviceInfoPlugin();
-  final AndroidDeviceInfo androidInfo = await info.androidInfo;
-  final int androidVersion = int.parse(androidInfo.version.release);
-  bool havePermission = false;
-  if (androidVersion >= 13) {
-    final request = await [
-      Permission.videos,
-      Permission.photos,
-    ].request();
-
-    havePermission = request.values.every((status) => status == PermissionStatus.granted);
-  } else {
-    final status = await Permission.storage.request();
-    havePermission = status.isGranted;
-  }
-  if (!havePermission) {
-    await openAppSettings();
-  }
-  return havePermission;
 }
 
 Future<Uint8List> getCompressedImage(Uint8List image,

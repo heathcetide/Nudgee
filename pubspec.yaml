@@ -93,7 +93,6 @@ dependencies:
   photo_view: ^0.15.0
   image_editor: ^1.5.1
   image: ^4.3.0
-  image_gallery_saver: ^2.0.1
   flutter_image_compress: ^2.3.0
   http_client_helper: ^3.0.0
 
