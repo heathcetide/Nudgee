@@ -1,12 +1,11 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:nudgee/app/router/app_router.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
-import 'package:nudgee/core/services/shared_prefs_service.dart';
+import 'package:nudgee/core/models/schedule_model.dart';
+import 'package:nudgee/core/services/schedule_service.dart';
 import 'package:nudgee/features/common/widgets/page_scaffold.dart';
 
 /// 添加日程页面。
@@ -29,10 +28,6 @@ class _AddSchedulePageState extends State<AddSchedulePage> {
   TimeOfDay _startTime = const TimeOfDay(hour: 8, minute: 30);
   TimeOfDay _endTime = const TimeOfDay(hour: 9, minute: 15);
   bool _isSaving = false;
-
-  /// SharedPreferences key for user-added schedules.
-  static const String _prefsKey = 'user_schedules';
-
   @override
   void dispose() {
     _nameController.dispose();
@@ -113,46 +108,29 @@ class _AddSchedulePageState extends State<AddSchedulePage> {
       final startTime = _formatTime(_startTime);
       final endTime = _formatTime(_endTime);
       final startMin = _toMinutes(_startTime);
-      final endMin = _toMinutes(_endTime);
 
       // 计算 startIndex：用开始时间相对 06:00 的偏移估算（用于 timetable 网格定位）
       const dayStartMinutes = 6 * 60; // 06:00
       final startIndex = ((startMin - dayStartMinutes) / 60).round().clamp(0, 17);
 
-      final entry = {
-        'name': _nameController.text.trim(),
-        'location': _locationController.text.trim().isEmpty
+      final item = ScheduleItem(
+        id: '${_dateStr}_${startTime}_${_nameController.text.trim()}',
+        name: _nameController.text.trim(),
+        location: _locationController.text.trim().isEmpty
             ? '未指定'
             : _locationController.text.trim(),
-        'startIndex': startIndex,
-        'length': 1,
-        'startTime': startTime,
-        'endTime': endTime,
-        'duration': endMin - startMin,
-        'others': [
-          {'key': '任务名称', 'value': _nameController.text.trim()},
-          {'key': '地点', 'value': _locationController.text.trim().isEmpty ? '未指定' : _locationController.text.trim()},
-          {'key': '备注', 'value': _noteController.text.trim().isEmpty ? '无' : _noteController.text.trim()},
-          {'key': '时间', 'value': '$startTime - $endTime'},
-        ],
-      };
+        note: _noteController.text.trim().isEmpty
+            ? '无'
+            : _noteController.text.trim(),
+        date: _dateStr,
+        startTime: startTime,
+        endTime: endTime,
+        startIndex: startIndex,
+        length: 1,
+        isExtra: true,
+      );
 
-      // Read existing user schedules from SharedPreferences.
-      final prefs = sl<SharedPrefsService>();
-      final raw = prefs.getString(_prefsKey);
-      Map<String, dynamic> userSchedules = {};
-      if (raw != null) {
-        userSchedules = jsonDecode(raw) as Map<String, dynamic>;
-      }
-
-      // Add entry to the date's extra list.
-      final dateKey = _dateStr;
-      if (userSchedules[dateKey] == null) {
-        userSchedules[dateKey] = {'fixed': [], 'extra': []};
-      }
-      (userSchedules[dateKey]['extra'] as List).add(entry);
-
-      await prefs.setString(_prefsKey, jsonEncode(userSchedules));
+      await sl<ScheduleService>().addSchedule(item);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -171,11 +149,6 @@ class _AddSchedulePageState extends State<AddSchedulePage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), backgroundColor: Theme.of(context).colorScheme.error),
     );
-  }
-
-  int _timeToMinutes(String timeStr) {
-    final parts = timeStr.split(':');
-    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
   }
 
   @override

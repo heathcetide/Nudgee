@@ -2,10 +2,11 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
+import 'package:nudgee/core/services/schedule_service.dart';
 import 'package:nudgee/features/common/utils/events.dart';
 import 'package:nudgee/features/common/widgets/page_scaffold.dart';
-import 'package:nudgee/features/timetable/utils/mock_timetable_data.dart';
 import 'package:event_bus/event_bus.dart';
 import 'package:flutter/material.dart';
 import 'package:scrollview_observer/scrollview_observer.dart';
@@ -155,19 +156,83 @@ class _TimetableState extends State<Timetable> {
   }
 
   void _initState() async {
-    final _td = generateMockTimetableData();
-    setState(() {
-      dailyClass = _td['dailyClass'];
-      weekPeriodList = _td['weekPeriodList'];
-    });
+    final scheduleService = sl<ScheduleService>();
+    await scheduleService.init();
+    await scheduleService.syncFromCloud();
+
+    // Listen for schedule changes.
+    if (!_scheduleListenerAdded) {
+      _scheduleListenerAdded = true;
+      scheduleService.addListener(_onScheduleChanged);
+    }
+
+    _loadData();
+  }
+
+  bool _scheduleListenerAdded = false;
+
+  void _onScheduleChanged() {
+    _loadData();
+  }
+
+  void _loadData() {
+    final scheduleService = sl<ScheduleService>();
+    final allDates = scheduleService.scheduleData.dates;
+    dailyClass = {};
+    for (final date in allDates) {
+      dailyClass[date] = scheduleService.getForDateAsMap(date);
+    }
+    // Generate week period list from available dates (or default to current week).
+    weekPeriodList = _generateWeekPeriods(allDates);
+
+    setState(() {});
     // 等待 frame 渲染完成后再跳转到当前周
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) jumpToNowWeek();
     });
   }
 
+  /// Generate week periods from available dates.
+  /// If no data, generate current week only.
+  List<Map<String, dynamic>> _generateWeekPeriods(List<String> dates) {
+    if (dates.isEmpty) {
+      final now = DateTime.now();
+      final weekStart = now.subtract(Duration(days: now.weekday - 1));
+      return [
+        {
+          'weekIndex': 0,
+          'startDate': _dateStr(weekStart),
+          'endDate': _dateStr(weekStart.add(const Duration(days: 6))),
+        }
+      ];
+    }
+    // Group dates by week (Monday-Sunday).
+    final weeks = <Map<String, dynamic>>[];
+    final sortedDates = List<String>.from(dates)..sort();
+    DateTime? currentWeekStart;
+    int weekIndex = 0;
+    for (final dateStr in sortedDates) {
+      final date = DateTime.parse(dateStr);
+      final weekStart = date.subtract(Duration(days: date.weekday - 1));
+      if (currentWeekStart == null || weekStart != currentWeekStart) {
+        if (currentWeekStart != null) weekIndex++;
+        currentWeekStart = weekStart;
+        weeks.add({
+          'weekIndex': weekIndex,
+          'startDate': _dateStr(weekStart),
+          'endDate': _dateStr(weekStart.add(const Duration(days: 6))),
+        });
+      }
+    }
+    return weeks;
+  }
+
+  String _dateStr(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
   @override
   void dispose() {
+    sl<ScheduleService>().removeListener(_onScheduleChanged);
     if (listObserverTimer != null) listObserverTimer!.cancel();
     super.dispose();
   }

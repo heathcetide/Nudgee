@@ -1,15 +1,13 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nudgee/app/router/app_router.dart';
 import 'package:nudgee/core/di/injector.dart';
-import 'package:nudgee/core/services/shared_prefs_service.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
+import 'package:nudgee/core/services/schedule_service.dart';
 import 'package:nudgee/features/common/utils/events.dart';
 import 'package:nudgee/features/timetable/presentation/timetable.dart';
-import 'package:nudgee/features/timetable/utils/mock_timetable_data.dart';
 import 'package:flutter/material.dart';
 import 'package:stroke_text/stroke_text.dart';
 import 'package:timelines/timelines.dart';
@@ -113,29 +111,32 @@ class _TodayScheduleState extends State<TodaySchedule> {
   }
 
   void _initState() async {
-    var _td = generateMockTimetableData();
-    dailyClass = _td['dailyClass'];
+    final scheduleService = sl<ScheduleService>();
+    await scheduleService.init();
+    await scheduleService.syncFromCloud();
 
-    // Merge user-added schedules from SharedPreferences.
-    try {
-      final prefs = sl<SharedPrefsService>();
-      final raw = prefs.getString('user_schedules');
-      if (raw != null) {
-        final userSchedules = jsonDecode(raw) as Map<String, dynamic>;
-        for (final entry in userSchedules.entries) {
-          final dateKey = entry.key;
-          final data = entry.value as Map<String, dynamic>;
-          if (dailyClass[dateKey] == null) {
-            dailyClass[dateKey] = {'fixed': [], 'extra': []};
-          }
-          final fixed = data['fixed'] as List? ?? [];
-          final extra = data['extra'] as List? ?? [];
-          (dailyClass[dateKey]['fixed'] as List).addAll(fixed);
-          (dailyClass[dateKey]['extra'] as List).addAll(extra);
-        }
-      }
-    } catch (_) {
-      // Ignore parse errors — mock data still works.
+    // Listen for schedule changes (e.g. when a new schedule is added).
+    if (!_scheduleListenerAdded) {
+      _scheduleListenerAdded = true;
+      scheduleService.addListener(_onScheduleChanged);
+    }
+
+    _loadDailyClass();
+  }
+
+  bool _scheduleListenerAdded = false;
+
+  void _onScheduleChanged() {
+    _loadDailyClass();
+  }
+
+  void _loadDailyClass() {
+    final scheduleService = sl<ScheduleService>();
+    // Build dailyClass map from ScheduleService data.
+    final allDates = scheduleService.scheduleData.dates;
+    dailyClass = {};
+    for (final date in allDates) {
+      dailyClass[date] = scheduleService.getForDateAsMap(date);
     }
 
     String dateStr = DateTime.now().add(tmpOffset).toString().split(' ')[0];
@@ -229,6 +230,7 @@ class _TodayScheduleState extends State<TodaySchedule> {
   @override
   void dispose() {
     if (timer != null) timer!.cancel();
+    sl<ScheduleService>().removeListener(_onScheduleChanged);
     super.dispose();
   }
 

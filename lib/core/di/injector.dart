@@ -25,6 +25,7 @@ import 'package:nudgee/core/services/download_service.dart';
 import 'package:nudgee/core/services/file_picker_service.dart';
 import 'package:nudgee/core/services/file_storage_service.dart';
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
+import 'package:nudgee/core/services/schedule_service.dart';
 import 'package:nudgee/core/services/frame_timing_monitor_service.dart';
 import 'package:nudgee/core/services/local_database_service.dart';
 import 'package:nudgee/core/services/log_file_service.dart';
@@ -183,6 +184,15 @@ Future<void> initDependencies() async {
 
   // ── File Storage (local avatars / cache / downloads) ─────────────────
   _safeRegister(() => sl.registerLazySingleton<FileStorageService>(() => FileStorageService()));
+
+  // ── Schedule Service (local file + Qiniu cloud sync) ─────────────────
+  _safeRegister(() => sl.registerLazySingleton<ScheduleService>(
+        () => ScheduleService(
+          fileStorage: sl<FileStorageService>(),
+          qiniu: sl<QiniuStorageService>(),
+          prefs: sl<SharedPrefsService>(),
+        ),
+      ));
 
   // ── Upload Service ───────────────────────────────────────────────────
   _safeRegister(() => sl.registerLazySingleton<UploadService>(
