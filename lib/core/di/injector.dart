@@ -125,12 +125,9 @@ Future<void> initDependencies() async {
 
   // ── Qiniu Cloud Storage (object storage, config from config.yaml) ────
   // Registered before AuthService so it's available as a dependency.
-  if (AppConfig.hasStorage) {
-    _safeRegister(() => sl.registerLazySingleton<QiniuStorageService>(() => QiniuStorageService()));
-    debugPrint('[Init] QiniuStorage registered');
-  } else {
-    debugPrint('[Init] QiniuStorage skipped (no config.yaml)');
-  }
+  // Always registered — QiniuStorageService handles missing config gracefully.
+  _safeRegister(() => sl.registerLazySingleton<QiniuStorageService>(() => QiniuStorageService()));
+  debugPrint('[Init] QiniuStorage registered (configured: ${AppConfig.hasStorage})');
 
   // ── Auth Service (Qiniu-backed, no backend) ──────────────────────────
   _safeRegister(() => sl.registerLazySingleton<AuthService>(

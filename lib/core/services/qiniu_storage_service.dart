@@ -16,18 +16,25 @@ import 'package:nudgee/core/config/app_config.dart';
 ///   final url = await sl<QiniuStorageService>().uploadBytes(
 ///     'avatars/user123.jpg', bytes);
 class QiniuStorageService {
-  late final Storage _storage;
-  late final Auth _auth;
-  late final StorageConfig _config;
+  final Storage _storage;
+  final Auth _auth;
+  final StorageConfig _config;
 
-  QiniuStorageService() {
-    _config = AppConfig.storage!;
-    _auth = Auth(
-      accessKey: _config.qiniuAccessKey,
-      secretKey: _config.qiniuSecretKey,
-    );
-    _storage = Storage();
-  }
+  QiniuStorageService()
+      : _config = AppConfig.storage ?? const StorageConfig(
+          kind: 'qiniu',
+          qiniuAccessKey: '',
+          qiniuSecretKey: '',
+          qiniuBucket: '',
+          qiniuDomain: '',
+          qiniuPrivate: false,
+          qiniuRegion: 'huanan',
+        ),
+        _auth = Auth(
+          accessKey: AppConfig.storage?.qiniuAccessKey ?? '',
+          secretKey: AppConfig.storage?.qiniuSecretKey ?? '',
+        ),
+        _storage = Storage();
 
   /// Whether the service is properly configured.
   bool get isConfigured =>

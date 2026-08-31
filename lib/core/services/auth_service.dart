@@ -59,7 +59,11 @@ class AuthUser {
 class AuthService {
   final SecureStorageService _storage;
   final QiniuStorageService? _qiniu;
-  late final Dio _dio;
+  final Dio _dio = Dio(BaseOptions(
+    connectTimeout: Duration(seconds: 10),
+    receiveTimeout: Duration(seconds: 10),
+    responseType: ResponseType.plain,
+  ));
 
   static const _keySession = 'local_auth_session';
   static const _keyCurrentUser = 'local_auth_current_user';
@@ -77,13 +81,7 @@ class AuthService {
     required SecureStorageService storage,
     QiniuStorageService? qiniu,
   })  : _storage = storage,
-        _qiniu = qiniu {
-    _dio = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
-      responseType: ResponseType.plain, // always get raw string
-    ));
-  }
+        _qiniu = qiniu;
 
   // ── Public getters ───────────────────────────────────────────────────
 
@@ -178,7 +176,7 @@ class AuthService {
       final key = _profileKey(userJson['id'] as String);
       final bytes = Uint8List.fromList(utf8.encode(jsonEncode(userJson)));
       debugPrint('[Auth] Uploading user profile: $key');
-      final url = await _qiniu?.uploadBytes(key, bytes);
+      final url = await _qiniu!.uploadBytes(key, bytes);
       if (url != null) {
         debugPrint('[Auth] Upload success: $url');
         return true;
