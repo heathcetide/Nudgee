@@ -168,7 +168,8 @@ class AuthService {
   }
 
   /// Upload user profile JSON to Qiniu.
-  Future<bool> _uploadUser(Map<String, dynamic> userJson) async {
+  /// Returns (success, errorMessage).
+  Future<(bool, String?)> _uploadUser(Map<String, dynamic> userJson) async {
     // Resolve QiniuStorageService — try injected instance first,
     // then fall back to GetIt (handles hot-reload where DI wasn't re-run).
     QiniuStorageService? qiniu = _qiniu;
@@ -181,8 +182,10 @@ class AuthService {
       }
     }
     if (qiniu == null) {
-      debugPrint('[Auth] QiniuStorage not available — cannot upload user');
-      return false;
+      return (false, 'QiniuStorage 未注册');
+    }
+    if (!qiniu.isConfigured) {
+      return (false, '七牛配置为空（config.yaml 未加载）');
     }
     try {
       final key = _profileKey(userJson['id'] as String);
@@ -191,12 +194,12 @@ class AuthService {
       final url = await qiniu.uploadBytes(key, bytes);
       if (url != null) {
         debugPrint('[Auth] Upload success: $url');
-        return true;
+        return (true, null);
       }
-      return false;
+      return (false, '七牛上传返回 null（查看 QiniuStorage 日志）');
     } catch (e) {
       debugPrint('[Auth] Upload user error: $e');
-      return false;
+      return (false, '上传异常: $e');
     }
   }
 
@@ -234,10 +237,10 @@ class AuthService {
       };
 
       // Upload to Qiniu
-      final uploaded = await _uploadUser(userJson);
+      final (uploaded, uploadError) = await _uploadUser(userJson);
       if (!uploaded) {
-        debugPrint('[Auth] Register failed — upload error');
-        return (false, '上传到七牛失败，请检查网络和配置');
+        debugPrint('[Auth] Register failed — upload error: $uploadError');
+        return (false, uploadError ?? '上传到七牛失败');
       }
 
       // Auto-login
