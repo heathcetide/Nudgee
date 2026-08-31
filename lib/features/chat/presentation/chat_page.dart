@@ -59,6 +59,8 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   void _onSend(LingConversation conv, String text) {
+    // LingChatScreen already adds the user message to the controller internally,
+    // so we only update the conversation list here.
     final msg = LingMessage(
       id: 'local_${DateTime.now().millisecondsSinceEpoch}',
       conversationId: conv.id,
@@ -68,8 +70,6 @@ class _ChatPageState extends State<ChatPage> {
       createdAt: DateTime.now(),
       status: LingMessageStatus.sent,
     );
-    final controller = _chatControllers[conv.id];
-    controller?.addMessage(msg);
     _convController.upsertConversation(conv.copyWith(lastMessage: msg));
 
     // Route to AI if this is the LingEcho buddy.
@@ -92,51 +92,72 @@ class _ChatPageState extends State<ChatPage> {
     final controller = _chatControllers[conv.id];
     if (controller == null) return;
 
-    // Create a placeholder AI message that we'll update as chunks arrive.
-    final aiMsgId = 'ai_${DateTime.now().millisecondsSinceEpoch}';
-    final aiMsg = LingMessage(
-      id: aiMsgId,
-      conversationId: conv.id,
-      authorId: _aiBuddyId,
-      type: LingMessageType.text,
-      text: '',
-      createdAt: DateTime.now(),
-      status: LingMessageStatus.sending,
-    );
-    controller.addMessage(aiMsg);
+    // Show typing indicator (the other party is "typing").
     controller.isTyping = true;
 
     final buffer = StringBuffer();
+    String? aiMsgId;
     StreamSubscription<String>? sub;
 
     sub = ai.streamChat(userText).listen(
       (delta) {
         buffer.write(delta);
-        controller.updateMessage(aiMsgId, (m) => m.copyWith(
-          text: buffer.toString(),
-          status: LingMessageStatus.sent,
-        ));
+        // Add the AI message bubble only when the first delta arrives,
+        // so we don't show an empty bubble before any content.
+        if (aiMsgId == null) {
+          aiMsgId = 'ai_${DateTime.now().millisecondsSinceEpoch}';
+          controller.addMessage(LingMessage(
+            id: aiMsgId!,
+            conversationId: conv.id,
+            authorId: _aiBuddyId,
+            type: LingMessageType.text,
+            text: buffer.toString(),
+            createdAt: DateTime.now(),
+            status: LingMessageStatus.sent,
+          ));
+          controller.isTyping = false;
+        } else {
+          controller.updateMessage(aiMsgId!, (m) => m.copyWith(
+            text: buffer.toString(),
+            status: LingMessageStatus.sent,
+          ));
+        }
         _convController.upsertConversation(conv.copyWith(
           lastMessage: controller.messages.last,
         ));
       },
       onDone: () {
         controller.isTyping = false;
-        controller.updateMessage(aiMsgId, (m) => m.copyWith(
-          text: buffer.toString().isEmpty ? '...' : buffer.toString(),
-          status: LingMessageStatus.read,
-        ));
-        _convController.upsertConversation(conv.copyWith(
-          lastMessage: controller.messages.last,
-        ));
+        if (aiMsgId != null) {
+          controller.updateMessage(aiMsgId!, (m) => m.copyWith(
+            text: buffer.toString().isEmpty ? '...' : buffer.toString(),
+            status: LingMessageStatus.read,
+          ));
+          _convController.upsertConversation(conv.copyWith(
+            lastMessage: controller.messages.last,
+          ));
+        }
         sub?.cancel();
       },
       onError: (e) {
         controller.isTyping = false;
-        controller.updateMessage(aiMsgId, (m) => m.copyWith(
-          text: context.l10n.aiError(e.toString()),
-          status: LingMessageStatus.failed,
-        ));
+        if (aiMsgId != null) {
+          controller.updateMessage(aiMsgId!, (m) => m.copyWith(
+            text: context.l10n.aiError(e.toString()),
+            status: LingMessageStatus.failed,
+          ));
+        } else {
+          // No content received yet — add an error message.
+          controller.addMessage(LingMessage(
+            id: 'ai_err_${DateTime.now().millisecondsSinceEpoch}',
+            conversationId: conv.id,
+            authorId: _aiBuddyId,
+            type: LingMessageType.text,
+            text: context.l10n.aiError(e.toString()),
+            createdAt: DateTime.now(),
+            status: LingMessageStatus.failed,
+          ));
+        }
         _convController.upsertConversation(conv.copyWith(
           lastMessage: controller.messages.last,
         ));
