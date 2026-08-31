@@ -32,6 +32,7 @@ import 'package:nudgee/core/services/logger_service.dart';
 import 'package:nudgee/core/services/push_notification_service.dart';
 import 'package:nudgee/core/services/secure_storage_service.dart';
 import 'package:nudgee/core/services/shared_prefs_service.dart';
+import 'package:nudgee/core/services/user_storage_service.dart';
 import 'package:nudgee/core/services/upload_service.dart';
 
 /// Global service locator instance.
@@ -61,6 +62,15 @@ Future<void> initDependencies() async {
   // ── Secure Storage (may fail on Web) ─────────────────────────────────
   _safeRegister(() => sl.registerLazySingleton<SecureStorageService>(() => SecureStorageService()));
   debugPrint('[Init] SecureStorage registered');
+
+  // ── User Storage (token in SecureStorage, profile in SharedPrefs) ────
+  _safeRegister(() => sl.registerLazySingleton<UserStorageService>(
+        () => UserStorageService(
+          secure: sl<SecureStorageService>(),
+          prefs: sl<SharedPrefsService>(),
+        ),
+      ));
+  debugPrint('[Init] UserStorage registered');
 
   // ── Local Database (Hive) ────────────────────────────────────────────
   try {
@@ -132,8 +142,7 @@ Future<void> initDependencies() async {
   // ── Auth Service (Qiniu-backed, no backend) ──────────────────────────
   _safeRegister(() => sl.registerLazySingleton<AuthService>(
         () => AuthService(
-          storage: sl<SecureStorageService>(),
-          qiniu: sl.isRegistered<QiniuStorageService>() ? sl<QiniuStorageService>() : null,
+          userStorage: sl<UserStorageService>(),
         ),
       ));
 

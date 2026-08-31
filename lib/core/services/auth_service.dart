@@ -8,7 +8,7 @@ import 'package:dio/dio.dart';
 import 'package:nudgee/core/config/app_config.dart';
 import 'package:nudgee/core/di/injector.dart' as di;
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
-import 'package:nudgee/core/services/secure_storage_service.dart';
+import 'package:nudgee/core/services/user_storage_service.dart';
 
 /// Lightweight representation of the authenticated user.
 class AuthUser {
@@ -42,32 +42,23 @@ class AuthUser {
 
 /// Authentication service backed by Qiniu object storage.
 ///
-/// Storage structure (tenant-style, one folder per user):
-///   nudgee/{userId}/profile.json  → { id, name, passwordHash, createdAt, avatar }
-///   nudgee/{userId}/data/...      → user data files
+/// Storage layout:
+///   **Cloud (Qiniu)**: `nudgee/{userId}/profile.json` — full profile + passwordHash
+///   **Local (SecureStorage)**: token, userId — sensitive, encrypted
+///   **Local (SharedPreferences)**: user profile JSON — fast read for UI
 ///
-/// Login flow:
-///   1. Compute userId from username (SHA-256, first 16 chars)
-///   2. GET `nudgee/{userId}/profile.json` from Qiniu CDN
-///   3. Validate response is real user JSON (has passwordHash field)
-///   4. Compare password hash
-///   5. On success, cache session in SecureStorage
-///
-/// Register flow:
-///   1. Check if `nudgee/{userId}/profile.json` already exists
-///   2. If not, create profile JSON and upload to Qiniu
-///   3. Auto-login
+/// Register: check Qiniu → upload profile → save local session → auto-login
+/// Login: download from Qiniu → verify password → save local session
+/// Restore: read local session on app startup
 class AuthService {
-  final SecureStorageService _storage;
-  final QiniuStorageService? _qiniu;
+  final UserStorageService _userStorage;
+  QiniuStorageService? _qiniu;
   final Dio _dio = Dio(BaseOptions(
     connectTimeout: Duration(seconds: 10),
     receiveTimeout: Duration(seconds: 10),
     responseType: ResponseType.plain,
   ));
 
-  static const _keySession = 'local_auth_session';
-  static const _keyCurrentUser = 'local_auth_current_user';
   static const _appPrefix = 'nudgee';
 
   /// Whether the user is currently authenticated.
@@ -78,11 +69,15 @@ class AuthService {
 
   String? _accessToken;
 
-  AuthService({
-    required SecureStorageService storage,
-    QiniuStorageService? qiniu,
-  })  : _storage = storage,
-        _qiniu = qiniu;
+  AuthService({required UserStorageService userStorage})
+      : _userStorage = userStorage {
+    // Try to resolve QiniuStorageService from DI
+    try {
+      _qiniu = di.sl<QiniuStorageService>();
+    } catch (_) {
+      // Will be resolved lazily in _uploadUser
+    }
+  }
 
   // ── Public getters ───────────────────────────────────────────────────
 
@@ -113,8 +108,7 @@ class AuthService {
   /// Download user profile from Qiniu CDN.
   ///
   /// Returns the parsed JSON if the file exists AND has a `passwordHash`
-  /// field (validating it's a real user file, not a CDN error page).
-  /// Returns `null` if not found or invalid.
+  /// field. Returns `null` if not found or invalid.
   Future<Map<String, dynamic>?> _fetchUser(String userId) async {
     try {
       final url = _profileUrl(userId);
@@ -154,7 +148,6 @@ class AuthService {
 
       return json;
     } on DioException catch (e) {
-      // 404 = user not found (normal for registration)
       if (e.response?.statusCode == 404) {
         debugPrint('[Auth] Fetch user — 404 not found (new user)');
         return null;
@@ -170,13 +163,13 @@ class AuthService {
   /// Upload user profile JSON to Qiniu.
   /// Returns (success, errorMessage).
   Future<(bool, String?)> _uploadUser(Map<String, dynamic> userJson) async {
-    // Resolve QiniuStorageService — try injected instance first,
-    // then fall back to GetIt (handles hot-reload where DI wasn't re-run).
+    // Resolve QiniuStorageService — try cached instance first, then GetIt
     QiniuStorageService? qiniu = _qiniu;
     if (qiniu == null) {
       try {
         qiniu = di.sl<QiniuStorageService>();
-        debugPrint('[Auth] Resolved QiniuStorage from GetIt fallback');
+        _qiniu = qiniu; // cache for next time
+        debugPrint('[Auth] Resolved QiniuStorage from GetIt');
       } catch (e) {
         debugPrint('[Auth] QiniuStorage not in GetIt: $e');
       }
@@ -203,6 +196,20 @@ class AuthService {
     }
   }
 
+  /// Save session to local storage (token + userId + profile).
+  Future<void> _saveLocalSession({
+    required String token,
+    required String userId,
+    required Map<String, dynamic> profile,
+  }) async {
+    await _userStorage.saveSession(
+      token: token,
+      userId: userId,
+      profile: profile,
+    );
+    debugPrint('[Auth] Local session saved (token + userId + profile)');
+  }
+
   // ── Auth actions ─────────────────────────────────────────────────────
 
   /// Registers a new account with [username] and [password].
@@ -215,7 +222,6 @@ class AuthService {
     try {
       final userId = _userId(username);
 
-      // Check if Qiniu is configured
       if (!AppConfig.hasStorage) {
         debugPrint('[Auth] Register failed — no storage config');
         return (false, '存储配置未加载，请检查 config.yaml');
@@ -236,19 +242,33 @@ class AuthService {
         'createdAt': DateTime.now().toIso8601String(),
       };
 
-      // Upload to Qiniu
+      // Upload to Qiniu (cloud)
       final (uploaded, uploadError) = await _uploadUser(userJson);
       if (!uploaded) {
         debugPrint('[Auth] Register failed — upload error: $uploadError');
         return (false, uploadError ?? '上传到七牛失败');
       }
 
-      // Auto-login
-      debugPrint('[Auth] Register success — auto-logging in');
-      final loginOk = await _doLogin(username, password);
-      if (!loginOk) {
-        return (false, '注册成功但自动登录失败');
-      }
+      // Save local session
+      final sessionToken = _hashPassword(
+          '$username:${DateTime.now().millisecondsSinceEpoch}');
+      _accessToken = sessionToken;
+
+      final authUser = AuthUser(
+        id: userId,
+        name: username,
+      );
+
+      await _saveLocalSession(
+        token: sessionToken,
+        userId: userId,
+        profile: authUser.toJson(),
+      );
+
+      currentUser.value = authUser;
+      isAuthenticated.value = true;
+
+      debugPrint('[Auth] Register + login success — ${authUser.name}');
       return (true, null);
     } catch (e) {
       debugPrint('[Auth] Register error: $e');
@@ -258,10 +278,6 @@ class AuthService {
 
   /// Logs in with [username] and [password].
   Future<bool> login(String username, String password) async {
-    return _doLogin(username, password);
-  }
-
-  Future<bool> _doLogin(String username, String password) async {
     try {
       final userId = _userId(username);
       final userJson = await _fetchUser(userId);
@@ -280,15 +296,19 @@ class AuthService {
       final sessionToken = _hashPassword(
           '$username:${DateTime.now().millisecondsSinceEpoch}');
       _accessToken = sessionToken;
-      await _storage.write(key: _keySession, value: sessionToken);
 
       final authUser = AuthUser(
         id: userJson['id'] as String? ?? userId,
         name: userJson['name'] as String? ?? username,
         avatar: userJson['avatar'] as String?,
       );
-      await _storage.write(
-          key: _keyCurrentUser, value: jsonEncode(authUser.toJson()));
+
+      // Save to local storage (token in SecureStorage, profile in SharedPrefs)
+      await _saveLocalSession(
+        token: sessionToken,
+        userId: userId,
+        profile: authUser.toJson(),
+      );
 
       currentUser.value = authUser;
       isAuthenticated.value = true;
@@ -303,29 +323,39 @@ class AuthService {
   /// Logs out, clears local session.
   Future<void> logout() async {
     _accessToken = null;
-    await _storage.delete(key: _keySession);
-    await _storage.delete(key: _keyCurrentUser);
+    await _userStorage.clearAll();
     currentUser.value = null;
     isAuthenticated.value = false;
+    debugPrint('[Auth] Logout — local session cleared');
   }
 
   /// Checks persisted session and hydrates the in-memory auth state.
+  ///
+  /// Called at app startup to restore a previous session.
   Future<bool> checkAuthStatus() async {
     try {
-      final session = await _storage.read(key: _keySession);
-      final userJson = await _storage.read(key: _keyCurrentUser);
-
-      if (session == null || session.isEmpty || userJson == null) {
+      final token = await _userStorage.getToken();
+      if (token == null || token.isEmpty) {
         isAuthenticated.value = false;
         currentUser.value = null;
         return false;
       }
 
-      _accessToken = session;
-      currentUser.value =
-          AuthUser.fromJson(jsonDecode(userJson) as Map<String, dynamic>);
-      isAuthenticated.value = true;
-      return true;
+      _accessToken = token;
+
+      // Load profile from SharedPreferences (fast, non-sensitive)
+      final profile = _userStorage.getProfile();
+      if (profile != null) {
+        currentUser.value = AuthUser.fromJson(profile);
+        isAuthenticated.value = true;
+        debugPrint('[Auth] Session restored — ${currentUser.value?.name}');
+        return true;
+      }
+
+      // No profile locally — need to re-login
+      isAuthenticated.value = false;
+      currentUser.value = null;
+      return false;
     } catch (e) {
       debugPrint('[Auth] Check auth status error: $e');
       isAuthenticated.value = false;
@@ -339,9 +369,6 @@ class AuthService {
     _accessToken = null;
     isAuthenticated.value = false;
     currentUser.value = null;
-    try {
-      await _storage.delete(key: _keySession);
-      await _storage.delete(key: _keyCurrentUser);
-    } catch (_) {}
+    await _userStorage.clearAll();
   }
 }
