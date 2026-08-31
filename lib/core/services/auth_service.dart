@@ -203,18 +203,26 @@ class AuthService {
   // ── Auth actions ─────────────────────────────────────────────────────
 
   /// Registers a new account with [username] and [password].
-  Future<bool> register({
+  ///
+  /// Returns `(true, null)` on success, `(false, errorMessage)` on failure.
+  Future<(bool, String?)> register({
     required String username,
     required String password,
   }) async {
     try {
       final userId = _userId(username);
 
+      // Check if Qiniu is configured
+      if (!AppConfig.hasStorage) {
+        debugPrint('[Auth] Register failed — no storage config');
+        return (false, '存储配置未加载，请检查 config.yaml');
+      }
+
       // Check if user already exists
       final existing = await _fetchUser(userId);
       if (existing != null) {
         debugPrint('[Auth] Register failed — user "$username" already exists');
-        return false;
+        return (false, '用户名已存在');
       }
 
       // Create user profile JSON
@@ -229,15 +237,19 @@ class AuthService {
       final uploaded = await _uploadUser(userJson);
       if (!uploaded) {
         debugPrint('[Auth] Register failed — upload error');
-        return false;
+        return (false, '上传到七牛失败，请检查网络和配置');
       }
 
       // Auto-login
       debugPrint('[Auth] Register success — auto-logging in');
-      return _doLogin(username, password);
+      final loginOk = await _doLogin(username, password);
+      if (!loginOk) {
+        return (false, '注册成功但自动登录失败');
+      }
+      return (true, null);
     } catch (e) {
       debugPrint('[Auth] Register error: $e');
-      return false;
+      return (false, '注册异常: $e');
     }
   }
 
