@@ -57,7 +57,6 @@ class QiniuStorageService {
   /// Returns the full CDN URL on success, or `null` on failure.
   Future<String?> uploadBytes(String key, Uint8List bytes) async {
     debugPrint('[QiniuStorage] uploadBytes: key=$key, bytes=${bytes.length}B, configured=$isConfigured');
-    debugPrint('[QiniuStorage] config: bucket=${_config.qiniuBucket}, domain=${_config.qiniuDomain}, ak=${_config.qiniuAccessKey.substring(0, 8)}...');
     if (!isConfigured) {
       debugPrint('[QiniuStorage] uploadBytes FAILED — not configured');
       return null;
@@ -65,7 +64,11 @@ class QiniuStorageService {
     try {
       final token = _generateToken(key);
       debugPrint('[QiniuStorage] token generated, uploading...');
-      final response = await _storage.putBytes(bytes, token);
+      final response = await _storage.putBytes(
+        bytes,
+        token,
+        options: PutOptions(key: key),
+      );
       debugPrint('[QiniuStorage] upload success: key=${response.key}, hash=${response.hash}');
       return '${_config.qiniuDomain}/$key';
     } catch (e, st) {
@@ -82,7 +85,7 @@ class QiniuStorageService {
     if (!isConfigured) return null;
     try {
       final token = _generateToken(key);
-      await _storage.putFile(file, token);
+      await _storage.putFile(file, token, options: PutOptions(key: key));
       return '${_config.qiniuDomain}/$key';
     } catch (e) {
       debugPrint('[QiniuStorage] uploadFile error: $e');
