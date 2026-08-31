@@ -20,19 +20,11 @@ Color activeColor = const Color.fromARGB(255, 167, 189, 242);
 const markedTimes = [
   {
     'align': 'start',
-    'time': '06:30',
+    'time': '06:00',
   },
   {
     'align': 'end',
-    'time': '08:05',
-  },
-  {
-    'align': 'start',
-    'time': '08:30',
-  },
-  {
-    'align': 'end',
-    'time': '11:10',
+    'time': '12:00',
   },
   {
     'align': 'start',
@@ -40,7 +32,7 @@ const markedTimes = [
   },
   {
     'align': 'end',
-    'time': '16:40',
+    'time': '18:00',
   },
   {
     'align': 'start',
@@ -48,13 +40,13 @@ const markedTimes = [
   },
   {
     'align': 'end',
-    'time': '21:40',
+    'time': '24:00',
   }
 ];
 
 const wholeDayPeriod = {
-  'start': '06:30',
-  'end': '21:40',
+  'start': '06:00',
+  'end': '24:00',
 };
 
 final totalDailyMinutes =
