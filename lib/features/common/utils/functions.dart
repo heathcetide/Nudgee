@@ -3,9 +3,7 @@ import 'dart:typed_data';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/services/file_storage_service.dart';
 import 'package:nudgee/features/common/utils/consts.dart';
-import 'package:nudgee/features/common/utils/local_storage.dart';
 import 'package:dio/dio.dart';
-import 'package:extended_image/extended_image.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 
@@ -40,27 +38,6 @@ String getChineseStringByDatetime(DateTime dateTime, [DateTime? now]) {
   return '${dateTime.year}-${padLeft(dateTime.month)}-${padLeft(dateTime.day)}';
 }
 
-Future<void> syncUserInfo() async {
-  var resp = (await dio.get(BaseURL + '/user/info', data: {})).data;
-  print(resp);
-  await saveUserInfo(resp['data']);
-}
-
-Future<void> saveUserInfo(userInfo) async {
-  await LocalStorage.user_avatar.set(userInfo['user']['userAvatar']);
-  await LocalStorage.user_nickName.set(userInfo['user']['nickName']);
-  await LocalStorage.user_userName.set(userInfo['user']['userName']);
-  await LocalStorage.user_uid.set(userInfo['user']['uid']);
-  await LocalStorage.user_mobile.set(userInfo['user']['mobile']);
-  await LocalStorage.user_dormBuilding.set(userInfo['user']['dormBuilding']);
-  await LocalStorage.user_dormNumber.set(userInfo['user']['dormNumber']);
-  await LocalStorage.user_college.set(userInfo['user']['college']);
-  await LocalStorage.user_gender.set(userInfo['user']['gender'] == 0 ? '女' : '男');
-  clearMemoryImageCache();
-  await clearDiskCachedImage(userInfo['user']['userAvatar']);
-  await clearDiskCachedImage(userInfo['user']['userAvatar'] + '_original');
-}
-
 Future<void> saveNetworkImage(String imageUrl, context) async {
   try {
     // Download the image from the network
@@ -80,7 +57,6 @@ Future<void> saveNetworkImage(String imageUrl, context) async {
       SmartDialog.showNotify(msg: '保存失败', notifyType: NotifyType.failure);
     }
   } catch (e) {
-    print(e);
     SmartDialog.showNotify(msg: '保存错误：$e', notifyType: NotifyType.error);
   }
 }

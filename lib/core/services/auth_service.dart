@@ -8,6 +8,7 @@ import 'package:dio/dio.dart';
 import 'package:nudgee/core/config/app_config.dart';
 import 'package:nudgee/core/di/injector.dart' as di;
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
+import 'package:nudgee/core/services/user_cache_service.dart';
 import 'package:nudgee/core/services/user_storage_service.dart';
 
 /// Lightweight representation of the authenticated user.
@@ -327,11 +328,22 @@ class AuthService {
 
   /// Logs out, clears local session.
   Future<void> logout() async {
+    // Clear user-specific Hive cache (settings, drafts, offline data)
+    final user = currentUser.value;
+    if (user != null) {
+      try {
+        final cache = di.sl<UserCacheService>();
+        await cache.clearAllForUser(user.id);
+      } catch (e) {
+        debugPrint('[Auth] Logout — clear user cache failed: $e');
+      }
+    }
+
     _accessToken = null;
     await _userStorage.clearAll();
     currentUser.value = null;
     isAuthenticated.value = false;
-    debugPrint('[Auth] Logout — local session cleared');
+    debugPrint('[Auth] Logout — local session + cache cleared');
   }
 
   /// Checks persisted session and hydrates the in-memory auth state.

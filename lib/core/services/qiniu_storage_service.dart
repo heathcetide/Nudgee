@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:qiniu_flutter_sdk/qiniu_flutter_sdk.dart';
 import 'package:qiniu_sdk_base/qiniu_sdk_base.dart' show Auth, PutPolicy;
@@ -103,6 +104,79 @@ class QiniuStorageService {
   String urlFromKey(String keyOrUrl) {
     if (keyOrUrl.startsWith('http')) return keyOrUrl;
     return urlFor(keyOrUrl);
+  }
+
+  // ── Download ──────────────────────────────────────────────────────────
+
+  final Dio _downloadDio = Dio(BaseOptions(
+    connectTimeout: Duration(seconds: 15),
+    receiveTimeout: Duration(seconds: 30),
+    responseType: ResponseType.bytes,
+  ));
+
+  /// Download bytes from Qiniu CDN by [key].
+  ///
+  /// Returns the raw bytes on success, or `null` on failure.
+  Future<Uint8List?> downloadBytes(String key) async {
+    final url = urlFor(key);
+    debugPrint('[QiniuStorage] downloadBytes: $url');
+    try {
+      final response = await _downloadDio.get<List<int>>(url);
+      if (response.statusCode != 200 || response.data == null) {
+        debugPrint('[QiniuStorage] downloadBytes failed — status ${response.statusCode}');
+        return null;
+      }
+      return Uint8List.fromList(response.data!);
+    } on DioException catch (e) {
+      debugPrint('[QiniuStorage] downloadBytes error: ${e.message}');
+      return null;
+    } catch (e) {
+      debugPrint('[QiniuStorage] downloadBytes error: $e');
+      return null;
+    }
+  }
+
+  /// Download a file from Qiniu CDN by [key] and save it to [localPath].
+  ///
+  /// Returns the saved [File] on success, or `null` on failure.
+  Future<File?> downloadFile(String key, String localPath) async {
+    final url = urlFor(key);
+    debugPrint('[QiniuStorage] downloadFile: $url → $localPath');
+    try {
+      await _downloadDio.download(url, localPath);
+      return File(localPath);
+    } on DioException catch (e) {
+      debugPrint('[QiniuStorage] downloadFile error: ${e.message}');
+      return null;
+    } catch (e) {
+      debugPrint('[QiniuStorage] downloadFile error: $e');
+      return null;
+    }
+  }
+
+  /// Download text content from Qiniu CDN by [key].
+  ///
+  /// Returns the decoded string on success, or `null` on failure.
+  Future<String?> downloadText(String key) async {
+    final url = urlFor(key);
+    debugPrint('[QiniuStorage] downloadText: $url');
+    try {
+      final response = await _downloadDio.get<String>(
+        url,
+        options: Options(responseType: ResponseType.plain),
+      );
+      if (response.statusCode != 200 || response.data == null) {
+        debugPrint('[QiniuStorage] downloadText failed — status ${response.statusCode}');
+        return null;
+      }
+      return response.data;
+    } on DioException catch (e) {
+      debugPrint('[QiniuStorage] downloadText error: ${e.message}');
+      return null;
+    } catch (e) {
+      debugPrint('[QiniuStorage] downloadText error: $e');
+      return null;
+    }
   }
 
   /// Delete an object by [key]. (Requires server-side API in production;

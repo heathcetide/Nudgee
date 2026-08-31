@@ -32,6 +32,7 @@ import 'package:nudgee/core/services/logger_service.dart';
 import 'package:nudgee/core/services/push_notification_service.dart';
 import 'package:nudgee/core/services/secure_storage_service.dart';
 import 'package:nudgee/core/services/shared_prefs_service.dart';
+import 'package:nudgee/core/services/user_cache_service.dart';
 import 'package:nudgee/core/services/user_storage_service.dart';
 import 'package:nudgee/core/services/upload_service.dart';
 
@@ -75,9 +76,19 @@ Future<void> initDependencies() async {
   // ── Local Database (Hive) ────────────────────────────────────────────
   try {
     final db = LocalDatabaseService();
-    await db.init().timeout(const Duration(seconds: 5));
+    await db.init(preopenBoxes: [
+      'user_settings',
+      'user_drafts',
+      'user_cache',
+    ]).timeout(const Duration(seconds: 5));
     sl.registerSingleton<LocalDatabaseService>(db);
     debugPrint('[Init] LocalDatabase OK');
+
+    // User cache service (Hive-backed)
+    _safeRegister(() => sl.registerLazySingleton<UserCacheService>(
+          () => UserCacheService(sl<LocalDatabaseService>()),
+        ));
+    debugPrint('[Init] UserCache registered');
   } catch (e) {
     debugPrint('[Init] LocalDatabase init failed (non-fatal): $e');
   }
