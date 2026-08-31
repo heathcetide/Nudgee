@@ -50,7 +50,7 @@ Future<void> initDependencies() async {
 
   // ── App Config (load config.yaml) ────────────────────────────────────
   await AppConfig.load();
-  debugPrint('[Init] AppConfig loaded (storage: ${AppConfig.hasStorage ? "yes" : "no"})');
+  debugPrint('[Init] AppConfig loaded (storage: ${AppConfig.hasStorage ? "yes" : "no"}, ai: ${AppConfig.hasAi ? "yes" : "no"})');
 
   // ── Log File Service (always available) ──────────────────────────────
   _safeRegister(() => sl.registerLazySingleton<LogFileService>(() => LogFileService()));

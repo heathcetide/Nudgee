@@ -211,23 +211,23 @@ class _NudgeeAuthSubmitButtonState extends State<NudgeeAuthSubmitButton>
           width: double.infinity,
           height: 48,
           decoration: BoxDecoration(
-            color: disabled ? Theme.of(context).colorScheme.onSurfaceVariant.withAlpha(150) : Theme.of(context).colorScheme.onSurface,
+            color: disabled ? Theme.of(context).colorScheme.onSurfaceVariant.withAlpha(100) : Theme.of(context).colorScheme.primary,
             borderRadius: BorderRadius.circular(12),
           ),
           alignment: Alignment.center,
           child: widget.loading
-              ? const SizedBox(
+              ? SizedBox(
                   width: 22,
                   height: 22,
                   child: CircularProgressIndicator(
                     strokeWidth: 2.5,
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.onPrimary,
                   ),
                 )
               : Text(
                   widget.text,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -270,7 +270,7 @@ class LingSocialButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(width: 20, height: 20, child: iconWidget),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
@@ -563,7 +563,7 @@ class _LingOrbitCarouselState extends State<LingOrbitCarousel>
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Text(
                   widget.subtitle ?? context.l10n.splashTagline,
                   style: TextStyle(
@@ -647,7 +647,7 @@ class NudgeeAuthErrorBanner extends StatelessWidget {
       child: Row(
         children: [
           Icon(icon, color: text, size: 20),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: Text(
               message,
