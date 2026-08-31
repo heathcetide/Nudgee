@@ -24,18 +24,22 @@ if (flutterVersionName == null) {
 }
 
 android {
-    namespace = "com.nudgee.nudgee"
-    compileSdk = flutter.compileSdkVersion
+    namespace = "com.nudgee"
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
     }
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.nudgee.nudgee"
+        applicationId = "com.nudgee"
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
         minSdk = flutter.minSdkVersion
@@ -44,12 +48,54 @@ android {
         versionName = flutterVersionName
     }
 
+    flavorDimensions "default"
+    productFlavors {
+        dev {
+            dimension "default"
+            applicationIdSuffix ".dev"
+            versionNameSuffix "-dev"
+            resValue "string", "app_name", "Nudgee Dev"
+        }
+        staging {
+            dimension "default"
+            applicationIdSuffix ".staging"
+            versionNameSuffix "-staging"
+            resValue "string", "app_name", "Nudgee Staging"
+        }
+        prod {
+            dimension "default"
+            resValue "string", "app_name", "Nudgee"
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.debug
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+
+    splits {
+        abi {
+            // Only split ABIs for release builds; debug keeps a single APK
+            // so `flutter run` can find the output file.
+            enable gradle.startParameter.taskNames.any { it.contains('Release') }
+            reset()
+            include 'arm64-v8a'
+            universalApk false
+        }
+    }
+}
+
+configurations.all {
+    resolutionStrategy {
+        force 'androidx.window:window:1.0.0'
+        force 'androidx.window:window-java:1.0.0'
+        force 'androidx.work:work-runtime:2.8.1'
     }
 }
 

@@ -1,47 +1,44 @@
 # Nudgee 项目指南
 
-## 项目简介
-Nudgee — 自律 · 记账 · AI 陪伴 客户端
-
 ## 构建命令
 - `flutter pub get` — 安装依赖
 - `flutter analyze` — 代码分析
 - `flutter run -d <device>` — 运行
-- `flutter build apk --release` — 构建 APK
+- `flutter build apk --flavor dev` — 构建 dev APK
+- `flutter build apk --flavor prod --release` — 构建生产 APK
 
 ## 验证步骤
 1. flutter analyze 无错误
 2. flutter test 通过
-3. 设备运行无异常
+3. Android 设备运行无异常
 
 ## 代码规范
-- 使用 package:nudgee/ 导入，禁止相对路径
-- 组件用 Nudgee 前缀（如 NudgeeButton）
+- 使用 package:nudgee/ 导入
+- 组件用 Ling 前缀
 - 遵循 Conventional Commits
 
-## 目录结构
-```
-lib/
-├── app/              # 应用层（router, theme, app.dart）
-├── core/             # 核心基础设施
-│   ├── config/       # 环境配置
-│   ├── constants/    # 常量
-│   ├── extensions/   # 扩展方法
-│   ├── utils/        # 工具类
-│   └── widgets/      # 基础组件
-├── features/         # 业务功能模块
-│   ├── auth/         # 登录/注册
-│   ├── home/         # 首页
-│   ├── habits/       # 自律/习惯打卡
-│   ├── finance/      # 记账
-│   ├── chat/         # AI 聊天
-│   └── profile/      # 个人中心
-└── l10n/             # 国际化
-```
+## Flavor 多渠道打包
 
-## 技术栈（待接入）
-- 状态管理：Riverpod
-- 路由：go_router
-- 本地数据库：待定（Isar / drift）
-- AI：待定（OpenAI / Claude API）
-- 后端：待定（Supabase）
+项目支持三个 Flavor：`dev`、`staging`、`prod`。
+
+| Flavor   | Application ID                  | App Name        |
+|----------|---------------------------------|-----------------|
+| dev      | com.nudgee.dev       | Nudgee Dev    |
+| staging  | com.nudgee.staging   | Nudgee Staging|
+| prod     | com.nudgee           | Nudgee        |
+
+### Android
+- 配置位于 `android/app/build.gradle` 的 `productFlavors`
+- 各 Flavor 资源目录：`android/app/src/{dev,staging,prod}/res/`
+
+### iOS
+- 配置说明见 `ios/fastlane/README.md`
+- 需在 Xcode 中手动创建 Build Configuration 与 Scheme
+
+## Git 钩子
+- 运行 `scripts/setup_hooks.sh` 安装 pre-commit 钩子
+- 钩子会在每次提交前运行 `flutter analyze`
+
+## 提交规范
+- 详见 `COMMIT_CONVENTION.md`
+- 配置模板：`git config commit.template .gitmessage`

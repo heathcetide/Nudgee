@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Flavor-specific app name for staging build.
+         The actual app_name value is injected via resValue in build.gradle.
+         This file is kept for structure; build.gradle resValue takes precedence. -->
+</resources>

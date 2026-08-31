@@ -1,4 +1,4 @@
-package com.nudgee.nudgee
+package com.nudgee
 
 import io.flutter.embedding.android.FlutterActivity
 

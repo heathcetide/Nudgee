@@ -1,1 +1,4 @@
 #include "Generated.xcconfig"
+
+// Default app display name (override per-flavor in Xcode Build Settings)
+APP_DISPLAY_NAME = Nudgee

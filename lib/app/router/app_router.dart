@@ -1,26 +1,84 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:nudgee/app/router/route_guard.dart';
+import 'package:nudgee/features/auth/presentation/ling_login_page.dart';
+import 'package:nudgee/features/auth/presentation/ling_register_page.dart';
+import 'package:nudgee/features/common/utils/route_observer.dart';
+import 'package:nudgee/features/profile/presentation/avatar_upload.dart';
+import 'package:nudgee/features/profile/presentation/change_nick_name.dart';
+import 'package:nudgee/features/profile/presentation/my_information.dart';
 import 'package:nudgee/features/home/presentation/home_page.dart';
+import 'package:nudgee/features/splash/presentation/splash_page.dart';
 
-/// Centralized GoRouter configuration.
+/// Centralized route definitions.
+///
+/// Routes are defined as a flat list for simplicity. As the app grows,
+/// feature-specific routes can be extracted into separate files and
+/// merged here.
 class AppRouter {
   AppRouter._();
 
-  static const String home = '/';
-  static const String habits = '/habits';
-  static const String finance = '/finance';
-  static const String chat = '/chat';
-  static const String profile = '/profile';
+  /// Route name constants for type-safe navigation.
+  static const String splash = '/';
+  static const String home = '/home';
+  static const String settings = '/settings';
+  static const String login = '/login';
+  static const String register = '/register';
+  static const String myInformation = '/profile/myInformation';
+  static const String changeNickName = '/profile/changeNickName';
+  static const String avatarUpload = '/profile/avatarUpload';
 
-  static GoRouter build() {
+  /// Build the [GoRouter] instance.
+  ///
+  /// An optional [RouteGuard] can be supplied to enforce authentication
+  /// redirects. When `null` (the default) no redirect logic is applied.
+  static GoRouter build({
+    String initialLocation = splash,
+    RouteGuard? routeGuard,
+  }) {
     return GoRouter(
-      initialLocation: home,
+      initialLocation: initialLocation,
+      debugLogDiagnostics: true,
+      observers: [appRouteObserver],
+      redirect: routeGuard == null
+          ? null
+          : (context, state) => routeGuard.redirect(context, state),
       routes: [
+        GoRoute(
+          path: splash,
+          name: 'splash',
+          builder: (context, state) => const SplashPage(),
+        ),
         GoRoute(
           path: home,
           name: 'home',
           builder: (context, state) => const HomePage(),
+        ),
+        GoRoute(
+          path: login,
+          name: 'login',
+          builder: (context, state) => const LingLoginPage(),
+        ),
+        GoRoute(
+          path: register,
+          name: 'register',
+          builder: (context, state) => const LingRegisterPage(),
+        ),
+        GoRoute(
+          path: myInformation,
+          name: 'myInformation',
+          builder: (context, state) => const MyInformation(),
+        ),
+        GoRoute(
+          path: changeNickName,
+          name: 'changeNickName',
+          builder: (context, state) => const ChangeNickName(),
+        ),
+        GoRoute(
+          path: avatarUpload,
+          name: 'avatarUpload',
+          builder: (context, state) => const AvatarUpload(),
         ),
       ],
       errorBuilder: (context, state) => _ErrorPage(error: state.error),
@@ -47,7 +105,7 @@ class _ErrorPage extends StatelessWidget {
             Text(error?.toString() ?? 'Route not found'),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () => context.go(AppRouter.home),
+              onPressed: () => context.go(AppRouter.splash),
               child: const Text('Go Home'),
             ),
           ],

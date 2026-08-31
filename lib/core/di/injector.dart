@@ -1,0 +1,219 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:get_it/get_it.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:nudgee/core/config/app_config.dart';
+import 'package:nudgee/core/constants/app_constants.dart';
+import 'package:nudgee/core/network/api_client.dart';
+import 'package:nudgee/core/network/interceptors/auth_interceptor.dart';
+import 'package:nudgee/core/network/interceptors/error_interceptor.dart';
+import 'package:nudgee/core/network/interceptors/logging_interceptor.dart';
+import 'package:nudgee/core/network/interceptors/retry_interceptor.dart';
+import 'package:nudgee/core/network/interceptors/token_refresh_interceptor.dart';
+import 'package:nudgee/core/services/analytics_service.dart';
+import 'package:nudgee/core/services/api_cache_service.dart';
+import 'package:nudgee/core/services/app_lifecycle_service.dart';
+import 'package:nudgee/core/services/app_update_service.dart';
+import 'package:nudgee/core/services/auth_service.dart';
+import 'package:nudgee/core/services/background_task_service.dart';
+import 'package:nudgee/core/services/bluetooth_service.dart';
+import 'package:nudgee/core/services/connectivity_service.dart';
+import 'package:nudgee/core/services/download_service.dart';
+import 'package:nudgee/core/services/file_picker_service.dart';
+import 'package:nudgee/core/services/frame_timing_monitor_service.dart';
+import 'package:nudgee/core/services/local_database_service.dart';
+import 'package:nudgee/core/services/log_file_service.dart';
+import 'package:nudgee/core/services/log_reporter_service.dart';
+import 'package:nudgee/core/services/logger_service.dart';
+import 'package:nudgee/core/services/push_notification_service.dart';
+import 'package:nudgee/core/services/secure_storage_service.dart';
+import 'package:nudgee/core/services/shared_prefs_service.dart';
+import 'package:nudgee/core/services/upload_service.dart';
+
+/// Global service locator instance.
+final GetIt sl = GetIt.instance;
+
+/// Initialize all core dependencies.
+///
+/// Must be called once in `main()` before `runApp()`.
+/// Each service is registered independently so a failure in one
+/// doesn't prevent the rest from loading.
+Future<void> initDependencies() async {
+  debugPrint('[Init] Starting initDependencies...');
+
+  // ── Log File Service (always available) ──────────────────────────────
+  _safeRegister(() => sl.registerLazySingleton<LogFileService>(() => LogFileService()));
+
+  // ── Logger (always available) ────────────────────────────────────────
+  _safeRegister(() => sl.registerLazySingleton<LoggerService>(
+        () => LoggerService(logFileService: sl<LogFileService>()),
+      ));
+  debugPrint('[Init] Logger registered');
+
+  // ── Secure Storage (may fail on Web) ─────────────────────────────────
+  _safeRegister(() => sl.registerLazySingleton<SecureStorageService>(() => SecureStorageService()));
+  debugPrint('[Init] SecureStorage registered');
+
+  // ── Local Database (Hive) ────────────────────────────────────────────
+  try {
+    final db = LocalDatabaseService();
+    await db.init().timeout(const Duration(seconds: 5));
+    sl.registerSingleton<LocalDatabaseService>(db);
+    debugPrint('[Init] LocalDatabase OK');
+  } catch (e) {
+    debugPrint('[Init] LocalDatabase init failed (non-fatal): $e');
+  }
+
+  // ── Shared Preferences ───────────────────────────────────────────────
+  try {
+    final sharedPrefs = SharedPrefsService();
+    await sharedPrefs.init().timeout(const Duration(seconds: 5));
+    sl.registerSingleton<SharedPrefsService>(sharedPrefs);
+    debugPrint('[Init] SharedPrefs OK');
+  } catch (e) {
+    debugPrint('[Init] SharedPrefs init failed, using fallback: $e');
+    try {
+      final prefs = await SharedPreferences.getInstance().timeout(const Duration(seconds: 5));
+      sl.registerSingleton<SharedPreferences>(prefs);
+    } catch (e2) {
+      debugPrint('[Init] SharedPreferences fallback also failed: $e2');
+    }
+  }
+
+  // ── Dio ──────────────────────────────────────────────────────────────
+  _safeRegister(() {
+    sl.registerLazySingleton<Dio>(() {
+      final dio = Dio(
+        BaseOptions(
+          baseUrl: AppConfig.apiBaseUrl,
+          connectTimeout: AppConstants.connectTimeout,
+          receiveTimeout: AppConstants.receiveTimeout,
+          sendTimeout: AppConstants.sendTimeout,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          validateStatus: (status) => status != null && status >= 200 && status < 300,
+        ),
+      );
+
+      dio.interceptors.addAll([
+        AuthInterceptor(),
+        RetryInterceptor(),
+        LoggingInterceptor(),
+        ErrorInterceptor(),
+        // Runs last so it sees 401s first on the error path (errors traverse
+        // interceptors in reverse insertion order) and can retry transparently
+        // before ErrorInterceptor converts the failure.
+        TokenRefreshInterceptor(),
+      ]);
+
+      return dio;
+    });
+  });
+
+  // ── API Client ───────────────────────────────────────────────────────
+  _safeRegister(() => sl.registerLazySingleton<ApiClient>(() => ApiClient(sl<Dio>())));
+
+  // ── Auth Service ─────────────────────────────────────────────────────
+  _safeRegister(() => sl.registerLazySingleton<AuthService>(
+        () => AuthService(
+          storage: sl<SecureStorageService>(),
+          api: sl<ApiClient>(),
+          logger: sl<LoggerService>(),
+        ),
+      ));
+
+  // ── Log Reporter Service ─────────────────────────────────────────────
+  _safeRegister(() => sl.registerLazySingleton<LogReporterService>(
+        () => LogReporterService(apiClient: sl<ApiClient>()),
+      ));
+
+  // ── Bluetooth (BLE) ──────────────────────────────────────────────────
+  _safeRegister(() => sl.registerLazySingleton<BluetoothService>(() => BluetoothService()));
+
+  // ── File Picker ──────────────────────────────────────────────────────
+  _safeRegister(() => sl.registerLazySingleton<FilePickerService>(() => FilePickerService()));
+
+  // ── Upload Service ───────────────────────────────────────────────────
+  _safeRegister(() => sl.registerLazySingleton<UploadService>(
+        () => UploadService(sl<ApiClient>()),
+      ));
+
+  // ── Download Service ─────────────────────────────────────────────────
+  _safeRegister(() => sl.registerLazySingleton<DownloadService>(
+        () => DownloadService(sl<ApiClient>()),
+      ));
+
+  // ── Analytics ────────────────────────────────────────────────────────
+  _safeRegister(() => sl.registerLazySingleton<AnalyticsService>(
+        () => AnalyticsService(
+          apiClient: sl<ApiClient>(),
+          logger: sl<LoggerService>(),
+        ),
+      ));
+
+  // ── Frame Timing Monitor ─────────────────────────────────────────────
+  _safeRegister(() => sl.registerLazySingleton<FrameTimingMonitorService>(
+        () => FrameTimingMonitorService(
+          analytics: sl<AnalyticsService>(),
+          logger: sl<LoggerService>(),
+        ),
+      ));
+
+  // ── App Update ───────────────────────────────────────────────────────
+  _safeRegister(() => sl.registerLazySingleton<AppUpdateService>(
+        () => AppUpdateService(
+          apiClient: sl<ApiClient>(),
+          logger: sl<LoggerService>(),
+        ),
+      ));
+
+  // ── Push Notifications ───────────────────────────────────────────────
+  _safeRegister(() => sl.registerLazySingleton<PushNotificationService>(
+        () => PushNotificationService(logger: sl<LoggerService>()),
+      ));
+
+  // ── Background Tasks ─────────────────────────────────────────────────
+  _safeRegister(() {
+    final service = BackgroundTaskService(logger: sl<LoggerService>());
+    service.init();
+    sl.registerLazySingleton<BackgroundTaskService>(() => service);
+  });
+
+  // ── App Lifecycle Service ────────────────────────────────────────────
+  _safeRegister(() {
+    final service = AppLifecycleService();
+    service.init();
+    sl.registerSingleton<AppLifecycleService>(service);
+  });
+
+  // ── Connectivity Service ─────────────────────────────────────────────
+  _safeRegister(() {
+    final service = ConnectivityService();
+    service.init();
+    sl.registerSingleton<ConnectivityService>(service);
+  });
+
+  // ── API Cache Service ────────────────────────────────────────────────
+  _safeRegister(() => sl.registerLazySingleton<ApiCacheService>(
+        () => ApiCacheService(),
+      ));
+
+  debugPrint('[Init] initDependencies complete');
+}
+
+/// Register a service safely — catches and logs errors without throwing.
+void _safeRegister(void Function() registration) {
+  try {
+    registration();
+  } catch (e) {
+    debugPrint('DI registration failed: $e');
+  }
+}
+
+/// Clean up all registered dependencies (useful for testing).
+Future<void> resetDependencies() async {
+  await sl.reset();
+}
