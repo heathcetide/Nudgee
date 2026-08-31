@@ -3,16 +3,18 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:extended_image/extended_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:go_router/go_router.dart';
-import 'package:qiniu_flutter_sdk/qiniu_flutter_sdk.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 
-import 'package:nudgee/features/common/utils/consts.dart';
+import 'package:nudgee/core/di/injector.dart' as di;
+import 'package:nudgee/core/services/auth_service.dart';
+import 'package:nudgee/core/services/qiniu_storage_service.dart';
+import 'package:nudgee/core/services/user_storage_service.dart';
 import 'package:nudgee/features/common/utils/crop_image.dart';
 import 'package:nudgee/features/common/utils/functions.dart';
-import 'package:nudgee/features/common/utils/local_storage.dart';
 import 'package:nudgee/features/common/widgets/page_scaffold.dart';
 
 class AvatarUpload extends StatefulWidget {
@@ -23,78 +25,131 @@ class AvatarUpload extends StatefulWidget {
 }
 
 class _AvatarUploadState extends State<AvatarUpload> {
-  Uint8List? imageData = null;
+  Uint8List? imageData;
   final ImageEditorController _editorController = ImageEditorController();
   bool _cropping = false;
+
   @override
   void initState() {
     super.initState();
     Future.delayed(Duration.zero, () async {
-      Map<String, dynamic> args =
+      final Map<String, dynamic> args =
           GoRouterState.of(context).extra as Map<String, dynamic>? ?? {};
-      List<AssetEntity> assetEntityList = args['assetEntityList'];
-      var t = await assetEntityList[0].originBytes;
-      print(t);
-      setState(() {
-        imageData = t;
-      });
+      final List<AssetEntity> assetEntityList = args['assetEntityList'];
+      final t = await assetEntityList[0].originBytes;
+      if (mounted) {
+        setState(() {
+          imageData = t;
+        });
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return PageScaffold(
-      title: Text('上传头像'),
+      title: const Text('上传头像'),
       leading: getPopLeading(context),
       customActions: [
         IconButton(
-            icon: Text(
-              "保存",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            onPressed: () async {
-              if (_cropping) {
+          icon: const Text(
+            '保存',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          onPressed: () async {
+            if (_cropping) return;
+            _cropping = true;
+            try {
+              SmartDialog.showLoading(msg: '图片裁剪中');
+              final Uint8List? fileData =
+                  (await cropImageDataWithNativeLibrary(_editorController))
+                      .data;
+              if (fileData == null) {
+                SmartDialog.dismiss();
+                SmartDialog.showNotify(
+                    msg: '裁剪失败', notifyType: NotifyType.error);
+                _cropping = false;
                 return;
               }
-              _cropping = true;
-              try {
-                SmartDialog.showLoading(msg: "图片裁剪中");
-                Uint8List? fileData =
-                    (await cropImageDataWithNativeLibrary(_editorController)).data;
-                final Uint8List originalFileData =
-                    await getCompressedImage(fileData!, minHeight: 512, minWidth: 512, quality: 24);
-                final Uint8List compressedFileData =
-                    await getCompressedImage(fileData!, minHeight: 128, minWidth: 128, quality: 24);
-                SmartDialog.showLoading(msg: "图片上传中");
-                var tokenResp = (await dio.post(BaseURL + '/user/upload/credential')).data;
-                String upToken = tokenResp['data']['upToken'];
-                String originalUpToken = tokenResp['data']['originalUpToken'];
-                String uid = await LocalStorage.user_uid.get();
-                String key_md5 = md5.convert(utf8.encode(uid)).toString();
-                String key = 'avatar/${key_md5}';
-                await Storage()
-                    .putBytes(compressedFileData, upToken, options: PutOptions(key: key));
-                await Storage().putBytes(originalFileData, originalUpToken,
-                    options: PutOptions(key: key + '_original'));
-                var resp = (await dio.post(BaseURL + "/user/update/avatar", data: {})).data;
-                print(resp);
-                if (resp['code'] == 0) {
-                  await syncUserInfo();
-                  SmartDialog.dismiss();
-                  SmartDialog.showNotify(msg: '头像修改成功', notifyType: NotifyType.success);
-                  Navigator.maybePop(context);
-                  return;
-                }
-              } catch (e) {
-                print(e);
+
+              final Uint8List originalFileData = await getCompressedImage(
+                  fileData,
+                  minHeight: 512,
+                  minWidth: 512,
+                  quality: 24);
+              final Uint8List compressedFileData = await getCompressedImage(
+                  fileData,
+                  minHeight: 128,
+                  minWidth: 128,
+                  quality: 24);
+
+              SmartDialog.showLoading(msg: '图片上传中');
+
+              final auth = di.sl<AuthService>();
+              final user = auth.currentUser.value;
+              if (user == null) {
+                SmartDialog.dismiss();
+                SmartDialog.showNotify(
+                    msg: '未登录', notifyType: NotifyType.error);
+                _cropping = false;
+                return;
               }
+
+              final qiniu = di.sl<QiniuStorageService>();
+
+              // 上传头像到七牛: nudgee/{userId}/avatar.jpg + avatar_original.jpg
+              final avatarKey = 'nudgee/${user.id}/avatar.jpg';
+              final avatarOriginalKey = 'nudgee/${user.id}/avatar_original.jpg';
+
+              final compressedUrl =
+                  await qiniu.uploadBytes(avatarKey, compressedFileData);
+              if (compressedUrl == null) {
+                SmartDialog.dismiss();
+                SmartDialog.showNotify(
+                    msg: '头像上传失败', notifyType: NotifyType.failure);
+                _cropping = false;
+                return;
+              }
+
+              await qiniu.uploadBytes(avatarOriginalKey, originalFileData);
+
+              // 更新云端 profile 的 avatar 字段
+              final existing = await auth.fetchUserProfile(user.id);
+              if (existing != null) {
+                existing['avatar'] = compressedUrl;
+                final profileBytes = Uint8List.fromList(
+                    utf8.encode(jsonEncode(existing)));
+                await qiniu.uploadBytes(
+                    'nudgee/${user.id}/profile.json', profileBytes);
+              }
+
+              // 更新本地存储 + 内存状态
+              final updatedUser = AuthUser(
+                id: user.id,
+                name: user.name,
+                avatar: compressedUrl,
+              );
+              final userStorage = di.sl<UserStorageService>();
+              await userStorage.saveProfile(updatedUser.toJson());
+              auth.currentUser.value = updatedUser;
+
               SmartDialog.dismiss();
-              SmartDialog.showNotify(msg: '头像上传失败', notifyType: NotifyType.failure);
-              _cropping = false;
-            })
+              SmartDialog.showNotify(
+                  msg: '头像修改成功', notifyType: NotifyType.success);
+              Navigator.maybePop(context);
+              return;
+            } catch (e) {
+              debugPrint('[AvatarUpload] error: $e');
+            }
+            SmartDialog.dismiss();
+            SmartDialog.showNotify(
+                msg: '头像上传失败', notifyType: NotifyType.failure);
+            _cropping = false;
+          },
+        )
       ],
       child: imageData == null
-          ? SizedBox()
+          ? const SizedBox()
           : Container(
               color: Theme.of(context).hintColor,
               child: ExtendedImage.memory(
@@ -112,8 +167,8 @@ class _AvatarUploadState extends State<AvatarUpload> {
                     controller: _editorController,
                     editorMaskColorHandler: (context, pointerDown) {
                       return pointerDown
-                          ? Color.fromARGB(122, 0, 0, 0)
-                          : Color.fromARGB(188, 0, 0, 0);
+                          ? const Color.fromARGB(122, 0, 0, 0)
+                          : const Color.fromARGB(188, 0, 0, 0);
                     },
                   );
                 },

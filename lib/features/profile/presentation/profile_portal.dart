@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:icons_plus/icons_plus.dart';
 
-import 'package:nudgee/features/common/utils/local_storage.dart';
+import 'package:nudgee/core/di/injector.dart';
+import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/features/common/utils/route_observer.dart';
 import 'package:nudgee/features/common/widgets/avatar.dart';
 
@@ -15,11 +16,7 @@ class ProfilePortal extends StatefulWidget {
 }
 
 class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
-  Map<String, dynamic> userInfo = {
-    'avatar': '',
-    'nickName': '加载中...',
-    'uid': '加载中...',
-  };
+  AuthUser? _user;
 
   final List<Map<String, dynamic>> actions = [
     {'icon': Icons.person, 'text': '个人主页', 'onclick': (context) {}},
@@ -38,7 +35,7 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
 
   @override
   void didPopNext() {
-    updateUserInfoFromLS();
+    _loadUser();
   }
 
   @override
@@ -47,26 +44,26 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
     super.dispose();
   }
 
-  void updateUserInfoFromLS() async {
-    Map<String, dynamic> info = {
-      'avatar': await LocalStorage.user_avatar.get() ?? '',
-      'nickName': await LocalStorage.user_nickName.get() ?? '未设置',
-      'uid': await LocalStorage.user_uid.get() ?? '未设置',
-    };
-    setState(() {
-      userInfo = info;
-    });
-  }
-
   @override
   void initState() {
-    updateUserInfoFromLS();
+    _loadUser();
     super.initState();
+  }
+
+  void _loadUser() {
+    final auth = sl<AuthService>();
+    setState(() {
+      _user = auth.currentUser.value;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final name = _user?.name ?? '未设置';
+    final id = _user?.id ?? '';
+    final avatar = _user?.avatar;
+
     return Container(
       color: isDark
           ? Theme.of(context).scaffoldBackgroundColor
@@ -76,12 +73,12 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
         children: [
           Card(
             clipBehavior: Clip.antiAlias,
-            margin: EdgeInsets.only(left: 16, right: 16, bottom: 16, top: 16),
+            margin: const EdgeInsets.only(left: 16, right: 16, bottom: 16, top: 16),
             child: MaterialButton(
               onPressed: () {
                 GoRouter.of(context).push('/profile/myInformation');
               },
-              padding: EdgeInsets.all(0),
+              padding: const EdgeInsets.all(0),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
@@ -95,10 +92,7 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
                         height: 66,
                         clipBehavior: Clip.antiAlias,
                         decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-                        child: Avatar(
-                          userInfo['avatar'],
-                          name: userInfo['nickName'],
-                        ),
+                        child: Avatar(avatar, name: name),
                       ),
                     ),
                     Expanded(
@@ -106,23 +100,21 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(userInfo['nickName'],
+                          Text(name,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
+                              style: const TextStyle(
                                   fontSize: 22, fontWeight: FontWeight.bold, height: 1.2)),
-                          SizedBox(
-                            height: 4,
-                          ),
+                          const SizedBox(height: 4),
                           Text(
-                              (userInfo['uid'] as String).length > 8
-                                  ? '学号: ${(userInfo['uid'] as String).substring(0, 7)}****${(userInfo['uid'] as String).substring((userInfo['uid'] as String).length - 1)}'
-                                  : '学号: ${userInfo['uid']}',
-                              style: TextStyle(fontSize: 15, height: 1)),
+                              id.length > 8
+                                  ? 'ID: ${id.substring(0, 7)}****${id.substring(id.length - 1)}'
+                                  : 'ID: $id',
+                              style: const TextStyle(fontSize: 15, height: 1)),
                         ],
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 14.0),
+                    const Padding(
+                      padding: EdgeInsets.only(right: 14.0),
                       child: Icon(Icons.arrow_forward_ios, size: 20),
                     )
                   ],
@@ -133,7 +125,7 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
           Expanded(
             child: Card(
               clipBehavior: Clip.antiAlias,
-              margin: EdgeInsets.only(bottom: 16, left: 16, right: 16),
+              margin: const EdgeInsets.only(bottom: 16, left: 16, right: 16),
               child: ListView.builder(
                   itemBuilder: (context, index) {
                     return ListTile(
@@ -142,7 +134,7 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
                       onTap: () {
                         actions[index]['onclick'](context);
                       },
-                      trailing: Icon(
+                      trailing: const Icon(
                         Icons.arrow_forward_ios,
                         size: 16,
                       ),

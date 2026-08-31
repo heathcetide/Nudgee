@@ -83,6 +83,11 @@ class AuthService {
 
   String? get accessToken => _accessToken;
 
+  /// Fetch user profile from Qiniu CDN by [userId].
+  /// Public wrapper around [_fetchUser] for use by other services/pages.
+  Future<Map<String, dynamic>?> fetchUserProfile(String userId) =>
+      _fetchUser(userId);
+
   // ── Helpers ──────────────────────────────────────────────────────────
 
   String _hashPassword(String password) {
