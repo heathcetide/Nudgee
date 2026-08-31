@@ -21,13 +21,17 @@ class _AiClientPageState extends State<AiClientPage> {
   final ScrollController _scrollController = ScrollController();
   final List<_ChatMessage> _messages = [];
   bool _isStreaming = false;
+  bool _welcomeAdded = false;
   StreamSubscription<String>? _streamSub;
 
   @override
-  void initState() {
-    super.initState();
-    final l10n = context.l10n;
-    _messages.add(_ChatMessage(role: _Role.assistant, text: l10n.aiWelcome));
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_welcomeAdded) {
+      _welcomeAdded = true;
+      final l10n = context.l10n;
+      _messages.add(_ChatMessage(role: _Role.assistant, text: l10n.aiWelcome));
+    }
   }
 
   @override
@@ -150,10 +154,53 @@ class _AiClientPageState extends State<AiClientPage> {
     });
   }
 
+  void _showModelPicker() {
+    final ai = sl<AiService>();
+    final models = ai.availableModels;
+    if (models.isEmpty) return;
+
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Model',
+                  style: Theme.of(ctx).textTheme.titleMedium,
+                ),
+              ),
+              const Divider(height: 1),
+              ...models.map((m) {
+                final selected = m == ai.currentModel;
+                return ListTile(
+                  title: Text(m),
+                  trailing: selected
+                      ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                      : null,
+                  onTap: () async {
+                    await ai.switchModel(m);
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    _clearChat();
+                  },
+                );
+              }),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
+    final ai = sl<AiService>();
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -161,6 +208,20 @@ class _AiClientPageState extends State<AiClientPage> {
         title: Text(l10n.aiTitle),
         backgroundColor: theme.colorScheme.surface,
         actions: [
+          // Model selector
+          if (ai.isConfigured)
+            TextButton.icon(
+              onPressed: _isStreaming ? null : _showModelPicker,
+              icon: const Icon(Icons.tune, size: 18),
+              label: Text(
+                ai.currentModel,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.cleaning_services_outlined),
             tooltip: l10n.aiClearChat,

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:nudgee/app/router/app_router.dart';
-import 'package:nudgee/app/theme/app_colors.dart';
+
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/auth_service.dart';
@@ -196,8 +196,9 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
   // ─── Build ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: AppColors.lightBackground,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -244,6 +245,7 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
 
   // ── Login form ────────────────────────────────────────────────────
   Widget _buildLoginForm() {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -254,11 +256,11 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: theme.shadowColor.withAlpha(20),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -277,7 +279,7 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w600,
-            color: AppColors.lightTextPrimary,
+            color: theme.colorScheme.onSurface,
           ),
         ),
         const SizedBox(height: 24),
@@ -312,7 +314,7 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
               _obscurePassword
                   ? Icons.visibility_off_outlined
                   : Icons.visibility_outlined,
-              color: AppColors.lightTextHint,
+              color: theme.colorScheme.onSurfaceVariant,
               size: 20,
             ),
             onPressed: () =>
@@ -333,7 +335,7 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
             Text(
               context.l10n.authNoAccount,
               style: TextStyle(
-                  fontSize: 14, color: AppColors.lightTextSecondary),
+                  fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
             ),
             GestureDetector(
               onTap: _isSubmitting
@@ -343,7 +345,7 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
                 context.l10n.authRegisterNow,
                 style: TextStyle(
                   fontSize: 14,
-                  color: AppColors.primary,
+                  color: theme.colorScheme.primary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -356,6 +358,7 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
 
   // ── Register form ─────────────────────────────────────────────────
   Widget _buildRegisterForm() {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -366,11 +369,11 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: theme.shadowColor.withAlpha(20),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -389,7 +392,7 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w600,
-            color: AppColors.lightTextPrimary,
+            color: theme.colorScheme.onSurface,
           ),
         ),
         const SizedBox(height: 8),
@@ -398,7 +401,7 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 14,
-            color: AppColors.lightTextSecondary,
+            color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: 24),
@@ -433,7 +436,7 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
               _obscureRegPassword
                   ? Icons.visibility_off_outlined
                   : Icons.visibility_outlined,
-              color: AppColors.lightTextHint,
+              color: theme.colorScheme.onSurfaceVariant,
               size: 20,
             ),
             onPressed: () =>
@@ -454,7 +457,7 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
             Text(
               context.l10n.authHaveAccount,
               style: TextStyle(
-                  fontSize: 14, color: AppColors.lightTextSecondary),
+                  fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
             ),
             GestureDetector(
               onTap: _isSubmitting
@@ -464,7 +467,7 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
                 context.l10n.authBackToLogin,
                 style: TextStyle(
                   fontSize: 14,
-                  color: AppColors.primary,
+                  color: theme.colorScheme.primary,
                   fontWeight: FontWeight.w600,
                 ),
               ),

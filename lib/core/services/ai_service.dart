@@ -1,20 +1,34 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_ai_sdk/flutter_ai_sdk.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nudgee/core/config/app_config.dart';
 
 /// Centralized AI service wrapping [FlutterAI] SDK.
 ///
 /// Reads config from [AppConfig.ai] (loaded from `config.yaml`).
-/// Supports streaming chat, context management, and clear/reset.
+/// Supports streaming chat, context management, model switching, and clear/reset.
 class AiService {
   FlutterAI? _ai;
   bool _initialized = false;
+  String _currentModel = '';
+  List<String> _availableModels = [];
+
+  /// SharedPreferences key for persisted model selection.
+  static const String _modelKey = 'ai_selected_model';
 
   /// Whether the AI service is configured and ready.
   bool get isConfigured => _ai != null;
+
+  /// The currently selected model.
+  String get currentModel => _currentModel;
+
+  /// Available models (either fetched from API or fallback defaults).
+  List<String> get availableModels => _availableModels;
 
   /// Initialize from [AppConfig]. Safe to call multiple times.
   void init() {
@@ -22,10 +36,105 @@ class AiService {
     _initialized = true;
 
     final cfg = AppConfig.ai;
-    if (cfg == null || cfg.apiKey.isEmpty || cfg.apiKey == 'YOUR_DEEPSEEK_API_KEY') {
+    if (cfg == null || cfg.apiKey.isEmpty) {
       debugPrint('[AiService] No valid AI config found, service disabled');
       return;
     }
+
+    _currentModel = cfg.model;
+    _recreateAi();
+
+    // Load persisted model preference (async, non-blocking).
+    _loadPersistedModel();
+
+    // Fetch available models from API (async, non-blocking).
+    _fetchModels();
+
+    debugPrint('[AiService] Initialized with provider=${cfg.provider}, model=$_currentModel');
+  }
+
+  /// Load persisted model from SharedPreferences.
+  Future<void> _loadPersistedModel() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_modelKey);
+      if (saved != null && saved.isNotEmpty) {
+        _currentModel = saved;
+        _recreateAi();
+      }
+    } catch (e) {
+      debugPrint('[AiService] Failed to load persisted model: $e');
+    }
+  }
+
+  /// Fetch available models from the /v1/models endpoint.
+  Future<void> _fetchModels() async {
+    final cfg = AppConfig.ai;
+    if (cfg == null || cfg.baseUrl == null) return;
+
+    try {
+      final url = '${cfg.baseUrl}/models';
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'Authorization': 'Bearer ${cfg.apiKey}'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final body = json.decode(response.body) as Map<String, dynamic>;
+        final data = body['data'] as List<dynamic>? ?? [];
+        final models = data
+            .map((m) => (m is Map<String, dynamic> ? m['id'] : null) as String?)
+            .whereType<String>()
+            .toList();
+
+        if (models.isNotEmpty) {
+          _availableModels = models;
+          debugPrint('[AiService] Fetched ${models.length} models from API');
+        }
+      }
+    } catch (e) {
+      debugPrint('[AiService] Failed to fetch models: $e');
+    }
+
+    // Fallback defaults if fetch failed or returned empty.
+    if (_availableModels.isEmpty) {
+      _availableModels = _defaultModels;
+    }
+  }
+
+  /// Default model list (used when API fetch fails).
+  static const List<String> _defaultModels = [
+    'deepseek-v3',
+    'deepseek-v3.2',
+    'deepseek-r1',
+    'qwen3-max',
+    'doubao-seed-1.6',
+    'kimi-k2.5',
+  ];
+
+  /// Switch to a different model. Recreates the [FlutterAI] instance.
+  Future<void> switchModel(String model) async {
+    if (model == _currentModel) return;
+    _currentModel = model;
+    _recreateAi();
+
+    // Persist the selection.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_modelKey, model);
+    } catch (e) {
+      debugPrint('[AiService] Failed to persist model: $e');
+    }
+
+    debugPrint('[AiService] Switched to model: $model');
+  }
+
+  /// Recreate the [FlutterAI] instance with the current model.
+  void _recreateAi() {
+    final cfg = AppConfig.ai;
+    if (cfg == null) return;
+
+    _ai?.dispose();
 
     try {
       final provider = _parseProvider(cfg.provider);
@@ -33,16 +142,15 @@ class AiService {
         provider: provider,
         config: AIConfig(
           apiKey: cfg.apiKey,
-          model: cfg.model,
+          model: _currentModel,
           baseUrl: cfg.baseUrl,
           systemPrompt: cfg.systemPrompt,
           temperature: 0.7,
           maxTokens: 4096,
         ),
       );
-      debugPrint('[AiService] Initialized with provider=${cfg.provider}, model=${cfg.model}');
     } catch (e) {
-      debugPrint('[AiService] Init failed: $e');
+      debugPrint('[AiService] Recreate failed: $e');
     }
   }
 
@@ -68,7 +176,7 @@ class AiService {
       case 'openrouter':
         return AIProvider.openrouter;
       default:
-        return AIProvider.deepseek;
+        return AIProvider.openai;
     }
   }
 

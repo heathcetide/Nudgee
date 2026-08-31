@@ -28,9 +28,9 @@ class NudgeeAuthLogo extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(size * 0.25),
-        border: Border.all(color: AppColors.lightBorder, width: 1),
+        border: Border.all(color: Theme.of(context).dividerColor, width: 1),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(size * 0.25),
@@ -96,7 +96,7 @@ class NudgeeAuthTextField extends StatelessWidget {
               label!,
               style: TextStyle(
                 fontSize: 14,
-                color: AppColors.lightTextSecondary,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -111,18 +111,18 @@ class NudgeeAuthTextField extends StatelessWidget {
           maxLength: maxLength,
           style: TextStyle(
             fontSize: 16,
-            color: AppColors.lightTextPrimary,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(
-              color: AppColors.lightTextHint,
+              color: Theme.of(context).colorScheme.onSurfaceVariant.withAlpha(150),
               fontSize: 15,
             ),
-            prefixIcon: Icon(prefixIcon, size: 20, color: AppColors.lightTextHint),
+            prefixIcon: Icon(prefixIcon, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant.withAlpha(150)),
             suffixIcon: suffix,
             filled: true,
-            fillColor: AppColors.lightSurfaceVariant,
+            fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             counterText: '',
@@ -136,7 +136,7 @@ class NudgeeAuthTextField extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+              borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -211,7 +211,7 @@ class _NudgeeAuthSubmitButtonState extends State<NudgeeAuthSubmitButton>
           width: double.infinity,
           height: 48,
           decoration: BoxDecoration(
-            color: disabled ? AppColors.lightTextHint : AppColors.lightTextPrimary,
+            color: disabled ? Theme.of(context).colorScheme.onSurfaceVariant.withAlpha(150) : Theme.of(context).colorScheme.onSurface,
             borderRadius: BorderRadius.circular(12),
           ),
           alignment: Alignment.center,
@@ -261,9 +261,9 @@ class LingSocialButton extends StatelessWidget {
         width: double.infinity,
         height: 48,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.lightBorder, width: 1.5),
+          border: Border.all(color: Theme.of(context).dividerColor, width: 1.5),
         ),
         alignment: Alignment.center,
         child: Row(
@@ -274,7 +274,7 @@ class LingSocialButton extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: AppColors.lightTextPrimary,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),
@@ -313,17 +313,17 @@ class LingCodeButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: canSend
-              ? AppColors.primary.withOpacity(0.08)
-              : AppColors.lightSurfaceVariant,
+              ? Theme.of(context).colorScheme.primary.withOpacity(0.08)
+              : Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(8),
         ),
         child: sending
-            ? const SizedBox(
+            ? SizedBox(
                 width: 16,
                 height: 16,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: AppColors.primary,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               )
             : Text(
@@ -332,8 +332,8 @@ class LingCodeButton extends StatelessWidget {
                   fontSize: 13,
                   height: 1.0,
                   color: canSend
-                      ? AppColors.primary
-                      : AppColors.lightTextHint,
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurfaceVariant.withAlpha(150),
                   fontWeight: canSend ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
@@ -354,7 +354,7 @@ class NudgeeAuthDivider extends StatelessWidget {
       children: [
         Expanded(
           child: Divider(
-            color: AppColors.lightBorder,
+            color: Theme.of(context).dividerColor,
             thickness: 1,
           ),
         ),
@@ -363,14 +363,14 @@ class NudgeeAuthDivider extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: AppColors.lightTextHint,
+              color: Theme.of(context).colorScheme.onSurfaceVariant.withAlpha(150),
               fontSize: 13,
             ),
           ),
         ),
         Expanded(
           child: Divider(
-            color: AppColors.lightBorder,
+            color: Theme.of(context).dividerColor,
             thickness: 1,
           ),
         ),
@@ -475,7 +475,7 @@ class _LingOrbitCarouselState extends State<LingOrbitCarousel>
           ],
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.lightBorder, width: 1),
+        border: Border.all(color: Theme.of(context).dividerColor, width: 1),
       ),
       child: Stack(
         alignment: Alignment.center,
@@ -488,7 +488,7 @@ class _LingOrbitCarouselState extends State<LingOrbitCarousel>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: AppColors.primary.withOpacity(0.12 + i * 0.04),
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.12 + i * 0.04),
                   width: 1,
                 ),
               ),
@@ -530,7 +530,7 @@ class _LingOrbitCarouselState extends State<LingOrbitCarousel>
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
@@ -538,7 +538,7 @@ class _LingOrbitCarouselState extends State<LingOrbitCarousel>
                   spreadRadius: 7,
                 ),
                 BoxShadow(
-                  color: AppColors.primary.withOpacity(0.35),
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.35),
                   blurRadius: 18,
                 ),
               ],
@@ -560,7 +560,7 @@ class _LingOrbitCarouselState extends State<LingOrbitCarousel>
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.lightTextPrimary,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -568,7 +568,7 @@ class _LingOrbitCarouselState extends State<LingOrbitCarousel>
                   widget.subtitle ?? context.l10n.splashTagline,
                   style: TextStyle(
                     fontSize: 14,
-                    color: AppColors.lightTextSecondary,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -595,17 +595,17 @@ class _LingOrbitCarouselState extends State<LingOrbitCarousel>
       width: 36,
       height: 36,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
+        color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Theme.of(context).shadowColor.withAlpha(20),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Icon(icon, size: 18, color: AppColors.primary),
+      child: Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
     );
   }
 }
