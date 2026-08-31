@@ -225,6 +225,7 @@
   "aboutVersion": "版本",
   "aboutChangelog": "更新日志",
   "aboutChangelogContent": "v1.0.0\n• 七牛云存储用户认证\n• 个人资料管理（昵称、性别、手机号、头像）\n• 课程表功能\n• 国际化支持（中文 / English）\n• 暗色 / 亮色主题\n• 软件设置（主题、语言、存储管理）",
+  "aboutChangelogTitle": "更新日志",
   "aboutOpenSource": "开源许可",
   "aboutOpenSourceDesc": "Nudgee 使用了以下开源项目",
   "aboutContact": "联系我们",

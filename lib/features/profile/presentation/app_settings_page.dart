@@ -81,10 +81,17 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     SmartDialog.showLoading(msg: context.l10n.settingsClearing);
     try {
       final fileStorage = sl<FileStorageService>();
-      await fileStorage.clearCategory(FileStorageService.dirCache);
+      // Clear all cache categories (avatars + cache + logs), keep downloads.
+      int freed = 0;
+      freed += await fileStorage.clearCategory(FileStorageService.dirAvatars);
+      freed += await fileStorage.clearCategory(FileStorageService.dirCache);
+      freed += await fileStorage.clearCategory(FileStorageService.dirLogs);
       await _loadStorageInfo();
       SmartDialog.dismiss();
-      SmartDialog.showNotify(msg: context.l10n.settingsClearSuccess, notifyType: NotifyType.success);
+      SmartDialog.showNotify(
+        msg: '${context.l10n.settingsClearSuccess} (${_formatSize(freed)})',
+        notifyType: NotifyType.success,
+      );
     } catch (e) {
       SmartDialog.dismiss();
       SmartDialog.showNotify(msg: context.l10n.settingsClearFailedWithError(e.toString()), notifyType: NotifyType.failure);

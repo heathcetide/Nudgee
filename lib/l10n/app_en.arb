@@ -225,6 +225,7 @@
   "aboutVersion": "Version",
   "aboutChangelog": "Changelog",
   "aboutChangelogContent": "v1.0.0\n• Qiniu cloud storage user authentication\n• Profile management (nickname, gender, phone, avatar)\n• Timetable feature\n• Internationalization (中文 / English)\n• Dark / Light theme\n• App settings (theme, language, storage management)",
+  "aboutChangelogTitle": "Changelog",
   "aboutOpenSource": "Open Source Licenses",
   "aboutOpenSourceDesc": "Nudgee is built using the following open-source projects",
   "aboutContact": "Contact Us",

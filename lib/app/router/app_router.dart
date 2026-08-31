@@ -8,6 +8,7 @@ import 'package:nudgee/features/common/utils/route_observer.dart';
 import 'package:nudgee/features/profile/presentation/app_settings_page.dart';
 import 'package:nudgee/features/profile/presentation/about_page.dart';
 import 'package:nudgee/features/profile/presentation/avatar_upload.dart';
+import 'package:nudgee/features/profile/presentation/changelog_page.dart';
 import 'package:nudgee/features/profile/presentation/change_nick_name.dart';
 import 'package:nudgee/features/profile/presentation/feedback_page.dart';
 import 'package:nudgee/features/profile/presentation/my_information.dart';
@@ -33,6 +34,7 @@ class AppRouter {
   static const String feedback = '/feedback';
   static const String privacyPolicy = '/privacyPolicy';
   static const String userAgreement = '/userAgreement';
+  static const String changelog = '/changelog';
   static const String login = '/login';
   static const String register = '/register';
   static const String myInformation = '/profile/myInformation';
@@ -124,6 +126,11 @@ class AppRouter {
           path: userAgreement,
           name: 'userAgreement',
           builder: (context, state) => const UserAgreementPage(),
+        ),
+        GoRoute(
+          path: changelog,
+          name: 'changelog',
+          builder: (context, state) => const ChangelogPage(),
         ),
       ],
       errorBuilder: (context, state) => _ErrorPage(error: state.error),
