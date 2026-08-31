@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:nudgee/features/ai/presentation/ai_client_page.dart';
 import 'package:nudgee/features/campus_forum/presentation/campus_discover.dart';
 import 'package:nudgee/features/chat/presentation/chat_page.dart';
 import 'package:nudgee/features/common/utils/events.dart';
@@ -59,7 +58,6 @@ class _HomePageState extends ConsumerState<HomePage> {
         onPageChanged: (p) => setState(() => _schedulePage = p),
       ),
       const CampusDiscover(),
-      const AiClientPage(),
       const ChatPage(),
       ComponentsTab(),
       const ProfilePortal(),
@@ -97,11 +95,6 @@ class _HomePageState extends ConsumerState<HomePage> {
               icon: Icon(Icons.camera_alt_outlined),
               activeIcon: Icon(Icons.camera_alt),
               label: context.l10n.navCampus,
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.auto_awesome_outlined),
-              activeIcon: Icon(Icons.auto_awesome),
-              label: context.l10n.navAi,
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.chat_outlined),

@@ -1,10 +1,14 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 
 import 'package:nudgee/core/controllers/im/im.dart';
+import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/models/im/im.dart';
+import 'package:nudgee/core/services/ai_service.dart';
 import 'package:nudgee/core/widgets/im/ling_chat_screen.dart';
 import 'package:nudgee/core/widgets/im/ling_message_search.dart';
 import 'package:nudgee/core/widgets/im/im.dart';
@@ -25,6 +29,10 @@ class _ChatPageState extends State<ChatPage> {
   late final Map<String, LingChatUser> _userMap;
   final Map<String, LingChatController> _chatControllers = {};
   final String _currentUserId = 'me';
+
+  /// LingEcho is the AI buddy — messages to this conversation are routed to AiService.
+  static const String _aiBuddyId = 'u3';
+  static const String _aiBuddyName = 'LingEcho';
 
   @override
   void initState() {
@@ -60,7 +68,81 @@ class _ChatPageState extends State<ChatPage> {
       createdAt: DateTime.now(),
       status: LingMessageStatus.sent,
     );
+    final controller = _chatControllers[conv.id];
+    controller?.addMessage(msg);
     _convController.upsertConversation(conv.copyWith(lastMessage: msg));
+
+    // Route to AI if this is the LingEcho buddy.
+    if (conv.id == _aiBuddyId) {
+      _streamAiReply(conv, text);
+    }
+  }
+
+  /// Stream an AI reply from AiService and add it as a message from LingEcho.
+  void _streamAiReply(LingConversation conv, String userText) {
+    final ai = sl<AiService>();
+    if (!ai.isConfigured) {
+      SmartDialog.showNotify(
+        msg: context.l10n.aiNotConfigured,
+        notifyType: NotifyType.error,
+      );
+      return;
+    }
+
+    final controller = _chatControllers[conv.id];
+    if (controller == null) return;
+
+    // Create a placeholder AI message that we'll update as chunks arrive.
+    final aiMsgId = 'ai_${DateTime.now().millisecondsSinceEpoch}';
+    final aiMsg = LingMessage(
+      id: aiMsgId,
+      conversationId: conv.id,
+      authorId: _aiBuddyId,
+      type: LingMessageType.text,
+      text: '',
+      createdAt: DateTime.now(),
+      status: LingMessageStatus.sending,
+    );
+    controller.addMessage(aiMsg);
+    controller.isTyping = true;
+
+    final buffer = StringBuffer();
+    StreamSubscription<String>? sub;
+
+    sub = ai.streamChat(userText).listen(
+      (delta) {
+        buffer.write(delta);
+        controller.updateMessage(aiMsgId, (m) => m.copyWith(
+          text: buffer.toString(),
+          status: LingMessageStatus.sent,
+        ));
+        _convController.upsertConversation(conv.copyWith(
+          lastMessage: controller.messages.last,
+        ));
+      },
+      onDone: () {
+        controller.isTyping = false;
+        controller.updateMessage(aiMsgId, (m) => m.copyWith(
+          text: buffer.toString().isEmpty ? '...' : buffer.toString(),
+          status: LingMessageStatus.read,
+        ));
+        _convController.upsertConversation(conv.copyWith(
+          lastMessage: controller.messages.last,
+        ));
+        sub?.cancel();
+      },
+      onError: (e) {
+        controller.isTyping = false;
+        controller.updateMessage(aiMsgId, (m) => m.copyWith(
+          text: context.l10n.aiError(e.toString()),
+          status: LingMessageStatus.failed,
+        ));
+        _convController.upsertConversation(conv.copyWith(
+          lastMessage: controller.messages.last,
+        ));
+        sub?.cancel();
+      },
+    );
   }
 
   void _onPin(LingConversation conv) => _convController.togglePin(conv.id);
@@ -238,7 +320,7 @@ _MockData _generateMockData() {
   final mockContacts = [
     {'id': 'u1', 'name': '小明同学', 'status': LingUserStatus.online},
     {'id': 'u2', 'name': '阿强', 'status': LingUserStatus.offline},
-    {'id': 'u3', 'name': 'LingEcho', 'status': LingUserStatus.online},
+    {'id': 'u3', 'name': 'LingEcho', 'status': LingUserStatus.online, 'isAi': true},
     {'id': 'u4', 'name': '校园达人', 'status': LingUserStatus.away},
     {'id': 'u5', 'name': '课表君', 'status': LingUserStatus.busy},
   ];
@@ -259,6 +341,7 @@ _MockData _generateMockData() {
     final userId = c['id'] as String;
     final userName = c['name'] as String;
     final status = c['status'] as LingUserStatus;
+    final isAi = c['isAi'] == true;
 
     final user = LingChatUser(
       id: userId,
@@ -269,23 +352,36 @@ _MockData _generateMockData() {
     users[userId] = user;
 
     final convMessages = <LingMessage>[];
-    final msgCount = 4 + rng.nextInt(4);
-    for (int j = 0; j < msgCount; j++) {
-      final isMe = j % 2 == 0;
+    if (isAi) {
+      // LingEcho: welcome message from AI assistant.
       convMessages.add(LingMessage(
-        id: '${userId}_msg_$j',
+        id: '${userId}_msg_welcome',
         conversationId: userId,
-        authorId: isMe ? 'me' : userId,
+        authorId: userId,
         type: LingMessageType.text,
-        text: mockTexts[rng.nextInt(mockTexts.length)],
-        createdAt: DateTime.now()
-            .subtract(Duration(minutes: (msgCount - j) * 15 + i * 30)),
+        text: '你好！我是 LingEcho，你的 AI 助手。有什么可以帮你的吗？',
+        createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
         status: LingMessageStatus.read,
       ));
+    } else {
+      final msgCount = 4 + rng.nextInt(4);
+      for (int j = 0; j < msgCount; j++) {
+        final isMe = j % 2 == 0;
+        convMessages.add(LingMessage(
+          id: '${userId}_msg_$j',
+          conversationId: userId,
+          authorId: isMe ? 'me' : userId,
+          type: LingMessageType.text,
+          text: mockTexts[rng.nextInt(mockTexts.length)],
+          createdAt: DateTime.now()
+              .subtract(Duration(minutes: (msgCount - j) * 15 + i * 30)),
+          status: LingMessageStatus.read,
+        ));
+      }
     }
 
     final lastMsg = convMessages.last;
-    final unread = i < 2 ? 1 + rng.nextInt(3) : 0;
+    final unread = isAi ? 0 : (i < 2 ? 1 + rng.nextInt(3) : 0);
 
     conversations.add(LingConversation(
       id: userId,
