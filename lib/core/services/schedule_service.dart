@@ -60,7 +60,11 @@ class ScheduleService extends ChangeNotifier {
 
   /// 当前用户 ID（用于云端 key）。
   String get _userId => _prefs.getString(_prefsUserIdKey) ?? 'default';
-  void setUserId(String userId) => _prefs.setString(_prefsUserIdKey, userId);
+  void setUserId(String userId) {
+    _prefs.setString(_prefsUserIdKey, userId);
+    // Reload data for the new user.
+    init();
+  }
 
   /// 云端存储 key。
   String get _cloudKey => 'schedules/$_userId.json';

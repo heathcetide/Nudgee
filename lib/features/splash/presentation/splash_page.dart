@@ -6,7 +6,10 @@ import 'package:go_router/go_router.dart';
 
 import 'package:nudgee/app/router/app_router.dart';
 import 'package:nudgee/app/theme/app_colors.dart';
+import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
+import 'package:nudgee/core/services/auth_service.dart';
+import 'package:nudgee/core/services/schedule_service.dart';
 
 /// Splash / loading page shown on app launch.
 ///
@@ -77,9 +80,26 @@ class _SplashPageState extends State<SplashPage>
 
     _controller.addListener(_tick);
 
-    _navTimer = Timer(const Duration(milliseconds: 2800), () {
-      if (mounted) {
-        context.go(AppRouter.home);
+    _navTimer = Timer(const Duration(milliseconds: 2800), () async {
+      if (!mounted) return;
+      // Check auth status and navigate accordingly.
+      try {
+        final auth = sl<AuthService>();
+        final isLoggedIn = await auth.checkAuthStatus();
+        if (!mounted) return;
+        if (isLoggedIn) {
+          // Bind schedule service to the restored user.
+          final user = auth.currentUser.value;
+          if (user != null) {
+            sl<ScheduleService>().setUserId(user.id);
+          }
+          context.go(AppRouter.home);
+        } else {
+          context.go(AppRouter.login);
+        }
+      } catch (_) {
+        if (!mounted) return;
+        context.go(AppRouter.login);
       }
     });
   }

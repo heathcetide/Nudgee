@@ -23,6 +23,8 @@ class RouteGuard {
   /// `/userAgreement` are intentionally public — they are local app
   /// configuration pages that should be accessible without login.
   static const Set<String> _protectedRoutes = <String>{
+    '/home',
+    '/addSchedule',
     '/profile/myInformation',
     '/profile/changeNickName',
     '/profile/avatarUpload',

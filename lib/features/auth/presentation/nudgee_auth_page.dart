@@ -6,6 +6,7 @@ import 'package:nudgee/app/router/app_router.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/auth_service.dart';
+import 'package:nudgee/core/services/schedule_service.dart';
 import 'package:nudgee/features/auth/presentation/nudgee_auth_widgets.dart';
 
 /// Nudgee authentication page — login + register.
@@ -29,8 +30,8 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
   late NudgeeAuthMode _mode;
 
   // Controllers
-  final _accountController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _accountController = TextEditingController(text: 'admin');
+  final _passwordController = TextEditingController(text: 'admin123');
   final _regUsernameController = TextEditingController();
   final _regPasswordController = TextEditingController();
 
@@ -137,6 +138,11 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
       );
       if (!mounted) return;
       if (success) {
+        // Bind schedule service to the logged-in user.
+        final user = sl<AuthService>().currentUser.value;
+        if (user != null) {
+          sl<ScheduleService>().setUserId(user.id);
+        }
         context.go(AppRouter.home);
       } else {
         setState(() {
@@ -168,6 +174,11 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
       );
       if (!mounted) return;
       if (success) {
+        // Bind schedule service to the registered user.
+        final user = sl<AuthService>().currentUser.value;
+        if (user != null) {
+          sl<ScheduleService>().setUserId(user.id);
+        }
         context.go(AppRouter.home);
       } else {
         setState(() {
