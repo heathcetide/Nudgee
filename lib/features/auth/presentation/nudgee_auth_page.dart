@@ -140,14 +140,14 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
         context.go(AppRouter.home);
       } else {
         setState(() {
-          _generalError = '登录失败：用户名或密码错误，或存储配置未加载';
+          _generalError = context.l10n.authLoginFailedStorage;
           _isSubmitting = false;
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _generalError = '登录异常: $e';
+        _generalError = context.l10n.authLoginException(e.toString());
         _isSubmitting = false;
       });
     }
@@ -178,7 +178,7 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _generalError = '注册异常: $e';
+        _generalError = context.l10n.authRegisterException(e.toString());
         _isSubmitting = false;
       });
     }

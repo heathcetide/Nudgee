@@ -10,6 +10,7 @@ import 'package:nudgee/core/di/injector.dart' as di;
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
 import 'package:nudgee/core/services/user_storage_service.dart';
+import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/features/common/widgets/page_scaffold.dart';
 
 class ChangeNickName extends StatefulWidget {
@@ -28,7 +29,7 @@ class _ChangeNickNameState extends State<ChangeNickName> {
         GoRouterState.of(context).extra as Map<String, dynamic>? ?? {};
     _nickNameController.text = args['nickName'] ?? '';
     return PageScaffold(
-      title: const Text('修改昵称'),
+      title: Text(context.l10n.nickNameTitle),
       leading: getPopLeading(context),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -38,15 +39,15 @@ class _ChangeNickNameState extends State<ChangeNickName> {
             TextField(
               controller: _nickNameController,
               autofocus: true,
-              decoration: const InputDecoration(
-                  border: UnderlineInputBorder(),
-                  labelText: '昵称',
-                  hintText: '请输入您的新昵称',
-                  prefixIcon: Icon(Icons.person)),
+              decoration: InputDecoration(
+                  border: const UnderlineInputBorder(),
+                  labelText: context.l10n.nickNameLabel,
+                  hintText: context.l10n.nickNameHint,
+                  prefixIcon: const Icon(Icons.person)),
             ),
             Padding(
               padding: const EdgeInsets.all(8.0),
-              child: Text('昵称限制长度最多16个字符\n昵称只能包含汉字、字母、数字和下划线',
+              child: Text(context.l10n.nickNameRuleHint,
                   style: TextStyle(
                     color: Theme.of(context).hintColor,
                   )),
@@ -56,23 +57,23 @@ class _ChangeNickNameState extends State<ChangeNickName> {
                   final nickName = _nickNameController.text.trim();
                   if (nickName.isEmpty) {
                     SmartDialog.showNotify(
-                        msg: '昵称不能为空', notifyType: NotifyType.error);
+                        msg: context.l10n.nickNameEmpty, notifyType: NotifyType.error);
                     return;
                   }
                   if (nickName == args['nickName']) {
                     SmartDialog.showNotify(
-                        msg: '保存成功', notifyType: NotifyType.success);
+                        msg: context.l10n.nickNameSaveSuccess, notifyType: NotifyType.success);
                     Navigator.maybePop(context);
                     return;
                   }
-                  SmartDialog.showLoading(msg: '保存中...');
+                  SmartDialog.showLoading(msg: context.l10n.infoSaving);
                   try {
                     final auth = di.sl<AuthService>();
                     final user = auth.currentUser.value;
                     if (user == null) {
                       SmartDialog.dismiss();
                       SmartDialog.showNotify(
-                          msg: '未登录', notifyType: NotifyType.error);
+                          msg: context.l10n.avatarNotLoggedIn, notifyType: NotifyType.error);
                       return;
                     }
 
@@ -81,7 +82,7 @@ class _ChangeNickNameState extends State<ChangeNickName> {
                     if (existing == null) {
                       SmartDialog.dismiss();
                       SmartDialog.showNotify(
-                          msg: '无法读取云端用户数据',
+                          msg: context.l10n.nickNameCloudReadFailed,
                           notifyType: NotifyType.error);
                       return;
                     }
@@ -98,7 +99,7 @@ class _ChangeNickNameState extends State<ChangeNickName> {
                     if (url == null) {
                       SmartDialog.dismiss();
                       SmartDialog.showNotify(
-                          msg: '上传失败', notifyType: NotifyType.failure);
+                          msg: context.l10n.nickNameUploadFailed, notifyType: NotifyType.failure);
                       return;
                     }
 
@@ -114,16 +115,17 @@ class _ChangeNickNameState extends State<ChangeNickName> {
 
                     SmartDialog.dismiss();
                     SmartDialog.showNotify(
-                        msg: '保存成功', notifyType: NotifyType.success);
+                        msg: context.l10n.nickNameSaveSuccess, notifyType: NotifyType.success);
                     Navigator.maybePop(context);
                   } catch (e) {
                     debugPrint('[ChangeNickName] error: $e');
                     SmartDialog.dismiss();
                     SmartDialog.showNotify(
-                        msg: '保存失败: $e', notifyType: NotifyType.failure);
+                        msg: context.l10n.nickNameSaveFailedWithError(e.toString()),
+                        notifyType: NotifyType.failure);
                   }
                 },
-                child: const Text('保存更改'))
+                child: Text(context.l10n.nickNameSaveChanges))
           ],
         ),
       ),

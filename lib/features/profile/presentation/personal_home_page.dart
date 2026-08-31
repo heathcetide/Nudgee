@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:nudgee/app/router/app_router.dart';
 import 'package:nudgee/core/di/injector.dart';
+import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/features/common/utils/route_observer.dart';
 import 'package:nudgee/features/common/widgets/avatar.dart';
@@ -54,15 +55,16 @@ class _PersonalHomePageState extends State<PersonalHomePage> with RouteAware {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final theme = Theme.of(context);
-    final name = _user?.name ?? '未设置';
+    final name = _user?.name ?? l10n.notSet;
     final id = _user?.id ?? '';
     final avatar = _user?.avatar;
     final gender = _user?.gender;
     final phone = _user?.phone;
 
     return PageScaffold(
-      title: const Text('个人主页'),
+      title: Text(l10n.profilePersonalHome),
       leading: getPopLeading(context),
       child: ListView(
         children: [
@@ -125,22 +127,22 @@ class _PersonalHomePageState extends State<PersonalHomePage> with RouteAware {
                 tiles: [
                   ListTile(
                     leading: const Icon(Icons.person_outline),
-                    title: const Text('昵称'),
+                    title: Text(l10n.infoNickname),
                     trailing: Text(name, style: theme.textTheme.bodyMedium),
                   ),
                   ListTile(
                     leading: const Icon(Icons.wc_outlined),
-                    title: const Text('性别'),
+                    title: Text(l10n.infoGender),
                     trailing: Text(
-                      gender ?? '未设置',
+                      gender ?? l10n.notSet,
                       style: theme.textTheme.bodyMedium,
                     ),
                   ),
                   ListTile(
                     leading: const Icon(Icons.phone_outlined),
-                    title: const Text('手机号'),
+                    title: Text(l10n.infoPhone),
                     trailing: Text(
-                      phone ?? '未设置',
+                      phone ?? l10n.notSet,
                       style: theme.textTheme.bodyMedium,
                     ),
                   ),
@@ -158,7 +160,7 @@ class _PersonalHomePageState extends State<PersonalHomePage> with RouteAware {
                 GoRouter.of(context).push(AppRouter.myInformation);
               },
               icon: const Icon(Icons.edit),
-              label: const Text('编辑资料'),
+              label: Text(l10n.profileEditInfo),
             ),
           ),
         ],

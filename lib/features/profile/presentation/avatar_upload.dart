@@ -13,6 +13,7 @@ import 'package:nudgee/core/services/file_storage_service.dart';
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
 import 'package:nudgee/features/common/utils/crop_image.dart';
 import 'package:nudgee/features/common/utils/functions.dart';
+import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/features/common/widgets/page_scaffold.dart';
 
 class AvatarUpload extends StatefulWidget {
@@ -46,20 +47,20 @@ class _AvatarUploadState extends State<AvatarUpload> {
   @override
   Widget build(BuildContext context) {
     return PageScaffold(
-      title: const Text('上传头像'),
+      title: Text(context.l10n.avatarUploadTitle),
       leading: getPopLeading(context),
       customActions: [
         IconButton(
-          icon: const Text(
-            '保存',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          icon: Text(
+            context.l10n.save,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           onPressed: () async {
             if (_cropping) return;
             _cropping = true;
             try {
               debugPrint('[AvatarUpload] start save...');
-              SmartDialog.showLoading(msg: '图片裁剪中');
+              SmartDialog.showLoading(msg: context.l10n.avatarCropping);
               final Uint8List? fileData =
                   (await cropImageDataWithNativeLibrary(_editorController))
                       .data;
@@ -67,7 +68,7 @@ class _AvatarUploadState extends State<AvatarUpload> {
               if (fileData == null) {
                 SmartDialog.dismiss();
                 SmartDialog.showNotify(
-                    msg: '裁剪失败', notifyType: NotifyType.error);
+                    msg: context.l10n.avatarCropFailed, notifyType: NotifyType.error);
                 _cropping = false;
                 return;
               }
@@ -86,14 +87,14 @@ class _AvatarUploadState extends State<AvatarUpload> {
                   quality: 24);
               debugPrint('[AvatarUpload] compress done: original=${originalFileData.length}B, thumb=${compressedFileData.length}B');
 
-              SmartDialog.showLoading(msg: '图片上传中');
+              SmartDialog.showLoading(msg: context.l10n.avatarUploading);
 
               final auth = di.sl<AuthService>();
               final user = auth.currentUser.value;
               if (user == null) {
                 SmartDialog.dismiss();
                 SmartDialog.showNotify(
-                    msg: '未登录', notifyType: NotifyType.error);
+                    msg: context.l10n.avatarNotLoggedIn, notifyType: NotifyType.error);
                 _cropping = false;
                 return;
               }
@@ -111,7 +112,7 @@ class _AvatarUploadState extends State<AvatarUpload> {
               if (compressedUrl == null) {
                 SmartDialog.dismiss();
                 SmartDialog.showNotify(
-                    msg: '头像上传到云端失败', notifyType: NotifyType.failure);
+                    msg: context.l10n.avatarUploadCloudFailed, notifyType: NotifyType.failure);
                 _cropping = false;
                 return;
               }
@@ -144,7 +145,7 @@ class _AvatarUploadState extends State<AvatarUpload> {
               debugPrint('[AvatarUpload] all done!');
               SmartDialog.dismiss();
               SmartDialog.showNotify(
-                  msg: '头像修改成功', notifyType: NotifyType.success);
+                  msg: context.l10n.avatarUploadSuccess, notifyType: NotifyType.success);
               Navigator.maybePop(context);
               return;
             } catch (e, st) {
@@ -153,7 +154,7 @@ class _AvatarUploadState extends State<AvatarUpload> {
             }
             SmartDialog.dismiss();
             SmartDialog.showNotify(
-                msg: '头像上传失败', notifyType: NotifyType.failure);
+                msg: context.l10n.avatarUploadFailed, notifyType: NotifyType.failure);
             _cropping = false;
           },
         )

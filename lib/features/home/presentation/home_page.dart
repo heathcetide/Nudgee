@@ -9,6 +9,7 @@ import 'package:nudgee/features/common/utils/events.dart';
 import 'package:nudgee/features/profile/presentation/profile_portal.dart';
 import 'package:nudgee/features/timetable/presentation/timetable.dart';
 import 'package:nudgee/features/timetable/presentation/today_schedule.dart';
+import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/features/home/presentation/components_tab.dart';
 
 /// Main home page — merged tab structure.
@@ -70,31 +71,31 @@ class _HomePageState extends ConsumerState<HomePage> {
         type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),
-        items: const [
+        items: [
           BottomNavigationBarItem(
             icon: Icon(Icons.event_note_outlined),
             activeIcon: Icon(Icons.event_note),
-            label: '课程表',
+            label: context.l10n.navTimetable,
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.camera_alt_outlined),
             activeIcon: Icon(Icons.camera_alt),
-            label: '校园圈',
+            label: context.l10n.navCampus,
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.chat_outlined),
             activeIcon: Icon(Icons.chat),
-            label: '聊天',
+            label: context.l10n.navChat,
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.widgets_outlined),
             activeIcon: Icon(Icons.widgets),
-            label: '组件',
+            label: context.l10n.navComponents,
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
             activeIcon: Icon(Icons.person),
-            label: '我的',
+            label: context.l10n.navProfile,
           ),
         ],
       ),

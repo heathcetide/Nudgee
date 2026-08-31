@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/features/common/utils/events.dart';
 import 'package:nudgee/features/common/widgets/page_scaffold.dart';
 import 'package:nudgee/features/timetable/utils/mock_timetable_data.dart';
@@ -171,13 +172,13 @@ class _TimetableState extends State<Timetable> {
   @override
   Widget build(BuildContext context) {
     return PageScaffold(
-      title: const Text('课表总览'),
+      title: Text(context.l10n.timetableOverview),
       leading: IconButton(
           onPressed: () {
             PublicEventBus.eventBus.fire(ChangePageEvent('todaySchedule'));
           },
           icon: Text(
-            '单日',
+            context.l10n.timetableSingleDay,
             style: TextStyle(
                 fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
           )),
@@ -238,7 +239,7 @@ class _TimetableState extends State<Timetable> {
                         }
                         return children;
                       }
-                      return [const Text('加载中...')];
+                      return [Text(context.l10n.loading)];
                     })(),
                   ),
                 );
@@ -299,7 +300,7 @@ class _HeaderState extends State<Header> {
                               BorderSide(color: Theme.of(context).colorScheme.outline, width: 1))),
                   child: Center(
                     child: AutoSizeText(
-                      '第${getWeekString(widget.week)}周',
+                      context.l10n.timetableWeekN(getWeekString(widget.week)),
                       minFontSize: 0,
                       maxLines: 1,
                       style: TextStyle(
@@ -776,7 +777,7 @@ class _WeekDividerState extends State<WeekDivider> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           AutoSizeText(
-            '第${getWeekString(widget.week)}周  /  ${DateTime.parse(widget.fromDate).month.toString().padLeft(2, '0')}.${DateTime.parse(widget.fromDate).day.toString().padLeft(2, '0')} - ${DateTime.parse(widget.toDate).month.toString().padLeft(2, '0')}.${DateTime.parse(widget.toDate).day.toString().padLeft(2, '0')}  /  共${widget.total}节',
+            '${context.l10n.timetableWeekN(getWeekString(widget.week))}  /  ${DateTime.parse(widget.fromDate).month.toString().padLeft(2, '0')}.${DateTime.parse(widget.fromDate).day.toString().padLeft(2, '0')} - ${DateTime.parse(widget.toDate).month.toString().padLeft(2, '0')}.${DateTime.parse(widget.toDate).day.toString().padLeft(2, '0')}  /  ${context.l10n.timetableTotalSessions(widget.total)}',
             style: const TextStyle(color: Colors.white, height: 1),
             minFontSize: 0,
           )

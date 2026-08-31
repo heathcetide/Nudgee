@@ -9,7 +9,7 @@ class PageScaffold extends StatefulWidget {
   final Function? callback;
   const PageScaffold(
       {super.key,
-      this.title = const Text('未命名页面'),
+      this.title = const Text('Untitled'),
       this.child = const Placeholder(),
       this.actions = const [],
       this.customActions = null,

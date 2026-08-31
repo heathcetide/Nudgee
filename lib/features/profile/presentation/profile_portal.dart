@@ -5,6 +5,7 @@ import 'package:icons_plus/icons_plus.dart';
 
 import 'package:nudgee/app/router/app_router.dart';
 import 'package:nudgee/core/di/injector.dart';
+import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/features/common/utils/route_observer.dart';
 import 'package:nudgee/features/common/widgets/avatar.dart';
@@ -17,27 +18,6 @@ class ProfilePortal extends StatefulWidget {
 }
 
 class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
-  final List<Map<String, dynamic>> _actions = [
-    {
-      'icon': Icons.person,
-      'text': '个人主页',
-      'onclick': (context) {
-        GoRouter.of(context).push(AppRouter.personalHome);
-      }
-    },
-    {
-      'icon': Icons.settings,
-      'text': '软件设置',
-      'onclick': (context) {
-        GoRouter.of(context).push(AppRouter.settings);
-      }
-    },
-    {'icon': AntDesign.heart_fill, 'text': '点赞列表', 'onclick': (centext) {}},
-    {'icon': Icons.assignment_outlined, 'text': '任务记录', 'onclick': (centext) {}},
-    {'icon': Icons.help_outline, 'text': '问题反馈', 'onclick': (centext) {}},
-    {'icon': Icons.info_outline, 'text': '关于软件', 'onclick': (centext) {}},
-  ];
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -57,10 +37,32 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final auth = sl<AuthService>();
     final user = auth.currentUser.value;
     final isLoggedIn = auth.isAuthenticated.value;
+
+    final List<Map<String, dynamic>> actions = [
+      {
+        'icon': Icons.person,
+        'text': l10n.profilePersonalHome,
+        'onclick': (context) {
+          GoRouter.of(context).push(AppRouter.personalHome);
+        }
+      },
+      {
+        'icon': Icons.settings,
+        'text': l10n.profileAppSettings,
+        'onclick': (context) {
+          GoRouter.of(context).push(AppRouter.settings);
+        }
+      },
+      {'icon': AntDesign.heart_fill, 'text': l10n.profileLikes, 'onclick': (centext) {}},
+      {'icon': Icons.assignment_outlined, 'text': l10n.profileTaskRecords, 'onclick': (centext) {}},
+      {'icon': Icons.help_outline, 'text': l10n.profileFeedback, 'onclick': (centext) {}},
+      {'icon': Icons.info_outline, 'text': l10n.profileAbout, 'onclick': (centext) {}},
+    ];
 
     return Container(
       color: isDark
@@ -107,7 +109,7 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              isLoggedIn ? (user?.name ?? '未设置') : '未登录',
+                              isLoggedIn ? (user?.name ?? l10n.notSet) : l10n.notLoggedIn,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                   fontSize: 22, fontWeight: FontWeight.bold, height: 1.2),
@@ -118,7 +120,7 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
                                   ? (user != null && user.id.length > 8
                                       ? 'ID: ${user.id.substring(0, 7)}****${user.id.substring(user.id.length - 1)}'
                                       : 'ID: ${user?.id ?? ""}')
-                                  : '点击登录以同步您的数据',
+                                  : l10n.tapToLogin,
                               style: const TextStyle(fontSize: 15, height: 1),
                             ),
                           ],
@@ -141,10 +143,10 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
                 child: ListView.builder(
                   itemBuilder: (context, index) {
                     return ListTile(
-                      title: Text(_actions[index]['text']),
-                      leading: Icon(_actions[index]['icon']),
+                      title: Text(actions[index]['text']),
+                      leading: Icon(actions[index]['icon']),
                       onTap: () {
-                        _actions[index]['onclick'](context);
+                        actions[index]['onclick'](context);
                       },
                       trailing: const Icon(
                         Icons.arrow_forward_ios,
@@ -152,7 +154,7 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
                       ),
                     );
                   },
-                  itemCount: _actions.length,
+                  itemCount: actions.length,
                   shrinkWrap: true,
                 ),
               ),

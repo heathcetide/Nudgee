@@ -1,6 +1,9 @@
 import 'dart:typed_data';
 
+import 'package:flutter/widgets.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:nudgee/core/di/injector.dart';
+import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/file_storage_service.dart';
 import 'package:nudgee/features/common/utils/consts.dart';
 import 'package:dio/dio.dart';
@@ -15,22 +18,22 @@ String padLeft(int num, [int length = 2, String fill = '0']) {
   return num.toString().padLeft(length, fill);
 }
 
-String getChineseStringByDatetime(DateTime dateTime, [DateTime? now]) {
+String getChineseStringByDatetime(DateTime dateTime, [DateTime? now, AppLocalizations? l10n]) {
   now ??= DateTime.now();
   if (dateTime.year == now.year && dateTime.month == now.month && dateTime.day == now.day) {
     // 同一天
     int min = now.hour * 60 + now.minute - dateTime.hour * 60 - dateTime.minute;
-    if (min <= 1) return '刚刚';
-    if (min < 60) return '$min分钟前';
-    return '${now.hour - dateTime.hour}小时前';
+    if (min <= 1) return l10n?.timeJustNow ?? '刚刚';
+    if (min < 60) return l10n?.timeMinutesAgo(min) ?? '$min分钟前';
+    return l10n?.timeHoursAgo(now.hour - dateTime.hour) ?? '${now.hour - dateTime.hour}小时前';
   }
   // 不同天
   int day = getZeroOclockOfDay(now).difference(getZeroOclockOfDay(dateTime)).inDays;
-  if (day <= 0) return '未来(请检查本机系统时间)';
-  if (day == 1) return '昨天${padLeft(dateTime.hour)}:${padLeft(dateTime.minute)}';
-  if (day == 2) return '前天';
+  if (day <= 0) return l10n?.timeFuture ?? '未来(请检查本机系统时间)';
+  if (day == 1) return l10n?.timeYesterday('${padLeft(dateTime.hour)}:${padLeft(dateTime.minute)}') ?? '昨天${padLeft(dateTime.hour)}:${padLeft(dateTime.minute)}';
+  if (day == 2) return l10n?.timeDayBeforeYesterday ?? '前天';
   if (day <= 7) {
-    return '$day天前';
+    return l10n?.timeDaysAgo(day) ?? '$day天前';
   }
   if (dateTime.year == now.year) {
     return '${padLeft(dateTime.month)}-${padLeft(dateTime.day)}';
@@ -38,7 +41,7 @@ String getChineseStringByDatetime(DateTime dateTime, [DateTime? now]) {
   return '${dateTime.year}-${padLeft(dateTime.month)}-${padLeft(dateTime.day)}';
 }
 
-Future<void> saveNetworkImage(String imageUrl, context) async {
+Future<void> saveNetworkImage(String imageUrl, BuildContext context) async {
   try {
     // Download the image from the network
     var response = await dio.get(imageUrl, options: Options(responseType: ResponseType.bytes));
@@ -52,12 +55,12 @@ Future<void> saveNetworkImage(String imageUrl, context) async {
       imageData,
     );
     if (saved != null) {
-      SmartDialog.showNotify(msg: '已保存图片', notifyType: NotifyType.success);
+      SmartDialog.showNotify(msg: context.l10n.imageSaved, notifyType: NotifyType.success);
     } else {
-      SmartDialog.showNotify(msg: '保存失败', notifyType: NotifyType.failure);
+      SmartDialog.showNotify(msg: context.l10n.imageSaveFailed, notifyType: NotifyType.failure);
     }
   } catch (e) {
-    SmartDialog.showNotify(msg: '保存错误：$e', notifyType: NotifyType.error);
+    SmartDialog.showNotify(msg: context.l10n.imageSaveError(e.toString()), notifyType: NotifyType.error);
   }
 }
 

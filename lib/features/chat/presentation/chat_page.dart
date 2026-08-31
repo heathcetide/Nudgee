@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'package:nudgee/core/controllers/im/im.dart';
+import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/models/im/im.dart';
 import 'package:nudgee/core/widgets/im/ling_chat_screen.dart';
 import 'package:nudgee/core/widgets/im/ling_message_search.dart';
@@ -178,7 +179,7 @@ class _ChatPageState extends State<ChatPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('聊天'),
+        title: Text(context.l10n.chatTitle),
         centerTitle: false,
         actions: [
           IconButton(

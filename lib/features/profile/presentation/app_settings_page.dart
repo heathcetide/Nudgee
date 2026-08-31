@@ -7,6 +7,7 @@ import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:nudgee/app/theme/locale_controller.dart';
 import 'package:nudgee/app/theme/theme_controller.dart';
 import 'package:nudgee/core/di/injector.dart';
+import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/file_storage_service.dart';
 import 'package:nudgee/features/common/widgets/page_scaffold.dart';
 
@@ -61,32 +62,32 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('清理缓存'),
-        content: const Text('确定要清理所有缓存文件吗？\n（不会清除用户数据和登录信息）'),
+        title: Text(context.l10n.settingsClearCache),
+        content: Text(context.l10n.settingsClearCacheConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('确定'),
+            child: Text(context.l10n.confirm),
           ),
         ],
       ),
     );
     if (confirmed != true) return;
 
-    SmartDialog.showLoading(msg: '清理中...');
+    SmartDialog.showLoading(msg: context.l10n.settingsClearing);
     try {
       final fileStorage = sl<FileStorageService>();
       await fileStorage.clearCategory(FileStorageService.dirCache);
       await _loadStorageInfo();
       SmartDialog.dismiss();
-      SmartDialog.showNotify(msg: '清理成功', notifyType: NotifyType.success);
+      SmartDialog.showNotify(msg: context.l10n.settingsClearSuccess, notifyType: NotifyType.success);
     } catch (e) {
       SmartDialog.dismiss();
-      SmartDialog.showNotify(msg: '清理失败: $e', notifyType: NotifyType.failure);
+      SmartDialog.showNotify(msg: context.l10n.settingsClearFailedWithError(e.toString()), notifyType: NotifyType.failure);
     }
   }
 
@@ -97,33 +98,33 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
     final locale = ref.watch(localeControllerProvider);
 
     return PageScaffold(
-      title: const Text('软件设置'),
+      title: Text(context.l10n.settingsTitle),
       leading: getPopLeading(context),
       child: ListView(
         children: [
           // ── 主题 ──────────────────────────────────────────────────────
-          _SectionHeader(title: '主题'),
+          _SectionHeader(title: context.l10n.settingsTheme),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16),
             clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
                 RadioListTile<ThemeMode>(
-                  title: const Text('浅色模式'),
+                  title: Text(context.l10n.settingsThemeLight),
                   value: ThemeMode.light,
                   groupValue: themeMode,
                   onChanged: (v) =>
                       ref.read(themeControllerProvider.notifier).setMode(v!),
                 ),
                 RadioListTile<ThemeMode>(
-                  title: const Text('深色模式'),
+                  title: Text(context.l10n.settingsThemeDark),
                   value: ThemeMode.dark,
                   groupValue: themeMode,
                   onChanged: (v) =>
                       ref.read(themeControllerProvider.notifier).setMode(v!),
                 ),
                 RadioListTile<ThemeMode>(
-                  title: const Text('跟随系统'),
+                  title: Text(context.l10n.settingsThemeSystem),
                   value: ThemeMode.system,
                   groupValue: themeMode,
                   onChanged: (v) =>
@@ -135,14 +136,14 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
           const SizedBox(height: 16),
 
           // ── 语言 ──────────────────────────────────────────────────────
-          _SectionHeader(title: '语言'),
+          _SectionHeader(title: context.l10n.settingsLanguage),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16),
             clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
                 RadioListTile<String>(
-                  title: const Text('简体中文'),
+                  title: Text(context.l10n.settingsLangZh),
                   value: 'zh',
                   groupValue: locale?.languageCode ?? 'system',
                   onChanged: (v) {
@@ -155,7 +156,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   },
                 ),
                 RadioListTile<String>(
-                  title: const Text('English'),
+                  title: Text(context.l10n.settingsLangEn),
                   value: 'en',
                   groupValue: locale?.languageCode ?? 'system',
                   onChanged: (v) {
@@ -164,7 +165,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   },
                 ),
                 RadioListTile<String>(
-                  title: const Text('跟随系统'),
+                  title: Text(context.l10n.settingsLangSystem),
                   value: 'system',
                   groupValue: locale?.languageCode ?? 'system',
                   onChanged: (v) {
@@ -177,7 +178,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
           const SizedBox(height: 16),
 
           // ── 存储管理 ──────────────────────────────────────────────────
-          _SectionHeader(title: '存储管理'),
+          _SectionHeader(title: context.l10n.settingsStorage),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16),
             clipBehavior: Clip.antiAlias,
@@ -187,34 +188,34 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                 tiles: [
                   ListTile(
                     leading: const Icon(Icons.folder_outlined),
-                    title: const Text('总占用空间'),
+                    title: Text(context.l10n.settingsTotalSpace),
                     trailing: Text(_formatSize(_totalSize),
                         style: theme.textTheme.bodyMedium),
                   ),
                   ListTile(
                     leading: const Icon(Icons.image_outlined),
-                    title: const Text('头像缓存'),
+                    title: Text(context.l10n.settingsAvatarCache),
                     trailing: Text(
                         _formatSize(_storageSizes[FileStorageService.dirAvatars] ?? 0),
                         style: theme.textTheme.bodyMedium),
                   ),
                   ListTile(
                     leading: const Icon(Icons.cached_outlined),
-                    title: const Text('通用缓存'),
+                    title: Text(context.l10n.settingsGeneralCache),
                     trailing: Text(
                         _formatSize(_storageSizes[FileStorageService.dirCache] ?? 0),
                         style: theme.textTheme.bodyMedium),
                   ),
                   ListTile(
                     leading: const Icon(Icons.download_outlined),
-                    title: const Text('下载文件'),
+                    title: Text(context.l10n.settingsDownloads),
                     trailing: Text(
                         _formatSize(_storageSizes[FileStorageService.dirDownloads] ?? 0),
                         style: theme.textTheme.bodyMedium),
                   ),
                   ListTile(
                     leading: const Icon(Icons.description_outlined),
-                    title: const Text('日志文件'),
+                    title: Text(context.l10n.settingsLogs),
                     trailing: Text(
                         _formatSize(_storageSizes[FileStorageService.dirLogs] ?? 0),
                         style: theme.textTheme.bodyMedium),
@@ -222,7 +223,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                   ListTile(
                     leading: Icon(Icons.cleaning_services_outlined,
                         color: theme.colorScheme.error),
-                    title: Text('清理缓存',
+                    title: Text(context.l10n.settingsClearCache,
                         style: TextStyle(color: theme.colorScheme.error)),
                     onTap: _clearCache,
                   ),
@@ -233,7 +234,7 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
           const SizedBox(height: 16),
 
           // ── 关于 ──────────────────────────────────────────────────────
-          _SectionHeader(title: '关于'),
+          _SectionHeader(title: context.l10n.settingsAbout),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16),
             clipBehavior: Clip.antiAlias,
@@ -243,12 +244,12 @@ class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
                 tiles: [
                   ListTile(
                     leading: const Icon(Icons.info_outline),
-                    title: const Text('版本号'),
+                    title: Text(context.l10n.settingsVersion),
                     trailing: Text('1.0.0', style: theme.textTheme.bodyMedium),
                   ),
                   ListTile(
                     leading: const Icon(Icons.phone_android_outlined),
-                    title: const Text('平台'),
+                    title: Text(context.l10n.settingsPlatform),
                     trailing: Text(Platform.isAndroid ? 'Android' : 'iOS',
                         style: theme.textTheme.bodyMedium),
                   ),

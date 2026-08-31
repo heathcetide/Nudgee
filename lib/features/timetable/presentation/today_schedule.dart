@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/features/common/utils/events.dart';
 import 'package:nudgee/features/common/widgets/page_scaffold.dart';
 import 'package:nudgee/features/timetable/presentation/timetable.dart';
@@ -200,26 +201,27 @@ class _TodayScheduleState extends State<TodaySchedule> {
   Widget build(BuildContext context) {
     return PageScaffold(
       title: Text((() {
+        final l10n = context.l10n;
         if (todayClassState['nowState'] == 'hereafter') {
           DateTime now = DateTime.now().add(tmpOffset);
           now = DateTime(now.year, now.month, now.day, 0, 0, 0);
           Duration diff = todayClassState['nowDate'].difference(now);
           if (diff.inDays == 1) {
-            return '明日课表';
+            return l10n.timetableTomorrow;
           }
           if (diff.inDays <= 5 && todayClassState['nowDate'].weekday == 1) {
-            return '下周一课表';
+            return l10n.timetableNextWeek;
           }
-          return '${todayClassState['nowDate'].toString().split(' ')[0]}课表';
+          return l10n.timetableDateSchedule(todayClassState['nowDate'].toString().split(' ')[0]);
         }
-        return '今日课表';
+        return l10n.timetableToday;
       })()),
       leading: IconButton(
           onPressed: () {
             PublicEventBus.eventBus.fire(ChangePageEvent('timetable'));
           },
           icon: Text(
-            '总览',
+            context.l10n.timetableOverview,
             style: TextStyle(
                 fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
           )),
@@ -326,11 +328,12 @@ class _HeaderIslandState extends State<HeaderIsland> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     String state = widget.todayClassState['nowState'];
-    String centerText = '加载中...';
-    String leftTime = '加载中...';
-    String rightTime = '加载中...';
-    String leftText = '加载中...';
+    String centerText = l10n.loading;
+    String leftTime = l10n.loading;
+    String rightTime = l10n.loading;
+    String leftText = l10n.loading;
     Color progressbarColor = Colors.white;
     if (state == 'finished') {
       centerText = '今日课程已结束';

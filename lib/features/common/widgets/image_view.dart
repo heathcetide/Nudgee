@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:adaptive_action_sheet/adaptive_action_sheet.dart';
+import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/features/common/utils/consts.dart';
 import 'package:nudgee/features/common/utils/functions.dart';
 import 'package:crypto/crypto.dart';
@@ -99,14 +100,14 @@ class _ImageViewState extends State<ImageView> {
                     androidBorderRadius: 30,
                     actions: <BottomSheetAction>[
                       BottomSheetAction(
-                          title: const Text('保存图片'),
+                          title: Text(context.l10n.imageSaveImage),
                           onPressed: (context) async {
-                            SmartDialog.showLoading(msg: '保存图片中');
+                            SmartDialog.showLoading(msg: context.l10n.imageSaving);
                             await saveNetworkImage(widget.images[index]['url']!, context);
                             SmartDialog.dismiss();
                           }),
                       BottomSheetAction(
-                          title: const Text('分享图片'),
+                          title: Text(context.l10n.imageShareImage),
                           onPressed: (context) async {
                             SmartDialog.showLoading(msg: '请稍后...');
                             var response = await dio.get(widget.images[index]['url']!,

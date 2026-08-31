@@ -8,6 +8,7 @@ import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 
 import 'package:nudgee/app/router/app_router.dart';
 import 'package:nudgee/core/di/injector.dart';
+import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/features/common/utils/route_observer.dart';
 import 'package:nudgee/features/common/widgets/avatar.dart';
@@ -71,7 +72,7 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
     String? selected = await showDialog<String>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('选择性别'),
+        title: Text(context.l10n.infoSelectGender),
         children: [
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, '男'),
@@ -80,7 +81,7 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
                 Icon(Icons.male,
                     color: current == '男' ? Theme.of(ctx).primaryColor : null),
                 const SizedBox(width: 8),
-                const Text('男'),
+                Text(context.l10n.infoGenderMale),
                 if (current == '男')
                   const Padding(
                     padding: EdgeInsets.only(left: 8),
@@ -96,7 +97,7 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
                 Icon(Icons.female,
                     color: current == '女' ? Theme.of(ctx).primaryColor : null),
                 const SizedBox(width: 8),
-                const Text('女'),
+                Text(context.l10n.infoGenderFemale),
                 if (current == '女')
                   const Padding(
                     padding: EdgeInsets.only(left: 8),
@@ -110,14 +111,14 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
     );
     if (selected == null || selected == current) return;
 
-    SmartDialog.showLoading(msg: '保存中...');
+    SmartDialog.showLoading(msg: context.l10n.infoSaving);
     final (ok, err) = await sl<AuthService>().updateProfile({'gender': selected});
     SmartDialog.dismiss();
     if (ok) {
       _loadUser();
-      SmartDialog.showNotify(msg: '修改成功', notifyType: NotifyType.success);
+      SmartDialog.showNotify(msg: context.l10n.infoSaveSuccess, notifyType: NotifyType.success);
     } else {
-      SmartDialog.showNotify(msg: err ?? '修改失败', notifyType: NotifyType.failure);
+      SmartDialog.showNotify(msg: err ?? context.l10n.infoSaveFailed, notifyType: NotifyType.failure);
     }
   }
 
@@ -127,56 +128,56 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('修改手机号'),
+        title: Text(context.l10n.infoEditPhone),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.phone,
           autofocus: true,
-          decoration: const InputDecoration(
-            labelText: '手机号',
-            hintText: '请输入手机号',
-            prefixIcon: Icon(Icons.phone),
+          decoration: InputDecoration(
+            labelText: context.l10n.infoPhone,
+            hintText: context.l10n.infoPhoneHint,
+            prefixIcon: const Icon(Icons.phone),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('保存'),
+            child: Text(context.l10n.save),
           ),
         ],
       ),
     );
     if (result == null || result == _user?.phone) return;
     if (result.isEmpty) {
-      SmartDialog.showNotify(msg: '手机号不能为空', notifyType: NotifyType.error);
+      SmartDialog.showNotify(msg: context.l10n.infoPhoneEmpty, notifyType: NotifyType.error);
       return;
     }
 
-    SmartDialog.showLoading(msg: '保存中...');
+    SmartDialog.showLoading(msg: context.l10n.infoSaving);
     final (ok, err) = await sl<AuthService>().updateProfile({'phone': result});
     SmartDialog.dismiss();
     if (ok) {
       _loadUser();
-      SmartDialog.showNotify(msg: '修改成功', notifyType: NotifyType.success);
+      SmartDialog.showNotify(msg: context.l10n.infoSaveSuccess, notifyType: NotifyType.success);
     } else {
-      SmartDialog.showNotify(msg: err ?? '修改失败', notifyType: NotifyType.failure);
+      SmartDialog.showNotify(msg: err ?? context.l10n.infoSaveFailed, notifyType: NotifyType.failure);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final name = _user?.name ?? '未设置';
-    final id = _user?.id ?? '未设置';
+    final name = _user?.name ?? context.l10n.notSet;
+    final id = _user?.id ?? context.l10n.notSet;
     final avatar = _user?.avatar;
-    final gender = _user?.gender ?? '未设置';
-    final phone = _user?.phone ?? '未设置';
+    final gender = _user?.gender ?? context.l10n.notSet;
+    final phone = _user?.phone ?? context.l10n.notSet;
 
     return PageScaffold(
-      title: const Text('我的信息'),
+      title: Text(context.l10n.profileMyInfo),
       leading: getPopLeading(context),
       child: ListView(
         children: ListTile.divideTiles(
@@ -187,7 +188,7 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
                 GoRouter.of(context).push('/profile/changeNickName',
                     extra: {'nickName': name});
               },
-              title: const Text('昵称'),
+              title: Text(context.l10n.infoNickname),
               trailing: ListTileTrailingTextArrow(text: name),
             ),
             // 头像
@@ -196,7 +197,7 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
                 final bool granted = await _requestPhotoPermission();
                 if (!granted) {
                   SmartDialog.showNotify(
-                      msg: '请先授权相册权限', notifyType: NotifyType.error);
+                      msg: context.l10n.infoPhotoPermission, notifyType: NotifyType.error);
                   return;
                 }
                 final List<AssetEntity>? assetEntityList =
@@ -207,7 +208,7 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
                 GoRouter.of(context).push('/profile/avatarUpload',
                     extra: {'assetEntityList': assetEntityList});
               },
-              title: const Text('\n头像\n'),
+              title: Text('\n${context.l10n.infoAvatar}\n'),
               trailing: ListTileTrailingTextArrow(
                 text: SizedBox(
                   width: 50,
@@ -219,26 +220,26 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
             // 用户ID（只读）
             ListTile(
               enabled: false,
-              title: const Text('用户ID'),
+              title: Text(context.l10n.profileUserId),
               trailing: ListTileTrailingTextArrow(text: id, arrow: false),
             ),
             // 性别（可设置）
             ListTile(
               onTap: _editGender,
-              title: const Text('性别'),
+              title: Text(context.l10n.infoGender),
               trailing: ListTileTrailingTextArrow(text: gender),
             ),
             // 手机号（可设置）
             ListTile(
               onTap: _editPhone,
-              title: const Text('手机号'),
+              title: Text(context.l10n.infoPhone),
               trailing: ListTileTrailingTextArrow(text: phone),
             ),
             // 注销账号
             TextButton(
               onPressed: () {},
-              child: const Text(
-                '注销账号',
+              child: Text(
+                context.l10n.profileDeleteAccount,
                 style: TextStyle(
                     fontSize: 18,
                     color: Colors.red,
@@ -252,16 +253,16 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
                 final confirmed = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    title: const Text('退出登录'),
-                    content: const Text('确定要退出登录吗？'),
+                    title: Text(context.l10n.logout),
+                    content: Text(context.l10n.infoLogoutConfirm),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('取消'),
+                        child: Text(context.l10n.cancel),
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('确定'),
+                        child: Text(context.l10n.confirm),
                       ),
                     ],
                   ),
@@ -273,8 +274,8 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
                 } catch (_) {}
                 router.go(AppRouter.login);
               },
-              child: const Text(
-                '退出登录',
+              child: Text(
+                context.l10n.logout,
                 style: TextStyle(
                     fontSize: 18,
                     color: Colors.orange,
@@ -284,7 +285,7 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
             const SizedBox(),
             Center(
               child: Text(
-                '退出登录后重新登录即可同步您的数据',
+                context.l10n.reloginHint,
                 style: TextStyle(color: Theme.of(context).hintColor),
               ),
             ),
