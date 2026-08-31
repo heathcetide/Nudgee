@@ -157,16 +157,22 @@ class _TimetableState extends State<Timetable> {
 
   void _initState() async {
     final scheduleService = sl<ScheduleService>();
-    await scheduleService.init();
-    await scheduleService.syncFromCloud();
 
-    // Listen for schedule changes.
+    // Listen for schedule changes first, so we catch init() notifyListeners().
     if (!_scheduleListenerAdded) {
       _scheduleListenerAdded = true;
       scheduleService.addListener(_onScheduleChanged);
     }
 
+    // Load local data first (fast), then sync from cloud.
+    await scheduleService.init();
+    if (!mounted) return;
     _loadData();
+
+    // Cloud sync is best-effort, don't block UI.
+    scheduleService.syncFromCloud().then((_) {
+      if (mounted) _loadData();
+    });
   }
 
   bool _scheduleListenerAdded = false;
@@ -184,7 +190,9 @@ class _TimetableState extends State<Timetable> {
     }
     // Generate week period list from available dates (or default to current week).
     weekPeriodList = _generateWeekPeriods(allDates);
+    debugPrint('[Timetable] _loadData: dates=$allDates, weeks=${weekPeriodList.length}');
 
+    if (!mounted) return;
     setState(() {});
     // 等待 frame 渲染完成后再跳转到当前周
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -298,14 +306,14 @@ class _TimetableState extends State<Timetable> {
                             var endDate =
                                 DateTime.parse(weekPeriodList[weekPeriodList.length - 1]['endDate']);
                             for (var date = startDate;
-                                date.isBefore(endDate);
+                                !date.isAfter(endDate);
                                 date = date.add(const Duration(days: 1))) {
                               var _date = date.toString().split(' ')[0];
                               for (var weekPeriod in weekPeriodList) {
                                 if (_date == weekPeriod['startDate']) {
                                   int weekTotalClass = 0;
                                   for (var date_inweek = date;
-                                      date_inweek.isBefore(DateTime.parse(weekPeriod['endDate']));
+                                      !date_inweek.isAfter(DateTime.parse(weekPeriod['endDate']));
                                       date_inweek = date_inweek.add(const Duration(days: 1))) {
                                     var _date_inweek = date_inweek.toString().split(' ')[0];
                                     if (dailyClass[_date_inweek] != null) {

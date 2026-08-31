@@ -112,16 +112,22 @@ class _TodayScheduleState extends State<TodaySchedule> {
 
   void _initState() async {
     final scheduleService = sl<ScheduleService>();
-    await scheduleService.init();
-    await scheduleService.syncFromCloud();
 
-    // Listen for schedule changes (e.g. when a new schedule is added).
+    // Listen for schedule changes first, so we catch init() notifyListeners().
     if (!_scheduleListenerAdded) {
       _scheduleListenerAdded = true;
       scheduleService.addListener(_onScheduleChanged);
     }
 
+    // Load local data first (fast), then sync from cloud.
+    await scheduleService.init();
+    if (!mounted) return;
     _loadDailyClass();
+
+    // Cloud sync is best-effort, don't block UI.
+    scheduleService.syncFromCloud().then((_) {
+      if (mounted) _loadDailyClass();
+    });
   }
 
   bool _scheduleListenerAdded = false;
