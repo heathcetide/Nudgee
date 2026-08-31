@@ -18,9 +18,15 @@ class RouteGuard {
   final AuthService? authService;
 
   /// Routes that require an authenticated user.
+  ///
+  /// Note: `/settings`, `/about`, `/feedback`, `/privacyPolicy`,
+  /// `/userAgreement` are intentionally public — they are local app
+  /// configuration pages that should be accessible without login.
   static const Set<String> _protectedRoutes = <String>{
-    '/profile',
-    '/settings',
+    '/profile/myInformation',
+    '/profile/changeNickName',
+    '/profile/avatarUpload',
+    '/profile/personalHome',
   };
 
   /// GoRouter-compatible redirect callback.

@@ -253,5 +253,17 @@
   "feedbackSubmitting": "Submitting...",
   "feedbackSuccess": "Feedback submitted. Thank you!",
   "feedbackEmpty": "Please enter feedback content",
-  "feedbackEmailSubject": "Nudgee Feedback"
+  "feedbackEmailSubject": "Nudgee Feedback",
+
+  "navAi": "AI",
+  "aiTitle": "AI Assistant",
+  "aiHint": "Type a message...",
+  "aiSend": "Send",
+  "aiNotConfigured": "AI not configured. Set ai.apiKey in config.yaml",
+  "aiThinking": "Thinking...",
+  "aiClearChat": "Clear chat",
+  "aiWelcome": "Hi! I'm Nudgee AI. How can I help you today?",
+  "aiError": "Error: {error}",
+  "aiUser": "Me",
+  "aiAssistant": "AI"
 }

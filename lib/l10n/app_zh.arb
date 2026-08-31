@@ -253,5 +253,17 @@
   "feedbackSubmitting": "提交中...",
   "feedbackSuccess": "反馈已提交，感谢您的支持！",
   "feedbackEmpty": "请输入反馈内容",
-  "feedbackEmailSubject": "Nudgee 问题反馈"
+  "feedbackEmailSubject": "Nudgee 问题反馈",
+
+  "navAi": "AI",
+  "aiTitle": "AI 助手",
+  "aiHint": "输入消息...",
+  "aiSend": "发送",
+  "aiNotConfigured": "AI 未配置，请在 config.yaml 中设置 ai.apiKey",
+  "aiThinking": "思考中...",
+  "aiClearChat": "清空对话",
+  "aiWelcome": "你好！我是 Nudgee AI，有什么可以帮你的吗？",
+  "aiError": "出错了：{error}",
+  "aiUser": "我",
+  "aiAssistant": "AI"
 }

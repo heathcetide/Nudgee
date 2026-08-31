@@ -15,6 +15,7 @@ import 'package:nudgee/core/services/analytics_service.dart';
 import 'package:nudgee/core/services/api_cache_service.dart';
 import 'package:nudgee/core/services/app_lifecycle_service.dart';
 import 'package:nudgee/core/services/app_update_service.dart';
+import 'package:nudgee/core/services/ai_service.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/core/services/social_login_service.dart';
 import 'package:nudgee/core/services/background_task_service.dart';
@@ -149,6 +150,13 @@ Future<void> initDependencies() async {
   // Always registered — QiniuStorageService handles missing config gracefully.
   _safeRegister(() => sl.registerLazySingleton<QiniuStorageService>(() => QiniuStorageService()));
   debugPrint('[Init] QiniuStorage registered (configured: ${AppConfig.hasStorage})');
+
+  // ── AI Service (Flutter AI SDK) ──────────────────────────────────────
+  _safeRegister(() {
+    sl.registerLazySingleton<AiService>(() => AiService());
+    sl<AiService>().init();
+  });
+  debugPrint('[Init] AiService registered (configured: ${AppConfig.hasAi})');
 
   // ── Auth Service (Qiniu-backed, no backend) ──────────────────────────
   _safeRegister(() => sl.registerLazySingleton<AuthService>(

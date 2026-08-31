@@ -56,6 +56,7 @@ class AppConfig {
   // ── Runtime config (config.yaml) ─────────────────────────────────────
 
   static StorageConfig? _storage;
+  static AiConfig? _ai;
   static bool _configLoaded = false;
 
   /// Load runtime config from `assets/config.yaml`.
@@ -69,6 +70,10 @@ class AppConfig {
       if (storage != null) {
         _storage = StorageConfig.fromYaml(storage);
       }
+      final ai = doc['ai'] as YamlMap?;
+      if (ai != null) {
+        _ai = AiConfig.fromYaml(ai);
+      }
     } catch (e) {
       debugPrint('[AppConfig] Failed to load config.yaml: $e');
     }
@@ -80,6 +85,12 @@ class AppConfig {
 
   /// Whether storage config is available.
   static bool get hasStorage => _storage != null;
+
+  /// AI configuration, or `null` if not loaded / missing.
+  static AiConfig? get ai => _ai;
+
+  /// Whether AI config is available.
+  static bool get hasAi => _ai != null;
 }
 
 /// Storage configuration loaded from `config.yaml`.
@@ -111,6 +122,33 @@ class StorageConfig {
       qiniuDomain: map['qiniuDomain'] as String? ?? '',
       qiniuPrivate: map['qiniuPrivate'] as bool? ?? false,
       qiniuRegion: map['qiniuRegion'] as String? ?? 'huanan',
+    );
+  }
+}
+
+/// AI configuration loaded from `config.yaml`.
+class AiConfig {
+  final String provider;
+  final String apiKey;
+  final String model;
+  final String? baseUrl;
+  final String? systemPrompt;
+
+  const AiConfig({
+    required this.provider,
+    required this.apiKey,
+    required this.model,
+    this.baseUrl,
+    this.systemPrompt,
+  });
+
+  factory AiConfig.fromYaml(YamlMap map) {
+    return AiConfig(
+      provider: map['provider'] as String? ?? 'deepseek',
+      apiKey: map['apiKey'] as String? ?? '',
+      model: map['model'] as String? ?? 'deepseek-chat',
+      baseUrl: map['baseUrl'] as String?,
+      systemPrompt: map['systemPrompt'] as String?,
     );
   }
 }

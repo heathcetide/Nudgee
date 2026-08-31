@@ -6,3 +6,10 @@ storage:
   qiniuDomain: https://your-cdn-domain.com
   qiniuPrivate: false
   qiniuRegion: huanan
+
+ai:
+  provider: deepseek          # openai | anthropic | googleAI | ollama | mistral | xai | deepseek | openrouter
+  apiKey: YOUR_API_KEY
+  model: deepseek-chat
+  baseUrl: https://api.deepseek.com    # optional, only for custom endpoints
+  systemPrompt: "You are a helpful assistant."

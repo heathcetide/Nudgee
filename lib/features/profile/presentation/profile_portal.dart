@@ -106,11 +106,20 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
                           width: 66,
                           height: 66,
                           clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            color: isLoggedIn
+                                ? null
+                                : Theme.of(context).colorScheme.primaryContainer,
+                          ),
                           child: isLoggedIn
                               ? Avatar(user?.avatar, name: user?.name ?? '')
-                              : const Center(
-                                  child: Icon(Icons.person, size: 36, color: Colors.white),
+                              : Center(
+                                  child: Icon(
+                                    Icons.person,
+                                    size: 36,
+                                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                  ),
                                 ),
                         ),
                       ),
