@@ -1000,7 +1000,7 @@ class _SettingsItem extends StatelessWidget {
 /// Typing indicator with the other party's avatar + a loading bubble.
 ///
 /// Shows the avatar on the left and a chat bubble with three bouncing dots
-/// on the right, matching the incoming message bubble layout.
+/// on the right, matching the incoming message bubble layout exactly.
 class _AvatarTypingIndicator extends StatelessWidget {
   final String? avatarUrl;
   final String? userName;
@@ -1013,18 +1013,20 @@ class _AvatarTypingIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.only(left: 12, right: 12, top: 3, bottom: 3),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Avatar
-          LingAvatar(
-            imageUrl: avatarUrl,
-            name: userName,
-            size: LingAvatarSize.sm,
+          // Avatar — same size and spacing as LingMessageBubble
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: LingAvatar(
+              imageUrl: avatarUrl,
+              name: userName,
+              size: LingAvatarSize.sm,
+            ),
           ),
-          const SizedBox(width: 8),
           // Loading bubble with bouncing dots
           const LingTypingIndicator(),
         ],

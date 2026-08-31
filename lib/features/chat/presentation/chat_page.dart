@@ -30,10 +30,6 @@ class _ChatPageState extends State<ChatPage> {
   final Map<String, LingChatController> _chatControllers = {};
   final String _currentUserId = 'me';
 
-  /// LingEcho is the AI buddy — messages to this conversation are routed to AiService.
-  static const String _aiBuddyId = 'u3';
-  static const String _aiBuddyName = 'LingEcho';
-
   @override
   void initState() {
     super.initState();
@@ -316,6 +312,10 @@ class _ChatPageState extends State<ChatPage> {
 
 // ─── Mock 数据 ─────────────────────────────────────────────────────────
 
+/// LingEcho is the AI buddy — messages to this conversation are routed to AiService.
+const String _aiBuddyId = 'u3';
+const String _aiBuddyName = 'LingEcho';
+
 class _MockData {
   final List<LingConversation> conversations;
   final Map<String, LingChatUser> users;
@@ -338,108 +338,70 @@ _MockData _generateMockData() {
   final conversations = <LingConversation>[];
   final messages = <String, List<LingMessage>>{};
 
-  final mockContacts = [
-    {'id': 'u1', 'name': '小明同学', 'status': LingUserStatus.online},
-    {'id': 'u2', 'name': '阿强', 'status': LingUserStatus.offline},
-    {'id': 'u3', 'name': 'LingEcho', 'status': LingUserStatus.online, 'isAi': true},
-    {'id': 'u4', 'name': '校园达人', 'status': LingUserStatus.away},
-    {'id': 'u5', 'name': '课表君', 'status': LingUserStatus.busy},
+  // ── LingEcho (AI buddy) ──────────────────────────────────────────────
+  final lingEcho = LingChatUser(
+    id: _aiBuddyId,
+    name: _aiBuddyName,
+    avatarUrl: avatar,
+    status: LingUserStatus.online,
+  );
+  users[_aiBuddyId] = lingEcho;
+
+  final aiMessages = <LingMessage>[
+    LingMessage(
+      id: '${_aiBuddyId}_msg_welcome',
+      conversationId: _aiBuddyId,
+      authorId: _aiBuddyId,
+      type: LingMessageType.text,
+      text: '你好！我是 LingEcho，你的 AI 助手。有什么可以帮你的吗？',
+      createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
+      status: LingMessageStatus.read,
+    ),
   ];
+  messages[_aiBuddyId] = aiMessages;
 
-  final mockTexts = [
-    '你好呀，最近怎么样？',
-    '今天的课表看了吗？',
-    '食堂二楼新出的麻辣香锅真的绝了',
-    '周末有空一起打球吗？',
-    '这个组件库封装得真不错',
-    '收到，我稍后看看',
-    '哈哈哈哈太搞笑了',
-    '好的没问题',
-  ];
+  conversations.add(LingConversation(
+    id: _aiBuddyId,
+    name: _aiBuddyName,
+    type: LingConversationType.single,
+    avatarUrl: avatar,
+    members: [me, lingEcho],
+    lastMessage: aiMessages.last,
+    unreadCount: 0,
+  ));
 
-  for (int i = 0; i < mockContacts.length; i++) {
-    final c = mockContacts[i];
-    final userId = c['id'] as String;
-    final userName = c['name'] as String;
-    final status = c['status'] as LingUserStatus;
-    final isAi = c['isAi'] == true;
-
-    final user = LingChatUser(
-      id: userId,
-      name: userName,
-      avatarUrl: avatar,
-      status: status,
-    );
-    users[userId] = user;
-
-    final convMessages = <LingMessage>[];
-    if (isAi) {
-      // LingEcho: welcome message from AI assistant.
-      convMessages.add(LingMessage(
-        id: '${userId}_msg_welcome',
-        conversationId: userId,
-        authorId: userId,
-        type: LingMessageType.text,
-        text: '你好！我是 LingEcho，你的 AI 助手。有什么可以帮你的吗？',
-        createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
-        status: LingMessageStatus.read,
-      ));
-    } else {
-      final msgCount = 4 + rng.nextInt(4);
-      for (int j = 0; j < msgCount; j++) {
-        final isMe = j % 2 == 0;
-        convMessages.add(LingMessage(
-          id: '${userId}_msg_$j',
-          conversationId: userId,
-          authorId: isMe ? 'me' : userId,
-          type: LingMessageType.text,
-          text: mockTexts[rng.nextInt(mockTexts.length)],
-          createdAt: DateTime.now()
-              .subtract(Duration(minutes: (msgCount - j) * 15 + i * 30)),
-          status: LingMessageStatus.read,
-        ));
-      }
-    }
-
-    final lastMsg = convMessages.last;
-    final unread = isAi ? 0 : (i < 2 ? 1 + rng.nextInt(3) : 0);
-
-    conversations.add(LingConversation(
-      id: userId,
-      name: userName,
-      type: LingConversationType.single,
-      avatarUrl: avatar,
-      members: [me, user],
-      lastMessage: lastMsg,
-      unreadCount: unread,
-    ));
-    messages[userId] = convMessages;
-  }
-
-  // 群聊
+  // ── 校园交流群 (group chat) ──────────────────────────────────────────
   final groupMembers = [
     me,
-    ...mockContacts.map((c) => LingChatUser(
-          id: c['id'] as String,
-          name: c['name'] as String,
-          avatarUrl: avatar,
-          status: c['status'] as LingUserStatus,
-        )),
+    LingChatUser(id: 'g1', name: '同学A', avatarUrl: avatar, status: LingUserStatus.online),
+    LingChatUser(id: 'g2', name: '同学B', avatarUrl: avatar, status: LingUserStatus.offline),
+    LingChatUser(id: 'g3', name: '同学C', avatarUrl: avatar, status: LingUserStatus.away),
+  ];
+  for (final m in groupMembers) {
+    users.putIfAbsent(m.id, () => m);
+  }
+
+  final groupTexts = [
+    '有人去过新开的咖啡馆吗？',
+    '明天的活动大家记得报名',
+    '推荐一本好书呗',
+    '收到！',
   ];
 
   final groupMessages = <LingMessage>[];
   for (int j = 0; j < 6; j++) {
-    final senderId = mockContacts[j % mockContacts.length]['id'] as String;
+    final senderId = groupMembers[(j % 3) + 1].id; // skip 'me', use g1/g2/g3
     groupMessages.add(LingMessage(
       id: 'group_msg_$j',
       conversationId: 'group1',
       authorId: senderId,
       type: LingMessageType.text,
-      text: mockTexts[rng.nextInt(mockTexts.length)],
+      text: groupTexts[rng.nextInt(groupTexts.length)],
       createdAt: DateTime.now().subtract(Duration(minutes: (6 - j) * 20)),
       status: LingMessageStatus.read,
     ));
   }
+  messages['group1'] = groupMessages;
 
   conversations.add(LingConversation(
     id: 'group1',
@@ -450,11 +412,6 @@ _MockData _generateMockData() {
     lastMessage: groupMessages.last,
     unreadCount: 5,
   ));
-  messages['group1'] = groupMessages;
-
-  for (final m in groupMembers) {
-    users.putIfAbsent(m.id, () => m);
-  }
 
   return _MockData(conversations, users, messages);
 }

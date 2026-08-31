@@ -156,11 +156,12 @@ class _LingMessageListState extends State<LingMessageList> {
             // Typing indicator at the end
             if (widget.isTyping && msgIndex == widget.messages.length) {
               return RepaintBoundary(
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 16, top: 4),
-                  child: widget.typingIndicator ??
-                      const LingTypingIndicator(),
-                ),
+                child: widget.typingIndicator != null
+                    ? widget.typingIndicator!
+                    : const Padding(
+                        padding: EdgeInsets.only(left: 16, top: 4),
+                        child: LingTypingIndicator(),
+                      ),
               );
             }
             final msg = widget.messages[msgIndex];
