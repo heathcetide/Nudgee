@@ -118,12 +118,10 @@ Future<void> initDependencies() async {
   // ── API Client ───────────────────────────────────────────────────────
   _safeRegister(() => sl.registerLazySingleton<ApiClient>(() => ApiClient(sl<Dio>())));
 
-  // ── Auth Service ─────────────────────────────────────────────────────
+  // ── Auth Service (local-only, no backend) ────────────────────────────
   _safeRegister(() => sl.registerLazySingleton<AuthService>(
         () => AuthService(
           storage: sl<SecureStorageService>(),
-          api: sl<ApiClient>(),
-          logger: sl<LoggerService>(),
         ),
       ));
 

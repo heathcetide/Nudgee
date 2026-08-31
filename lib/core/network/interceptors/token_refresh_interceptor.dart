@@ -82,9 +82,9 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
     _refreshCompleter = completer;
 
     try {
-      final ok = await _auth.refreshAccessToken();
-      completer.complete(ok);
-      return ok;
+      // Local-only auth: no token refresh needed. Session persists locally.
+      completer.complete(false);
+      return false;
     } catch (e) {
       completer.complete(false);
       return false;

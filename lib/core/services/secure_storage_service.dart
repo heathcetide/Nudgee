@@ -37,6 +37,21 @@ class SecureStorageService {
   Future<String?> getUserId() =>
       _safeRead(AppConstants.keyUserId);
 
+  // ── Generic key-value ────────────────────────────────────────────────
+
+  Future<void> write({required String key, required String value}) =>
+      _safeWrite(key, value);
+
+  Future<String?> read({required String key}) => _safeRead(key);
+
+  Future<void> delete({required String key}) async {
+    try {
+      await _storage.delete(key: key);
+    } catch (e, st) {
+      throw StorageException('Failed to delete $key', originalError: e, stackTrace: st);
+    }
+  }
+
   // ── Bulk operations ──────────────────────────────────────────────────
 
   Future<void> clearAll() async {

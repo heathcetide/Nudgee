@@ -2,14 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:icons_plus/icons_plus.dart';
 
 import 'package:nudgee/app/router/app_router.dart';
 import 'package:nudgee/app/theme/app_colors.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/auth_service.dart';
-import 'package:nudgee/core/services/social_login_service.dart';
 import 'package:nudgee/features/auth/presentation/nudgee_auth_widgets.dart';
 
 /// Nudgee authentication page — mobile port of LingEchoX web's TenantAuth.
@@ -444,52 +442,6 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
     }
   }
 
-  // ─── Social login ─────────────────────────────────────────────────
-  Future<void> _socialLogin(bool isWechat) async {
-    if (_isSubmitting) return;
-    setState(() {
-      _isSubmitting = true;
-      _generalError = null;
-    });
-
-    try {
-      final social = sl<SocialLoginService>();
-      final result =
-          isWechat ? await social.loginWithWechat() : await social.loginWithQq();
-      if (!mounted) return;
-      if (result.cancelled) {
-        setState(() => _isSubmitting = false);
-        return;
-      }
-      if (!result.isSuccess) {
-        setState(() {
-          _generalError = result.error ?? context.l10n.authLoginFailedDefault;
-          _isSubmitting = false;
-        });
-        return;
-      }
-      final auth = sl<AuthService>();
-      final success = isWechat
-          ? await auth.loginWithWechat(result.code!)
-          : await auth.loginWithQq(result.code!);
-      if (!mounted) return;
-      if (success) {
-        context.go(AppRouter.home);
-      } else {
-        setState(() {
-          _generalError = isWechat ? context.l10n.authWechatLoginFailed : context.l10n.authQqLoginFailed;
-          _isSubmitting = false;
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _generalError = context.l10n.authNetworkError;
-        _isSubmitting = false;
-      });
-    }
-  }
-
   // ─── Switch mode ──────────────────────────────────────────────────
   void _switchMode(NudgeeAuthMode mode) {
     FocusScope.of(context).unfocus();
@@ -679,20 +631,6 @@ class _NudgeeAuthPageState extends State<NudgeeAuthPage>
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 24),
-          NudgeeAuthDivider(label: context.l10n.authOtherLoginMethods),
-          const SizedBox(height: 16),
-          LingSocialButton(
-            iconWidget: Brand(Brands.wechat, size: 20),
-            label: context.l10n.authWechatLogin,
-            onPressed: _isSubmitting ? null : () => _socialLogin(true),
-          ),
-          const SizedBox(height: 12),
-          LingSocialButton(
-            iconWidget: Brand(Brands.qq, size: 20),
-            label: context.l10n.authQqLogin,
-            onPressed: _isSubmitting ? null : () => _socialLogin(false),
           ),
           const SizedBox(height: 24),
         ],
