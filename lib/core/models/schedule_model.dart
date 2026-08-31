@@ -44,6 +44,7 @@ class ScheduleItem {
       'id': id,
       'name': name,
       'location': location,
+      'note': note,
       'startIndex': startIndex,
       'length': length,
       'startTime': startTime,

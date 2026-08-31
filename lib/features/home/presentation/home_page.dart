@@ -70,7 +70,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: IndexedStack(
-        index: _currentIndex > 1 ? _currentIndex - 1 : _currentIndex,
+        index: _currentIndex,
         children: pages,
       ),
       bottomNavigationBar: _buildBottomNav(theme),
@@ -166,30 +166,28 @@ class _HomePageState extends ConsumerState<HomePage> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => context.push(AppRouter.createPost),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.colorScheme.primary.withAlpha(80),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Icon(
-                Icons.add,
-                size: 28,
-                color: theme.colorScheme.onPrimary,
-              ),
+        child: Transform.translate(
+          offset: const Offset(0, -16),
+          child: Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: theme.colorScheme.primary.withAlpha(100),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
+            child: Icon(
+              Icons.add,
+              size: 34,
+              color: theme.colorScheme.onPrimary,
+            ),
+          ),
         ),
       ),
     );
