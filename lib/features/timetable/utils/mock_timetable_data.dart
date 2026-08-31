@@ -73,17 +73,24 @@ String _dateStr(DateTime d) =>
 
 /// 时段映射（与 timetable.dart 中 periodsStartTime/EndTime 对应）
 const _periodTimes = [
-  {'start': '06:30', 'end': '07:15'},
-  {'start': '07:20', 'end': '08:05'},
-  {'start': '08:30', 'end': '09:15'},
-  {'start': '09:20', 'end': '10:05'},
-  {'start': '10:25', 'end': '11:10'},
-  {'start': '14:00', 'end': '14:45'},
-  {'start': '14:50', 'end': '15:35'},
-  {'start': '15:55', 'end': '16:40'},
-  {'start': '19:00', 'end': '19:45'},
-  {'start': '19:50', 'end': '20:35'},
-  {'start': '20:55', 'end': '21:40'},
+  {'start': '06:00', 'end': '07:00'},
+  {'start': '07:00', 'end': '08:00'},
+  {'start': '08:00', 'end': '09:00'},
+  {'start': '09:00', 'end': '10:00'},
+  {'start': '10:00', 'end': '11:00'},
+  {'start': '11:00', 'end': '12:00'},
+  {'start': '12:00', 'end': '13:00'},
+  {'start': '13:00', 'end': '14:00'},
+  {'start': '14:00', 'end': '15:00'},
+  {'start': '15:00', 'end': '16:00'},
+  {'start': '16:00', 'end': '17:00'},
+  {'start': '17:00', 'end': '18:00'},
+  {'start': '18:00', 'end': '19:00'},
+  {'start': '19:00', 'end': '20:00'},
+  {'start': '20:00', 'end': '21:00'},
+  {'start': '21:00', 'end': '22:00'},
+  {'start': '22:00', 'end': '23:00'},
+  {'start': '23:00', 'end': '24:00'},
 ];
 
 /// 自律任务模板池
@@ -108,53 +115,53 @@ List<Map<String, dynamic>> _tasksForDay(int day, int week) {
 
   // 周一：晨跑 + 编程 + 复盘
   if (day == 0) {
-    tasks.add(_makeTask(pool[0], 0, 1, false));
-    tasks.add(_makeTask(pool[3], 4, 2, false));
-    tasks.add(_makeTask(pool[5], 10, 1, false));
+    tasks.add(_makeTask(pool[0], 0, 1, false));   // 06:00 晨跑
+    tasks.add(_makeTask(pool[3], 4, 2, false));   // 10:00 编程
+    tasks.add(_makeTask(pool[5], 15, 1, false));  // 21:00 复盘
   }
   // 周二：英语 + 健身
   else if (day == 1) {
-    tasks.add(_makeTask(pool[1], 2, 2, false));
-    tasks.add(_makeTask(pool[4], 5, 2, false));
+    tasks.add(_makeTask(pool[1], 2, 2, false));   // 08:00 英语
+    tasks.add(_makeTask(pool[4], 8, 2, false));   // 14:00 健身
   }
   // 周三：晨跑 + 专业学习 + 阅读
   else if (day == 2) {
-    tasks.add(_makeTask(pool[0], 0, 1, false));
-    tasks.add(_makeTask(pool[6], 2, 2, false));
-    tasks.add(_makeTask(pool[7], 8, 2, false));
+    tasks.add(_makeTask(pool[0], 0, 1, false));   // 06:00 晨跑
+    tasks.add(_makeTask(pool[6], 2, 2, false));   // 08:00 专业学习
+    tasks.add(_makeTask(pool[7], 13, 2, false));  // 19:00 阅读
   }
   // 周四：冥想 + 编程 + 单词(extra)
   else if (day == 3) {
-    tasks.add(_makeTask(pool[2], 2, 1, false));
-    tasks.add(_makeTask(pool[3], 4, 2, false));
+    tasks.add(_makeTask(pool[2], 2, 1, false));   // 08:00 冥想
+    tasks.add(_makeTask(pool[3], 4, 2, false));   // 10:00 编程
     tasks.add({
       'name': '单词背诵',
       'location': '宿舍',
       'note': '睡前背50个单词',
-      'startIndex': 0,
+      'startIndex': 16,
       'length': 1,
-      'startTime': '21:00',
-      'endTime': '21:30',
+      'startTime': '22:00',
+      'endTime': '22:30',
       'duration': 30,
       'extra': true,
     });
   }
   // 周五：晨跑 + 专业学习
   else if (day == 4) {
-    tasks.add(_makeTask(pool[0], 0, 1, false));
-    tasks.add(_makeTask(pool[6], 2, 2, false));
+    tasks.add(_makeTask(pool[0], 0, 1, false));   // 06:00 晨跑
+    tasks.add(_makeTask(pool[6], 2, 2, false));   // 08:00 专业学习
   }
   // 周六：瑜伽 + 阅读 + 日记复盘
   else if (day == 5) {
-    tasks.add(_makeTask(pool[9], 2, 1, false));
-    tasks.add(_makeTask(pool[7], 4, 2, false));
-    tasks.add(_makeTask(pool[5], 10, 1, false));
+    tasks.add(_makeTask(pool[9], 2, 1, false));   // 08:00 瑜伽
+    tasks.add(_makeTask(pool[7], 4, 2, false));   // 10:00 阅读
+    tasks.add(_makeTask(pool[5], 15, 1, false));  // 21:00 复盘
   }
   // 周日：冥想 + 编程 + 复盘
   else if (day == 6) {
-    tasks.add(_makeTask(pool[2], 2, 1, false));
-    tasks.add(_makeTask(pool[3], 4, 2, false));
-    tasks.add(_makeTask(pool[5], 10, 1, false));
+    tasks.add(_makeTask(pool[2], 2, 1, false));   // 08:00 冥想
+    tasks.add(_makeTask(pool[3], 4, 2, false));   // 10:00 编程
+    tasks.add(_makeTask(pool[5], 15, 1, false));  // 21:00 复盘
   }
 
   // 随机偶尔加一个额外任务
@@ -164,7 +171,7 @@ List<Map<String, dynamic>> _tasksForDay(int day, int week) {
       'name': t['name'],
       'location': t['location'],
       'note': t['note'],
-      'startIndex': 0,
+      'startIndex': 14,
       'length': 1,
       'startTime': '20:00',
       'endTime': '20:45',

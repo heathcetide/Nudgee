@@ -115,9 +115,9 @@ class _AddSchedulePageState extends State<AddSchedulePage> {
       final startMin = _toMinutes(_startTime);
       final endMin = _toMinutes(_endTime);
 
-      // 计算 startIndex：用开始时间相对 06:30 的偏移估算（用于 timetable 网格定位）
-      const dayStartMinutes = 6 * 60 + 30; // 06:30
-      final startIndex = ((startMin - dayStartMinutes) / 45).round().clamp(0, 10);
+      // 计算 startIndex：用开始时间相对 06:00 的偏移估算（用于 timetable 网格定位）
+      const dayStartMinutes = 6 * 60; // 06:00
+      final startIndex = ((startMin - dayStartMinutes) / 60).round().clamp(0, 17);
 
       final entry = {
         'name': _nameController.text.trim(),
