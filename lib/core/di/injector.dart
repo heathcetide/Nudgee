@@ -123,10 +123,20 @@ Future<void> initDependencies() async {
   // ── API Client ───────────────────────────────────────────────────────
   _safeRegister(() => sl.registerLazySingleton<ApiClient>(() => ApiClient(sl<Dio>())));
 
-  // ── Auth Service (local-only, no backend) ────────────────────────────
+  // ── Qiniu Cloud Storage (object storage, config from config.yaml) ────
+  // Registered before AuthService so it's available as a dependency.
+  if (AppConfig.hasStorage) {
+    _safeRegister(() => sl.registerLazySingleton<QiniuStorageService>(() => QiniuStorageService()));
+    debugPrint('[Init] QiniuStorage registered');
+  } else {
+    debugPrint('[Init] QiniuStorage skipped (no config.yaml)');
+  }
+
+  // ── Auth Service (Qiniu-backed, no backend) ──────────────────────────
   _safeRegister(() => sl.registerLazySingleton<AuthService>(
         () => AuthService(
           storage: sl<SecureStorageService>(),
+          qiniu: sl.isRegistered<QiniuStorageService>() ? sl<QiniuStorageService>() : null,
         ),
       ));
 
@@ -148,14 +158,6 @@ Future<void> initDependencies() async {
 
   // ── File Storage (local avatars / cache / downloads) ─────────────────
   _safeRegister(() => sl.registerLazySingleton<FileStorageService>(() => FileStorageService()));
-
-  // ── Qiniu Cloud Storage (object storage, config from config.yaml) ────
-  if (AppConfig.hasStorage) {
-    _safeRegister(() => sl.registerLazySingleton<QiniuStorageService>(() => QiniuStorageService()));
-    debugPrint('[Init] QiniuStorage registered');
-  } else {
-    debugPrint('[Init] QiniuStorage skipped (no config.yaml)');
-  }
 
   // ── Upload Service ───────────────────────────────────────────────────
   _safeRegister(() => sl.registerLazySingleton<UploadService>(

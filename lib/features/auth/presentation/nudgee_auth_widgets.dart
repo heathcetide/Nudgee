@@ -6,10 +6,7 @@ import 'package:nudgee/app/theme/app_colors.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
 
 /// ─── Auth mode ───────────────────────────────────────────────────────
-enum NudgeeAuthMode { login, signup, forgot }
-
-/// ─── Login method (matches LingEchoX web) ────────────────────────────
-enum NudgeeLoginMethod { password, emailCode }
+enum NudgeeAuthMode { login, signup }
 
 /// ─── NudgeeAuthLogo ────────────────────────────────────────────────────
 /// Logo in a rounded white container with ring, matching LingEchoX header.
@@ -43,75 +40,6 @@ class NudgeeAuthLogo extends StatelessWidget {
           width: iconSize,
           height: iconSize,
         ),
-      ),
-    );
-  }
-}
-
-/// ─── LingMethodTabBar ────────────────────────────────────────────────
-/// Segmented control for login method switching.
-/// Matches LingEchoX: `rounded-xl bg-neutral-100 p-1` with white active tab.
-class LingMethodTabBar extends StatelessWidget {
-  final NudgeeLoginMethod method;
-  final ValueChanged<NudgeeLoginMethod> onChanged;
-  final List<(NudgeeLoginMethod, String)> tabs;
-
-  const LingMethodTabBar({
-    super.key,
-    required this.method,
-    required this.onChanged,
-    required this.tabs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.lightSurfaceVariant,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: Row(
-        children: tabs.map((tab) {
-          final (m, label) = tab;
-          final selected = method == m;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => onChanged(m),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: selected ? Colors.white : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: selected
-                      ? [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Center(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      color: selected
-                          ? AppColors.lightTextPrimary
-                          : AppColors.lightTextSecondary,
-                      fontSize: 14,
-                      fontWeight:
-                          selected ? FontWeight.w600 : FontWeight.normal,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
       ),
     );
   }
