@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 
 import 'package:nudgee/app/router/app_router.dart';
 import 'package:nudgee/app/router/route_guard.dart';
@@ -38,6 +39,7 @@ class NudgeeApp extends ConsumerWidget {
       themeMode: themeMode,
       routerConfig: router,
       locale: locale,
+      builder: FlutterSmartDialog.init(),
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
