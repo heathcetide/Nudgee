@@ -10,11 +10,10 @@ import 'package:nudgee/features/profile/presentation/profile_portal.dart';
 import 'package:nudgee/features/timetable/presentation/timetable.dart';
 import 'package:nudgee/features/timetable/presentation/today_schedule.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
-import 'package:nudgee/features/home/presentation/components_tab.dart';
 
 /// Main home page — merged tab structure.
 ///
-/// Bottom nav tabs: 课程表 / 校园圈 / 聊天 / 组件 / 我的.
+/// Bottom nav tabs: 日程 / 校园圈 / 聊天 / 我的.
 /// Internal page switching via [PublicEventBus] `ChangePageEvent`
 /// (e.g. todaySchedule ↔ timetable).
 class HomePage extends ConsumerStatefulWidget {
@@ -59,7 +58,6 @@ class _HomePageState extends ConsumerState<HomePage> {
       ),
       const CampusDiscover(),
       const ChatPage(),
-      ComponentsTab(),
       const ProfilePortal(),
     ];
     final theme = Theme.of(context);
@@ -100,11 +98,6 @@ class _HomePageState extends ConsumerState<HomePage> {
               icon: Icon(Icons.chat_outlined),
               activeIcon: Icon(Icons.chat),
               label: context.l10n.navChat,
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.widgets_outlined),
-              activeIcon: Icon(Icons.widgets),
-              label: context.l10n.navComponents,
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
