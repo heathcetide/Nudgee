@@ -134,6 +134,13 @@ dependencies:
   yaml: ^3.1.4
   package_info_plus: ^8.1.1
 
+  # AI SDK (local package)
+  flutter_ai_sdk:
+    path: packages/flutter_ai_sdk
+  http: ^1.2.0
+  rxdart: ^0.27.7
+  retry: ^3.1.2
+
   # NOTE: device_info_plus and flutter_webrtc are commented out for now
   # because their Web implementations use package:web which is incompatible
   # with Flutter 3.22.x DDC. They will be added back when upgrading Flutter

@@ -1,0 +1,841 @@
+# Flutter AI SDK
+
+A unified Flutter/Dart wrapper for integrating various AI APIs (OpenAI, Anthropic, Google AI, Mistral, xAI, DeepSeek, OpenRouter) with streaming, context management, and multimodal support.
+
+[![CI](https://github.com/Amayyas/Flutter-AI-SDK/actions/workflows/ci.yml/badge.svg)](https://github.com/Amayyas/Flutter-AI-SDK/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-1.9.0-blue.svg)](https://github.com/Amayyas/Flutter-AI-SDK)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+## Features
+
+- 🔄 **Unified API** - Single interface for multiple AI providers
+- 🏠 **Local Models** - Run Llama, Qwen, Gemma... locally via Ollama
+- 🌊 **Streaming Support** - Real-time response streaming
+- 💬 **Context Management** - Automatic conversation history and memory
+- 🖼️ **Multimodal Support** - Text, images, audio, and documents
+- 🛠️ **Function Calling** - Tool/function support for all providers
+- 🤖 **Tool Runner** - Automatic agentic tool-calling loop
+- 🔒 **Type Safety** - Full Dart type safety with null safety
+- ⚡ **Error Handling** - Comprehensive error types and retry logic
+- 📊 **Token Counting** - Exact counts via provider endpoints (Anthropic, Google AI) or local estimation
+- 💾 **Prompt Caching** - Up to 90% cheaper repeated contexts (`PromptCaching`)
+- 🗄️ **Persistence** - Save and restore conversations across restarts (`Memory`)
+- 🧠 **Thinking/Reasoning** - Surface model reasoning (Anthropic, Google AI, DeepSeek)
+- 🔎 **Embeddings** - Vectors for semantic search / RAG (OpenAI, Google AI, Ollama, Mistral)
+- 📦 **Batch Processing** - ~50% cheaper async requests (OpenAI, Anthropic)
+
+## Supported Providers
+
+| Provider | Text | Vision | Audio | Tools | Streaming |
+|----------|------|--------|-------|-------|-----------|
+| OpenAI | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Anthropic | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Google AI | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Ollama (local) | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Mistral | ✅ | ✅ | ❌ | ✅ | ✅ |
+| xAI (Grok) | ✅ | ✅ | ❌ | ✅ | ✅ |
+| DeepSeek | ✅ | ❌ | ❌ | ✅ | ✅ |
+| OpenRouter | ✅ | ❌ | ❌ | ✅ | ✅ |
+
+## Installation
+
+Add to your `pubspec.yaml`:
+
+```yaml
+dependencies:
+  flutter_ai_sdk: ^1.0.0
+```
+
+Or run:
+
+```bash
+flutter pub add flutter_ai_sdk
+```
+
+## Quick Start
+
+### Basic Chat
+
+```dart
+import 'package:flutter_ai_sdk/flutter_ai_sdk.dart';
+
+// Initialize the SDK
+final ai = FlutterAI(
+  provider: AIProvider.openai,
+  config: AIConfig(
+    apiKey: 'your-api-key',
+    model: 'gpt-5.5',
+  ),
+);
+
+// Simple chat
+final response = await ai.chat('Hello, how are you?');
+print(response.text);
+
+// Don't forget to dispose when done
+ai.dispose();
+```
+
+### Streaming Responses
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.anthropic,
+  config: AIConfig(
+    apiKey: 'your-api-key',
+    model: 'claude-opus-4-8',
+  ),
+);
+
+// Stream responses
+await for (final chunk in ai.streamChat('Tell me a story')) {
+  if (chunk.isDelta) {
+    print(chunk.delta); // Print each chunk as it arrives
+  }
+}
+```
+
+### Multi-turn Conversations
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.openai,
+  config: AIConfig(
+    apiKey: 'your-api-key',
+    systemPrompt: 'You are a helpful coding assistant.',
+  ),
+);
+
+// Context is automatically maintained
+await ai.chat('What is Dart?');
+await ai.chat('Can you show me an example?');
+await ai.chat('How does it compare to JavaScript?');
+
+// Access conversation history
+print(ai.history.length);
+```
+
+### Vision / Image Analysis
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.openai,
+  config: AIConfig(
+    apiKey: 'your-api-key',
+    model: 'gpt-5.5',
+  ),
+);
+
+// Analyze an image from URL
+final response = await ai.chatWithContent([
+  TextContent('What is in this image?'),
+  ImageContent.fromUrl('https://example.com/image.png'),
+]);
+
+// Or from local bytes
+final imageBytes = await File('image.png').readAsBytes();
+final response = await ai.chatWithContent([
+  TextContent('Describe this image'),
+  ImageContent.fromBytes(imageBytes, mimeType: 'image/png'),
+]);
+```
+
+### Document input support
+
+| Provider | Base64 (PDF...) | URL |
+|----------|:---------------:|:---:|
+| Anthropic | ✅ | ✅ |
+| Google AI | ✅ | ✅ |
+| OpenAI | ✅ | ⚠️ passed as a text reference |
+| Ollama | ❌ | ❌ |
+
+```dart
+final response = await ai.chatWithContent([
+  TextContent('Summarize this report'),
+  DocumentContent.fromBase64(base64Pdf, mimeType: 'application/pdf', name: 'report.pdf'),
+]);
+```
+
+### Function Calling / Tools
+
+```dart
+// Define a tool
+final weatherTool = Tool(
+  name: 'get_weather',
+  description: 'Get the current weather for a location',
+  parameters: ToolParameters(
+    properties: {
+      'location': ToolProperty.string(
+        description: 'The city and country, e.g., "Paris, France"',
+      ),
+      'unit': ToolProperty.enumeration(
+        description: 'Temperature unit',
+        values: ['celsius', 'fahrenheit'],
+      ),
+    },
+    required: ['location'],
+  ),
+);
+
+// Use the tool
+final response = await ai.chatWithTools(
+  'What is the weather in Paris?',
+  tools: [weatherTool],
+);
+
+// Handle tool calls
+if (response.hasToolCalls) {
+  for (final call in response.toolCalls!) {
+    // Execute the tool
+    final result = await executeWeatherCall(call.arguments);
+    
+    // Submit result back to the AI
+    final finalResponse = await ai.submitToolResult(
+      toolCallId: call.id,
+      name: call.name,
+      result: result,
+    );
+    print(finalResponse.text);
+  }
+}
+```
+
+### Tool Runner (automatic execution)
+
+Let the SDK run the full agentic loop for you: it executes every tool
+call the model requests and feeds the results back until the model
+produces a final answer.
+
+```dart
+final runner = ToolRunner.create(
+  provider: AIProvider.anthropic,
+  config: AIConfig(apiKey: 'sk-ant-...'),
+  tools: [
+    ExecutableTool(
+      definition: weatherTool,
+      executor: (args) async => fetchWeather(args['location'] as String),
+    ),
+  ],
+);
+
+final result = await runner.run('What is the weather in Paris?');
+print(result.text);       // Final answer
+print(result.iterations); // Number of tool rounds
+```
+
+### Error Handling
+
+```dart
+try {
+  final response = await ai.chat('Hello');
+} on AIAuthenticationError catch (e) {
+  print('Invalid API key: ${e.message}');
+} on AIRateLimitError catch (e) {
+  print('Rate limited. Retry after: ${e.retryAfter}');
+  await Future.delayed(e.retryAfter ?? Duration(seconds: 60));
+  // Retry the request
+} on AIContextLengthError catch (e) {
+  print('Context too long: ${e.message}');
+  ai.clearContext(); // Clear and retry
+} on AIError catch (e) {
+  print('AI error: ${e.message}');
+}
+```
+
+## Configuration Options
+
+```dart
+final config = AIConfig(
+  // Required
+  apiKey: 'your-api-key',
+  
+  // Model selection
+  model: 'gpt-5.5', // Provider-specific model name
+  
+  // Generation parameters
+  maxTokens: 4096,
+  temperature: 0.7,      // 0.0 - 2.0, higher = more random
+  topP: 0.9,             // Alternative to temperature
+  frequencyPenalty: 0.0, // -2.0 to 2.0
+  presencePenalty: 0.0,  // -2.0 to 2.0
+  stopSequences: ['END'], // Stop generation at these sequences
+  
+  // System behavior
+  systemPrompt: 'You are a helpful assistant.',
+  
+  // Response format
+  responseFormat: ResponseFormat.json(), // JSON mode
+  // Or guaranteed structured output (OpenAI, Anthropic, Google AI, Ollama):
+  // responseFormat: ResponseFormat.json(schema: {
+  //   'type': 'object',
+  //   'properties': {'name': {'type': 'string'}},
+  //   'required': ['name'],
+  // }),
+  
+  // Tools/Functions
+  tools: [myTool],
+  toolChoice: ToolChoice.auto(),
+  
+  // Network settings
+  baseUrl: 'https://custom-endpoint.com', // Custom API endpoint
+  timeout: Duration(seconds: 30),
+  headers: {'X-Custom-Header': 'value'},
+);
+```
+
+## Structured Outputs
+
+Pass a JSON schema to get responses that are **guaranteed** to match it —
+each provider uses its native structured output mechanism (OpenAI
+`json_schema`, Anthropic `output_config`, Gemini `responseJsonSchema`,
+Ollama schema format):
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.openai,
+  config: AIConfig(
+    apiKey: 'sk-...',
+    responseFormat: ResponseFormat.json(
+      schema: {
+        'type': 'object',
+        'properties': {
+          'name': {'type': 'string'},
+          'age': {'type': 'integer'},
+        },
+        'required': ['name', 'age'],
+      },
+      strict: true, // strict validation (OpenAI)
+    ),
+  ),
+);
+
+final response = await ai.chat('Extract: John Smith, 42 years old');
+final data = jsonDecode(response.text); // guaranteed valid
+```
+
+## Prompt Caching
+
+Cache the repeated prefix of your prompts (long system prompt, documents,
+conversation history) to cut input costs by up to ~90%:
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.anthropic,
+  config: AIConfig(
+    apiKey: 'sk-ant-...',
+    systemPrompt: veryLongSystemPrompt,
+    promptCaching: PromptCaching(), // or PromptCaching(ttl: PromptCacheTtl.oneHour)
+  ),
+);
+
+final response = await ai.chat('First question');
+print(response.usage?.cacheWriteTokens); // prefix written to the cache
+final followUp = await ai.chat('Second question');
+print(followUp.usage?.cachedTokens);     // prefix read from the cache (~10% of the price)
+```
+
+| Provider | Behavior |
+|----------|----------|
+| Anthropic | Explicit — enabled by `promptCaching` (5 min or 1 h TTL) |
+| OpenAI | Automatic for prompts ≥ ~1024 tokens; hits reported in `usage.cachedTokens` |
+| Google AI | Implicit caching automatic; hits reported in `usage.cachedTokens` |
+| Ollama | Local KV-cache, always on |
+
+## Thinking / Reasoning
+
+Surface the model's intermediate reasoning — useful for a "thinking..." UI
+or for debugging why the model answered the way it did:
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.anthropic,
+  config: AIConfig(
+    apiKey: 'sk-ant-...',
+    thinking: ThinkingConfig(effort: ThinkingEffort.high), // low | medium | high
+  ),
+);
+
+final response = await ai.chat('How many r are in strawberry?');
+print(response.thinking); // the reasoning, if the model produced any
+print(response.text);     // the final answer
+
+// Streaming: thinking arrives as separate delta events
+await for (final chunk in ai.streamChat('...')) {
+  if (chunk.isThinkingDelta) stdout.write(chunk.delta); // reasoning
+  if (chunk.isDelta) stdout.write(chunk.delta);          // final answer
+}
+```
+
+| Provider | Behavior |
+|----------|----------|
+| Anthropic | Adaptive extended thinking; `effort` maps to `output_config.effort` |
+| Google AI | Thought summaries; `effort` maps to `thinkingConfig.thinkingLevel` |
+| DeepSeek | `reasoning_content`; `effort` is ignored (on/off only) |
+| OpenAI, Mistral, xAI, OpenRouter, Ollama | Not supported — `thinking` is ignored |
+
+Thinking output is informational only: it's surfaced on the response but
+isn't replayed back to the model on later turns.
+
+## Token Counting
+
+Count tokens **before** sending a request — Anthropic and Google AI use
+their exact server-side counting endpoints; other providers fall back to
+a local estimation:
+
+```dart
+final tokens = await ai.countTokens(message: 'My long prompt...');
+if (tokens > 100000) {
+  // Trim the context before sending
+}
+```
+
+## Embeddings
+
+Generate embedding vectors for semantic search / RAG groundwork. Supported
+on OpenAI, Google AI, Ollama and Mistral — not every chat provider has an
+embeddings API (Anthropic, xAI, DeepSeek and OpenRouter don't), calling
+`embed`/`embedBatch` on those throws `AIFeatureNotSupportedError`:
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.openai,
+  config: AIConfig(apiKey: 'sk-...'),
+);
+
+final vector = await ai.embed('The quick brown fox');
+final vectors = await ai.embedBatch(['First doc', 'Second doc']);
+
+// Compare two vectors (e.g. a query against stored document embeddings)
+final similarity = cosineSimilarity(vector, vectors.first); // -1..1
+```
+
+| Provider | Default model |
+|----------|----------------|
+| OpenAI | `text-embedding-3-small` |
+| Google AI | `gemini-embedding-001` |
+| Ollama | `embeddinggemma` |
+| Mistral | `mistral-embed` |
+
+Override the model per call: `ai.embed('...', model: 'text-embedding-3-large')`.
+
+## Batch Processing
+
+Submit large numbers of non-latency-sensitive requests asynchronously, at
+**~50% lower cost** than synchronous calls. Supported on OpenAI and
+Anthropic — not every provider has a batch API (Google AI, Ollama, Mistral,
+xAI, DeepSeek and OpenRouter don't), calling batch methods on those throws
+`AIFeatureNotSupportedError`:
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.openai,
+  config: AIConfig(apiKey: 'sk-...'),
+);
+
+final job = await ai.submitBatch([
+  BatchRequest(
+    customId: 'q1',
+    messages: [Message.user('Summarize the plot of Hamlet')],
+    config: ai.config,
+  ),
+  BatchRequest(
+    customId: 'q2',
+    messages: [Message.user('Summarize the plot of Macbeth')],
+    config: ai.config,
+  ),
+]);
+
+// Poll until the job finishes (exponential backoff, capped) — batches can
+// take up to 24h, so this is meant for background/offline workflows.
+await for (final status in ai.waitForBatchCompletion(job.id)) {
+  print('${status.status}: ${status.completedRequests}/${status.totalRequests}');
+}
+
+final results = await ai.getBatchResults(job.id);
+// Results are NOT guaranteed to come back in submission order — match
+// them to requests via customId.
+for (final result in results) {
+  if (result.isSuccess) {
+    print('${result.customId}: ${result.response!.text}');
+  } else {
+    print('${result.customId} failed: ${result.error}');
+  }
+}
+```
+
+## Context Management
+
+The SDK includes built-in context management to handle conversation history:
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.openai,
+  config: AIConfig(apiKey: 'your-key'),
+);
+
+// Messages are automatically tracked
+await ai.chat('Hello');
+await ai.chat('Tell me more');
+
+// Access the context manager
+print(ai.context.estimatedTokens);
+print(ai.context.availableTokens);
+
+// Clear context
+ai.clearContext();
+
+// Reset with new system prompt
+ai.reset(systemPrompt: 'New personality');
+
+// Get conversation for serialization
+final json = ai.conversation.toJson();
+```
+
+### Custom Context Manager
+
+```dart
+final contextManager = ContextManager(
+  maxTokens: 8000,
+  reservedTokens: 1000, // Reserve for response
+  systemPrompt: 'You are helpful.',
+  windowStrategy: WindowStrategy.slidingWindow,
+);
+
+final ai = FlutterAI(
+  provider: AIProvider.openai,
+  config: AIConfig(apiKey: 'your-key'),
+  contextManager: contextManager,
+);
+
+// Listen to context updates
+contextManager.updates.listen((update) {
+  print('Context updated: ${update.type}');
+  print('Messages: ${update.messageCount}');
+  print('Tokens: ${update.estimatedTokens}');
+});
+```
+
+## Persistence
+
+Save and restore conversations across app restarts via the `Memory`
+interface. The core package ships two dependency-free implementations —
+`InMemoryMemory` and `JsonFileMemory` (mobile/desktop; not available on the
+web) — and stays free of storage dependencies like Hive or SQLite, so you
+plug in whichever backend fits your app.
+
+```dart
+final memory = InMemoryMemory(); // or JsonFileMemory, or your own
+
+// Save the conversation automatically after every turn.
+await ai.attachMemory(memory);
+await ai.chat('Hello!');
+
+// ... later, e.g. after an app restart ...
+final restored = await ai.loadConversation(memory, savedConversationId);
+if (restored) print('Resumed: ${ai.conversation.title}');
+
+// List saved conversations without loading full histories
+final summaries = await memory.listSummaries(); // newest first
+```
+
+See the [Persistence wiki page](https://github.com/Amayyas/Flutter-AI-SDK/wiki/Persistence)
+for `LimitedMemory` (LRU-capped storage) and how to implement `Memory` on
+top of Hive, SQLite, or `shared_preferences`.
+
+## Provider-Specific Features
+
+### OpenAI
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.openai,
+  config: AIConfig(
+    apiKey: 'sk-...',
+    model: 'gpt-5.5', // or gpt-5.4, gpt-5.4-mini, etc.
+  ),
+);
+```
+
+Supported models: `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.1`
+
+### Anthropic (Claude)
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.anthropic,
+  config: AIConfig(
+    apiKey: 'sk-ant-...',
+    model: 'claude-opus-4-8',
+  ),
+);
+```
+
+Supported models: `claude-opus-4-8`, `claude-sonnet-5`, `claude-sonnet-4-6`, `claude-haiku-4-5`
+
+### Google AI (Gemini)
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.googleAI,
+  config: AIConfig(
+    apiKey: 'your-google-ai-key',
+    model: 'gemini-3.5-flash',
+  ),
+);
+```
+
+Supported models: `gemini-3.5-flash`, `gemini-3.1-pro-preview`, `gemini-3.1-flash-lite`
+
+### Ollama (local models)
+
+Run open models locally — no API key, no cloud.
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.ollama,
+  config: AIConfig(
+    apiKey: '', // not required
+    model: 'llama3.1',
+    // baseUrl: 'http://192.168.1.10:11434/api', // remote Ollama server
+  ),
+);
+```
+
+Popular models: `llama3.1`, `deepseek-r1`, `qwen3`, `gemma3`, `qwen3-coder`
+
+### Mistral AI
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.mistral,
+  config: AIConfig(
+    apiKey: '...',
+    model: 'mistral-large-latest',
+  ),
+);
+```
+
+Supported models: `mistral-large-latest` and other Mistral chat models
+
+### xAI (Grok)
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.xai,
+  config: AIConfig(
+    apiKey: '...',
+    model: 'grok-4.5',
+  ),
+);
+```
+
+Supported models: `grok-4.5` and other Grok chat models
+
+### DeepSeek
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.deepseek,
+  config: AIConfig(
+    apiKey: '...',
+    model: 'deepseek-v4-flash',
+  ),
+);
+```
+
+Supported models: `deepseek-v4-flash`, `deepseek-v4-pro` and other DeepSeek chat models. No vision support.
+
+### OpenRouter
+
+Routes requests to a wide range of underlying models through a single
+OpenAI-compatible API.
+
+```dart
+final ai = FlutterAI(
+  provider: AIProvider.openrouter,
+  config: AIConfig(
+    apiKey: '...',
+    model: 'openrouter/auto', // or any model slug listed on openrouter.ai
+    headers: {
+      'HTTP-Referer': 'https://your-app.example.com',
+      'X-OpenRouter-Title': 'Your App Name',
+    },
+  ),
+);
+```
+
+Vision and other capabilities depend on the routed model, so they aren't
+guaranteed by the SDK's declared capabilities.
+
+## Architecture
+
+The SDK is organized in small, focused modules:
+
+```
+lib/src/
+├── config/       # AIConfig, response formats, per-provider defaults
+├── models/       # Messages, content types (sealed), tools, responses
+├── providers/    # One folder per provider: thin provider + wire mapper
+│   ├── anthropic/  openai/  google_ai/  ollama/  openai_compatible/
+│   └── provider_registry.dart   # factory: AIProvider -> BaseProvider
+├── runner/       # ToolRunner: automatic tool-calling loop
+├── context/      # Conversation history
+│   └── persistence/  # Memory interface + InMemoryMemory/JsonFileMemory
+├── errors/       # Typed error hierarchy
+└── utils/        # HTTP client (retry, SSE/NDJSON), token counting
+```
+
+Key design points:
+
+- **Strategy + template method** - `BaseProvider` owns the streaming loop;
+  each provider only implements its transport and wire format
+- **Mappers** - request building / response parsing are stateless classes,
+  isolated from HTTP concerns and independently testable
+- **Factory registry** - `ProviderRegistry.register` lets you plug custom
+  provider implementations without forking the SDK
+
+## Flutter Widget Integration
+
+```dart
+class ChatWidget extends StatefulWidget {
+  @override
+  _ChatWidgetState createState() => _ChatWidgetState();
+}
+
+class _ChatWidgetState extends State<ChatWidget> {
+  late FlutterAI _ai;
+  final _messages = <Message>[];
+  String _streamingContent = '';
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ai = FlutterAI(
+      provider: AIProvider.openai,
+      config: AIConfig(apiKey: 'your-key'),
+    );
+  }
+
+  Future<void> _sendMessage(String text) async {
+    setState(() {
+      _messages.add(Message.user(text));
+      _isLoading = true;
+      _streamingContent = '';
+    });
+
+    await for (final chunk in _ai.streamChat(text)) {
+      if (chunk.isDelta) {
+        setState(() {
+          _streamingContent += chunk.delta ?? '';
+        });
+      }
+      if (chunk.isDone) {
+        setState(() {
+          _messages.add(Message.assistant(_streamingContent));
+          _streamingContent = '';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _ai.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            itemCount: _messages.length,
+            itemBuilder: (context, index) {
+              final message = _messages[index];
+              return ListTile(
+                title: Text(message.text),
+                subtitle: Text(message.role.name),
+              );
+            },
+          ),
+        ),
+        if (_streamingContent.isNotEmpty)
+          Padding(
+            padding: EdgeInsets.all(8),
+            child: Text(_streamingContent),
+          ),
+        // Add your message input UI here
+      ],
+    );
+  }
+}
+```
+
+## API Reference
+
+### FlutterAI
+
+| Method | Description |
+|--------|-------------|
+| `chat(String message)` | Send a text message |
+| `chatWithContent(List<Content> content)` | Send multimodal content |
+| `chatWithTools(String message, {required List<Tool> tools})` | Chat with tools |
+| `submitToolResult({...})` | Submit tool result |
+| `streamChat(String message)` | Stream a response |
+| `streamChatWithContent(List<Content> content)` | Stream multimodal |
+| `clearContext()` | Clear conversation |
+| `reset({String? systemPrompt})` | Reset with new prompt |
+
+### Content Types
+
+| Type | Description |
+|------|-------------|
+| `TextContent(String text)` | Plain text |
+| `ImageContent.fromUrl(String url)` | Image from URL |
+| `ImageContent.fromBytes(Uint8List bytes)` | Image from bytes |
+| `AudioContent.fromUrl(String url)` | Audio from URL |
+| `DocumentContent.fromUrl(String url)` | Document from URL |
+
+### Error Types
+
+| Error | Description |
+|-------|-------------|
+| `AIAuthenticationError` | Invalid API key |
+| `AIRateLimitError` | Rate limit exceeded |
+| `AIInvalidRequestError` | Bad request parameters |
+| `AIContextLengthError` | Context too long |
+| `AIContentFilterError` | Content blocked |
+| `AINetworkError` | Network issues |
+| `AIServerError` | Server errors |
+
+## Examples
+
+A full set of runnable examples lives in [`example/main.dart`](example/main.dart),
+covering:
+
+- Basic chat (OpenAI), streaming (Anthropic), vision (Google AI)
+- Function calling — both the manual loop and the automatic [`ToolRunner`](#tool-runner-automatic-execution)
+- Error handling and context management
+- [Ollama](#ollama-local-models) (local models, no API key)
+- [Structured outputs](#structured-outputs) with a guaranteed JSON schema
+
+## Best Practices
+
+1. **Always dispose** - Call `ai.dispose()` when done to release resources
+2. **Handle errors** - Use try-catch for all API calls
+3. **Monitor tokens** - Check `context.estimatedTokens` before sending large requests
+4. **Stream for long responses** - Use `streamChat` for better UX
+5. **Secure API keys** - Never hardcode keys, use environment variables or secure storage
+
+## Support
+
+- 📖 [Documentation](https://github.com/Amayyas/Flutter-AI-SDK/wiki)
+- 🐛 [Issues](https://github.com/Amayyas/Flutter-AI-SDK/issues)
+- 💬 [Discussions](https://github.com/Amayyas/Flutter-AI-SDK/discussions)
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

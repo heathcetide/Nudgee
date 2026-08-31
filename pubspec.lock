@@ -518,6 +518,13 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_ai_sdk:
+    dependency: "direct main"
+    description:
+      path: "packages/flutter_ai_sdk"
+      relative: true
+    source: path
+    version: "1.9.0"
   flutter_blue_plus:
     dependency: "direct main"
     description:
@@ -878,7 +885,7 @@ packages:
     source: hosted
     version: "0.15.6"
   http:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: http
       sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"
@@ -1453,6 +1460,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.6.3"
+  retry:
+    dependency: "direct main"
+    description:
+      name: retry
+      sha256: "822e118d5b3aafed083109c72d5f484c6dc66707885e07c0fbcb8b986bba7efc"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.1.2"
   riverpod:
     dependency: transitive
     description:
@@ -1494,7 +1509,7 @@ packages:
     source: hosted
     version: "2.3.10"
   rxdart:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: rxdart
       sha256: "0c7c0cedd93788d996e33041ffecda924cc54389199cde4e6a34b440f50044cb"
