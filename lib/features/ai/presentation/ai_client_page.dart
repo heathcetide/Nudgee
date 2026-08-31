@@ -161,6 +161,10 @@ class _AiClientPageState extends State<AiClientPage> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.7,
+      ),
       builder: (ctx) {
         return SafeArea(
           child: Column(
@@ -174,20 +178,27 @@ class _AiClientPageState extends State<AiClientPage> {
                 ),
               ),
               const Divider(height: 1),
-              ...models.map((m) {
-                final selected = m == ai.currentModel;
-                return ListTile(
-                  title: Text(m),
-                  trailing: selected
-                      ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
-                      : null,
-                  onTap: () async {
-                    await ai.switchModel(m);
-                    if (ctx.mounted) Navigator.pop(ctx);
-                    _clearChat();
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: models.length,
+                  itemBuilder: (ctx, index) {
+                    final m = models[index];
+                    final selected = m == ai.currentModel;
+                    return ListTile(
+                      title: Text(m),
+                      trailing: selected
+                          ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                          : null,
+                      onTap: () async {
+                        await ai.switchModel(m);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        _clearChat();
+                      },
+                    );
                   },
-                );
-              }),
+                ),
+              ),
               const SizedBox(height: 8),
             ],
           ),
