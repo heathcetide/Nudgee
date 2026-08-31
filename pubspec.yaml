@@ -141,6 +141,7 @@ dependencies:
   rxdart: ^0.27.7
   retry: ^3.1.2
   flutter_markdown: ^0.7.7+1
+  flutter_local_notifications: ^19.5.0
 
   # NOTE: device_info_plus and flutter_webrtc are commented out for now
   # because their Web implementations use package:web which is incompatible
@@ -174,6 +175,7 @@ flutter:
   assets:
     - assets/images/
     - assets/config/
+    - assets/sounds/
 
 flutter_launcher_icons:
   android: true

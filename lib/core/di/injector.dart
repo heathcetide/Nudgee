@@ -25,6 +25,7 @@ import 'package:nudgee/core/services/download_service.dart';
 import 'package:nudgee/core/services/file_picker_service.dart';
 import 'package:nudgee/core/services/file_storage_service.dart';
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
+import 'package:nudgee/core/services/notification_service.dart';
 import 'package:nudgee/core/services/schedule_service.dart';
 import 'package:nudgee/core/services/frame_timing_monitor_service.dart';
 import 'package:nudgee/core/services/local_database_service.dart';
@@ -193,6 +194,12 @@ Future<void> initDependencies() async {
           prefs: sl<SharedPrefsService>(),
         ),
       ));
+
+  // ── Notification Service (local notifications + reminder sound) ──────
+  _safeRegister(() {
+    sl.registerLazySingleton<NotificationService>(() => NotificationService());
+    sl<NotificationService>().init();
+  });
 
   // ── Upload Service ───────────────────────────────────────────────────
   _safeRegister(() => sl.registerLazySingleton<UploadService>(

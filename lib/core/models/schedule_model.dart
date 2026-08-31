@@ -41,6 +41,7 @@ class ScheduleItem {
   /// 转换为 timetable UI 所需的 Map 格式（兼容现有代码）。
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'name': name,
       'location': location,
       'startIndex': startIndex,

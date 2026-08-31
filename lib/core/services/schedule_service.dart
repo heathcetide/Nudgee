@@ -7,6 +7,7 @@ import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/errors/app_exception.dart';
 import 'package:nudgee/core/models/schedule_model.dart';
 import 'package:nudgee/core/services/file_storage_service.dart';
+import 'package:nudgee/core/services/notification_service.dart';
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
 import 'package:nudgee/core/services/shared_prefs_service.dart';
 
@@ -154,6 +155,12 @@ class ScheduleService extends ChangeNotifier {
     _data = ScheduleData(byDate: byDate);
 
     await _saveLocal();
+    // Schedule local notification + reminder sound.
+    try {
+      await sl<NotificationService>().scheduleNotification(item);
+    } catch (e) {
+      debugPrint('[ScheduleService] scheduleNotification error: $e');
+    }
     notifyListeners();
     // Cloud sync is best-effort, don't block UI.
     syncToCloud();
@@ -164,6 +171,12 @@ class ScheduleService extends ChangeNotifier {
     final byDate = Map<String, List<ScheduleItem>>.from(_data.byDate);
     final dateItems = byDate[date];
     if (dateItems == null) return;
+    // Cancel notification before removing.
+    try {
+      await sl<NotificationService>().cancelById(itemId);
+    } catch (e) {
+      debugPrint('[ScheduleService] cancelNotification error: $e');
+    }
     dateItems.removeWhere((e) => e.id == itemId);
     if (dateItems.isEmpty) {
       byDate.remove(date);

@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
+import 'package:nudgee/core/models/schedule_model.dart';
 import 'package:nudgee/core/services/schedule_service.dart';
 import 'package:nudgee/features/common/utils/events.dart';
 import 'package:nudgee/features/common/widgets/page_scaffold.dart';
@@ -199,37 +200,35 @@ class _TimetableState extends State<Timetable> {
     });
   }
 
-  /// Generate week periods from available dates.
-  /// If no data, generate current week only.
+  /// Generate week periods covering ~1 month (current week ± 2 weeks).
+  /// Also includes any weeks that have user schedule data.
   List<Map<String, dynamic>> _generateWeekPeriods(List<String> dates) {
-    if (dates.isEmpty) {
-      final now = DateTime.now();
-      final weekStart = now.subtract(Duration(days: now.weekday - 1));
-      return [
-        {
-          'weekIndex': 0,
-          'startDate': _dateStr(weekStart),
-          'endDate': _dateStr(weekStart.add(const Duration(days: 6))),
-        }
-      ];
+    final now = DateTime.now();
+    final currentWeekStart = now.subtract(Duration(days: now.weekday - 1));
+
+    // Start from 2 weeks before current week, end 2 weeks after = ~5 weeks (1 month).
+    final rangeStart = currentWeekStart.subtract(const Duration(days: 14));
+    final rangeEnd = currentWeekStart.add(const Duration(days: 20)); // 2 weeks + current week + 2 extra days
+
+    // Collect all week starts: range weeks + any weeks from user data.
+    final weekStarts = <DateTime>{};
+    for (var d = rangeStart; !d.isAfter(rangeEnd); d = d.add(const Duration(days: 7))) {
+      weekStarts.add(d);
     }
-    // Group dates by week (Monday-Sunday).
-    final weeks = <Map<String, dynamic>>[];
-    final sortedDates = List<String>.from(dates)..sort();
-    DateTime? currentWeekStart;
-    int weekIndex = 0;
-    for (final dateStr in sortedDates) {
+    for (final dateStr in dates) {
       final date = DateTime.parse(dateStr);
-      final weekStart = date.subtract(Duration(days: date.weekday - 1));
-      if (currentWeekStart == null || weekStart != currentWeekStart) {
-        if (currentWeekStart != null) weekIndex++;
-        currentWeekStart = weekStart;
-        weeks.add({
-          'weekIndex': weekIndex,
-          'startDate': _dateStr(weekStart),
-          'endDate': _dateStr(weekStart.add(const Duration(days: 6))),
-        });
-      }
+      final ws = date.subtract(Duration(days: date.weekday - 1));
+      weekStarts.add(ws);
+    }
+
+    final sortedWeeks = weekStarts.toList()..sort();
+    final weeks = <Map<String, dynamic>>[];
+    for (int i = 0; i < sortedWeeks.length; i++) {
+      weeks.add({
+        'weekIndex': i,
+        'startDate': _dateStr(sortedWeeks[i]),
+        'endDate': _dateStr(sortedWeeks[i].add(const Duration(days: 6))),
+      });
     }
     return weeks;
   }
@@ -684,6 +683,7 @@ class _DailyClassState extends State<DailyClass> {
                         name: name,
                         location: location,
                         length: length,
+                        itemId: allClasses[i]['id'],
                       ),
                     ),
                   ));
@@ -705,7 +705,8 @@ class ClassRectItem extends StatefulWidget {
   final length;
   final detail;
   final date;
-  const ClassRectItem({super.key, this.name, this.location, this.length, this.detail, this.date});
+  final String? itemId;
+  const ClassRectItem({super.key, this.name, this.location, this.length, this.detail, this.date, this.itemId});
 
   @override
   State<ClassRectItem> createState() => _ClassRectItemState();
@@ -737,6 +738,17 @@ class _ClassRectItemState extends State<ClassRectItem> {
                   detail: widget.detail,
                 ),
                 actions: [
+                  if (widget.itemId != null)
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await sl<ScheduleService>().removeSchedule(widget.date, widget.itemId!);
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.error,
+                      ),
+                      child: const Text("删除"),
+                    ),
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop();
