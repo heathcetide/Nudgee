@@ -108,10 +108,13 @@ class _AddSchedulePageState extends State<AddSchedulePage> {
       final startTime = _formatTime(_startTime);
       final endTime = _formatTime(_endTime);
       final startMin = _toMinutes(_startTime);
+      final endMin = _toMinutes(_endTime);
 
       // 计算 startIndex：用开始时间相对 06:00 的偏移估算（用于 timetable 网格定位）
       const dayStartMinutes = 6 * 60; // 06:00
       final startIndex = ((startMin - dayStartMinutes) / 60).round().clamp(0, 17);
+      // length: 占用的时段数（向上取整）
+      final length = ((endMin - startMin) / 60).ceil().clamp(1, 18 - startIndex);
 
       final item = ScheduleItem(
         id: '${_dateStr}_${startTime}_${_nameController.text.trim()}',
@@ -126,8 +129,8 @@ class _AddSchedulePageState extends State<AddSchedulePage> {
         startTime: startTime,
         endTime: endTime,
         startIndex: startIndex,
-        length: 1,
-        isExtra: true,
+        length: length,
+        isExtra: false,
       );
 
       await sl<ScheduleService>().addSchedule(item);
