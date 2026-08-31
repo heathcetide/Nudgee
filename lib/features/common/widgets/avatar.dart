@@ -35,7 +35,7 @@ Gradient getRandomGradient(String seed) {
 }
 
 class Avatar extends StatelessWidget {
-  final url;
+  final String? url;
   final String? name;
   final Function? onTap;
   const Avatar(this.url, {super.key, this.name, this.onTap});
@@ -44,7 +44,7 @@ class Avatar extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
       Widget content;
-      if (url == '') {
+      if (url == null || url!.isEmpty) {
         content = Container(
           decoration: BoxDecoration(
               gradient: getRandomGradient(name ?? ''),
@@ -74,18 +74,19 @@ class Avatar extends StatelessWidget {
           }),
         );
       } else {
+        final urlStr = url!;
         if (onTap != null) {
           content = Container(
-              child: ExtendedImage.network(url),
+              child: ExtendedImage.network(urlStr),
               decoration: BoxDecoration(
                 color: Colors.grey[200],
                 borderRadius:
                     BorderRadius.circular(min(constraints.maxHeight, constraints.maxWidth) * 0.16),
               ));
         } else {
-          content = ImageBox(url,
+          content = ImageBox(urlStr,
               images: [
-                {'url': url + '_original', 'tag': url}
+                {'url': urlStr + '_original', 'tag': urlStr}
               ],
               decoration: BoxDecoration(
                 borderRadius:
