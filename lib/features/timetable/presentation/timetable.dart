@@ -143,7 +143,6 @@ class _TimetableState extends State<Timetable> {
   Map<dynamic, dynamic> dailyClass = {};
   List<dynamic> weekPeriodList = [];
   ScrollController scrollController = ScrollController();
-  ScrollController horizontalScrollController = ScrollController();
   ListObserverController listObserverController = ListObserverController();
   Timer? listObserverTimer;
   int? currentWeekIndex = 0;
@@ -169,7 +168,6 @@ class _TimetableState extends State<Timetable> {
 
   @override
   void dispose() {
-    horizontalScrollController.dispose();
     if (listObserverTimer != null) listObserverTimer!.cancel();
     super.dispose();
   }
@@ -205,70 +203,75 @@ class _TimetableState extends State<Timetable> {
                 fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
           )),
       child: SizedBox.expand(
-        child: Column(
-          children: [
-            Header(week: currentWeekIndex, horizontalController: horizontalScrollController),
-            Expanded(
-              child: DynMouseScroll(builder: (context, controller, physics) {
-                return ListViewObserver(
-                  autoTriggerObserveTypes: const [ObserverAutoTriggerObserveType.scrollEnd],
-                  controller: listObserverController,
-                  onObserve: (resultModel) {
-                    int firstIndex = resultModel.firstChild!.index ~/ 8;
-                    if (firstIndex != currentWeekIndex) {
-                      setState(() {
-                        currentWeekIndex = firstIndex;
-                      });
-                    }
-                  },
-                  child: ListView(
-                    controller: scrollController,
-                    physics: physics,
-                    children: (() {
-                      List<Widget> children = [];
-                      if (weekPeriodList.length > 0) {
-                        var startDate = DateTime.parse(weekPeriodList[0]['startDate']);
-                        var endDate =
-                            DateTime.parse(weekPeriodList[weekPeriodList.length - 1]['endDate']);
-                        for (var date = startDate;
-                            date.isBefore(endDate);
-                            date = date.add(const Duration(days: 1))) {
-                          var _date = date.toString().split(' ')[0];
-                          for (var weekPeriod in weekPeriodList) {
-                            if (_date == weekPeriod['startDate']) {
-                              int weekTotalClass = 0;
-                              for (var date_inweek = date;
-                                  date_inweek.isBefore(DateTime.parse(weekPeriod['endDate']));
-                                  date_inweek = date_inweek.add(const Duration(days: 1))) {
-                                var _date_inweek = date_inweek.toString().split(' ')[0];
-                                if (dailyClass[_date_inweek] != null) {
-                                  weekTotalClass += dailyClass[_date_inweek]['fixed'].length +
-                                      dailyClass[_date_inweek]['extra'].length as int;
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: kLabelColumnWidth + periodsStartTime.length * kSlotColumnWidth,
+            child: Column(
+              children: [
+                Header(week: currentWeekIndex),
+                Expanded(
+                  child: DynMouseScroll(builder: (context, controller, physics) {
+                    return ListViewObserver(
+                      autoTriggerObserveTypes: const [ObserverAutoTriggerObserveType.scrollEnd],
+                      controller: listObserverController,
+                      onObserve: (resultModel) {
+                        int firstIndex = resultModel.firstChild!.index ~/ 8;
+                        if (firstIndex != currentWeekIndex) {
+                          setState(() {
+                            currentWeekIndex = firstIndex;
+                          });
+                        }
+                      },
+                      child: ListView(
+                        controller: scrollController,
+                        physics: physics,
+                        children: (() {
+                          List<Widget> children = [];
+                          if (weekPeriodList.length > 0) {
+                            var startDate = DateTime.parse(weekPeriodList[0]['startDate']);
+                            var endDate =
+                                DateTime.parse(weekPeriodList[weekPeriodList.length - 1]['endDate']);
+                            for (var date = startDate;
+                                date.isBefore(endDate);
+                                date = date.add(const Duration(days: 1))) {
+                              var _date = date.toString().split(' ')[0];
+                              for (var weekPeriod in weekPeriodList) {
+                                if (_date == weekPeriod['startDate']) {
+                                  int weekTotalClass = 0;
+                                  for (var date_inweek = date;
+                                      date_inweek.isBefore(DateTime.parse(weekPeriod['endDate']));
+                                      date_inweek = date_inweek.add(const Duration(days: 1))) {
+                                    var _date_inweek = date_inweek.toString().split(' ')[0];
+                                    if (dailyClass[_date_inweek] != null) {
+                                      weekTotalClass += dailyClass[_date_inweek]['fixed'].length +
+                                          dailyClass[_date_inweek]['extra'].length as int;
+                                    }
+                                  }
+                                  children.add(WeekDivider(
+                                      week: weekPeriod['weekIndex'],
+                                      fromDate: weekPeriod['startDate'],
+                                      toDate: weekPeriod['endDate'],
+                                      total: weekTotalClass));
                                 }
                               }
-                              children.add(WeekDivider(
-                                  week: weekPeriod['weekIndex'],
-                                  fromDate: weekPeriod['startDate'],
-                                  toDate: weekPeriod['endDate'],
-                                  total: weekTotalClass));
+                              children.add(DailyClass(
+                                  date: _date,
+                                  classes: dailyClass[_date] != null
+                                      ? dailyClass[_date]
+                                      : {'fixed': [], 'extra': []}));
                             }
+                            return children;
                           }
-                          children.add(DailyClass(
-                              date: _date,
-                              classes: dailyClass[_date] != null
-                                  ? dailyClass[_date]
-                                  : {'fixed': [], 'extra': []},
-                              horizontalController: horizontalScrollController));
-                        }
-                        return children;
-                      }
-                      return [Text(context.l10n.loading)];
-                    })(),
-                  ),
-                );
-              }),
-            )
-          ],
+                          return [Text(context.l10n.loading)];
+                        })(),
+                      ),
+                    );
+                  }),
+                )
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -277,8 +280,7 @@ class _TimetableState extends State<Timetable> {
 
 class Header extends StatefulWidget {
   final week;
-  final ScrollController? horizontalController;
-  const Header({super.key, this.week, this.horizontalController});
+  const Header({super.key, this.week});
 
   @override
   State<Header> createState() => _HeaderState();
@@ -309,16 +311,12 @@ class _HeaderState extends State<Header> {
               bottom: BorderSide(
         color: Theme.of(context).colorScheme.outline,
       ))),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        controller: widget.horizontalController,
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: (() {
-              List<Widget> children = [
-                SizedBox(
-                  width: kLabelColumnWidth,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: (() {
+          List<Widget> children = [
+            SizedBox(
+              width: kLabelColumnWidth,
                   child: Container(
                     padding: const EdgeInsets.all(2.5),
                     decoration: BoxDecoration(
@@ -394,11 +392,9 @@ class _HeaderState extends State<Header> {
                   ),
                 ));
               }
-              return children;
-            })(),
-          ),
+            return children;
+          })(),
         ),
-      ),
     );
   }
 }
@@ -406,8 +402,7 @@ class _HeaderState extends State<Header> {
 class DailyClass extends StatefulWidget {
   final classes;
   final date;
-  final ScrollController? horizontalController;
-  const DailyClass({super.key, this.classes, this.date, this.horizontalController});
+  const DailyClass({super.key, this.classes, this.date});
 
   @override
   State<DailyClass> createState() => _DailyClassState();
@@ -422,16 +417,12 @@ class _DailyClassState extends State<DailyClass> {
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(width: .5, color: Theme.of(context).dividerColor)),
         ),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          controller: widget.horizontalController,
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: (() {
-                List<Widget> children = [
-                  SizedBox(
-                      width: kLabelColumnWidth,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: (() {
+            List<Widget> children = [
+              SizedBox(
+                  width: kLabelColumnWidth,
                       child: Container(
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.secondaryFixed,
@@ -625,10 +616,8 @@ class _DailyClassState extends State<DailyClass> {
                 children.removeAt(startIndex + 2);
               }
             }
-            return children;
-          })(),
-          ),
-        ),
+          return children;
+        })(),
       ),
       ),
     );
