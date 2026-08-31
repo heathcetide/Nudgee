@@ -115,6 +115,29 @@ class _TodayScheduleState extends State<TodaySchedule> {
   void _initState() async {
     var _td = generateMockTimetableData();
     dailyClass = _td['dailyClass'];
+
+    // Merge user-added schedules from SharedPreferences.
+    try {
+      final prefs = sl<SharedPrefsService>();
+      final raw = prefs.getString('user_schedules');
+      if (raw != null) {
+        final userSchedules = jsonDecode(raw) as Map<String, dynamic>;
+        for (final entry in userSchedules.entries) {
+          final dateKey = entry.key;
+          final data = entry.value as Map<String, dynamic>;
+          if (dailyClass[dateKey] == null) {
+            dailyClass[dateKey] = {'fixed': [], 'extra': []};
+          }
+          final fixed = data['fixed'] as List? ?? [];
+          final extra = data['extra'] as List? ?? [];
+          (dailyClass[dateKey]['fixed'] as List).addAll(fixed);
+          (dailyClass[dateKey]['extra'] as List).addAll(extra);
+        }
+      }
+    } catch (_) {
+      // Ignore parse errors — mock data still works.
+    }
+
     String dateStr = DateTime.now().add(tmpOffset).toString().split(' ')[0];
     setState(() {
       if (dailyClass[dateStr] == null) {

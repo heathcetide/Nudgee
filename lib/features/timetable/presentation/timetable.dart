@@ -126,6 +126,12 @@ const dividerLocation = [
   12,
 ];
 
+/// Fixed width for each time-slot column in the timetable grid.
+const double kSlotColumnWidth = 62.0;
+
+/// Fixed width for the leftmost day/week label column.
+const double kLabelColumnWidth = 52.0;
+
 class Timetable extends StatefulWidget {
   const Timetable({super.key});
 
@@ -137,6 +143,7 @@ class _TimetableState extends State<Timetable> {
   Map<dynamic, dynamic> dailyClass = {};
   List<dynamic> weekPeriodList = [];
   ScrollController scrollController = ScrollController();
+  ScrollController horizontalScrollController = ScrollController();
   ListObserverController listObserverController = ListObserverController();
   Timer? listObserverTimer;
   int? currentWeekIndex = 0;
@@ -162,6 +169,7 @@ class _TimetableState extends State<Timetable> {
 
   @override
   void dispose() {
+    horizontalScrollController.dispose();
     if (listObserverTimer != null) listObserverTimer!.cancel();
     super.dispose();
   }
@@ -199,7 +207,7 @@ class _TimetableState extends State<Timetable> {
       child: SizedBox.expand(
         child: Column(
           children: [
-            Header(week: currentWeekIndex),
+            Header(week: currentWeekIndex, horizontalController: horizontalScrollController),
             Expanded(
               child: DynMouseScroll(builder: (context, controller, physics) {
                 return ListViewObserver(
@@ -249,7 +257,8 @@ class _TimetableState extends State<Timetable> {
                               date: _date,
                               classes: dailyClass[_date] != null
                                   ? dailyClass[_date]
-                                  : {'fixed': [], 'extra': []}));
+                                  : {'fixed': [], 'extra': []},
+                              horizontalController: horizontalScrollController));
                         }
                         return children;
                       }
@@ -268,7 +277,8 @@ class _TimetableState extends State<Timetable> {
 
 class Header extends StatefulWidget {
   final week;
-  const Header({super.key, this.week});
+  final ScrollController? horizontalController;
+  const Header({super.key, this.week, this.horizontalController});
 
   @override
   State<Header> createState() => _HeaderState();
@@ -293,94 +303,101 @@ class _HeaderState extends State<Header> {
       }
     }
     return Container(
-      height: 24,
+      height: 28,
       decoration: BoxDecoration(
           border: Border(
               bottom: BorderSide(
         color: Theme.of(context).colorScheme.outline,
       ))),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: (() {
-          List<Widget> children = [
-            Expanded(
-                flex: 1,
-                child: Container(
-                  padding: const EdgeInsets.all(2.5),
-                  decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary,
-                      border: Border(
-                          right:
-                              BorderSide(color: Theme.of(context).colorScheme.outline, width: 1))),
-                  child: Center(
-                    child: AutoSizeText(
-                      context.l10n.timetableWeekN(getWeekString(widget.week)),
-                      minFontSize: 0,
-                      maxLines: 1,
-                      style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(
-                                color: Theme.of(context).colorScheme.shadow.withAlpha(88),
-                                offset: Offset(1, 1),
-                                blurRadius: 3)
-                          ]),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        controller: widget.horizontalController,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: (() {
+              List<Widget> children = [
+                SizedBox(
+                  width: kLabelColumnWidth,
+                  child: Container(
+                    padding: const EdgeInsets.all(2.5),
+                    decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        border: Border(
+                            right:
+                                BorderSide(color: Theme.of(context).colorScheme.outline, width: 1))),
+                    child: Center(
+                      child: AutoSizeText(
+                        context.l10n.timetableWeekN(getWeekString(widget.week)),
+                        minFontSize: 0,
+                        maxLines: 1,
+                        style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(
+                                  color: Theme.of(context).colorScheme.shadow.withAlpha(88),
+                                  offset: Offset(1, 1),
+                                  blurRadius: 3)
+                            ]),
+                      ),
                     ),
                   ),
-                ))
-          ];
-          for (int i = 0; i < periods.length; i++) {
-            var period = periods[i];
-            if (period['type'] == 'divider') continue;
-            children.add(Expanded(
-              flex: 1,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-                decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryFixed,
-                    border: Border(
-                        right: BorderSide(
-                            color: i < periods.length - 1 && periods[i + 1]['type'] == 'divider'
-                                ? Theme.of(context).colorScheme.outline
-                                : Theme.of(context).dividerColor,
-                            width: .5))),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: AutoSizeText(
-                          '${period['startTime']}    ',
-                          maxLines: 1,
-                          overflow: TextOverflow.visible,
-                          group: periodTextGroup1,
-                          style: const TextStyle(height: 1, fontWeight: FontWeight.bold),
-                          minFontSize: 0,
-                          maxFontSize: 16,
-                        ),
+                )
+              ];
+              for (int i = 0; i < periods.length; i++) {
+                var period = periods[i];
+                if (period['type'] == 'divider') continue;
+                children.add(SizedBox(
+                  width: kSlotColumnWidth,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                    decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primaryFixed,
+                        border: Border(
+                            right: BorderSide(
+                                color: i < periods.length - 1 && periods[i + 1]['type'] == 'divider'
+                                    ? Theme.of(context).colorScheme.outline
+                                    : Theme.of(context).dividerColor,
+                                width: .5))),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: AutoSizeText(
+                              '${period['startTime']}    ',
+                              maxLines: 1,
+                              overflow: TextOverflow.visible,
+                              group: periodTextGroup1,
+                              style: const TextStyle(height: 1, fontWeight: FontWeight.bold),
+                              minFontSize: 0,
+                              maxFontSize: 14,
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: AutoSizeText(
+                              '${period['endTime']}└    ',
+                              maxLines: 1,
+                              style: TextStyle(height: 1, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                              textDirection: TextDirection.rtl,
+                              maxFontSize: 10,
+                              overflow: TextOverflow.visible,
+                              group: periodTextGroup2,
+                              minFontSize: 0,
+                            ),
+                          ),
+                        ],
                       ),
-                      Expanded(
-                        flex: 2,
-                        child: AutoSizeText(
-                          '${period['endTime']}└    ',
-                          maxLines: 1,
-                          style: TextStyle(height: 1, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                          textDirection: TextDirection.rtl,
-                          maxFontSize: 12,
-                          overflow: TextOverflow.visible,
-                          group: periodTextGroup2,
-                          minFontSize: 0,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            ));
-          }
-          return children;
-        })(),
+                ));
+              }
+              return children;
+            })(),
+          ),
+        ),
       ),
     );
   }
@@ -389,7 +406,8 @@ class _HeaderState extends State<Header> {
 class DailyClass extends StatefulWidget {
   final classes;
   final date;
-  const DailyClass({super.key, this.classes, this.date});
+  final ScrollController? horizontalController;
+  const DailyClass({super.key, this.classes, this.date, this.horizontalController});
 
   @override
   State<DailyClass> createState() => _DailyClassState();
@@ -404,13 +422,17 @@ class _DailyClassState extends State<DailyClass> {
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(width: .5, color: Theme.of(context).dividerColor)),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: (() {
-            List<Widget> children = [
-              Expanded(
-                  flex: 1,
-                  child: Container(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          controller: widget.horizontalController,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: (() {
+                List<Widget> children = [
+                  SizedBox(
+                      width: kLabelColumnWidth,
+                      child: Container(
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.secondaryFixed,
                       border: Border(
@@ -551,8 +573,8 @@ class _DailyClassState extends State<DailyClass> {
                     ]),
                   )),
               for (int i = 0; i < periodsStartTime.length; i++)
-                Expanded(
-                    flex: 1,
+                SizedBox(
+                    width: kSlotColumnWidth,
                     child: Container(
                       decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.surfaceContainerLow ?? Colors.grey[100]!,
@@ -579,8 +601,8 @@ class _DailyClassState extends State<DailyClass> {
               var others = widget.classes['fixed'][i]['others'];
               children.insert(
                   startIndex + 1,
-                  Expanded(
-                    flex: length,
+                  SizedBox(
+                    width: kSlotColumnWidth * length,
                     child: Container(
                       decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.surfaceContainerLow ?? Colors.grey[100]!,
@@ -605,7 +627,9 @@ class _DailyClassState extends State<DailyClass> {
             }
             return children;
           })(),
+          ),
         ),
+      ),
       ),
     );
   }
