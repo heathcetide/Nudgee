@@ -484,6 +484,12 @@ class DailyClass extends StatefulWidget {
 class _DailyClassState extends State<DailyClass> {
   @override
   Widget build(BuildContext context) {
+    final fixedList = widget.classes['fixed'] as List? ?? [];
+    final extraList = widget.classes['extra'] as List? ?? [];
+    debugPrint('[DailyClass] date=${widget.date}, fixed=${fixedList.length}, extra=${extraList.length}');
+    for (final f in fixedList) {
+      debugPrint('[DailyClass]   fixed: name=${f['name']}, startIndex=${f['startIndex']}, length=${f['length']}, startTime=${f['startTime']}');
+    }
     return SizedBox(
       height: 42,
       child: Container(

@@ -29,7 +29,6 @@ class ScheduleService extends ChangeNotifier {
   final SharedPrefsService _prefs;
 
   static const String _localDir = 'schedules';
-  static const String _localFile = 'schedules.json';
   static const String _prefsLastSyncKey = 'schedule_last_sync';
   static const String _prefsUserIdKey = 'schedule_user_id';
 
@@ -68,6 +67,9 @@ class ScheduleService extends ChangeNotifier {
 
   /// 云端存储 key。
   String get _cloudKey => 'schedules/$_userId.json';
+
+  /// 本地文件名（按用户区分）。
+  String get _localFile => 'schedules_$_userId.json';
 
   // ── 初始化 ────────────────────────────────────────────────────────────
 
@@ -152,8 +154,9 @@ class ScheduleService extends ChangeNotifier {
     _data = ScheduleData(byDate: byDate);
 
     await _saveLocal();
-    await syncToCloud();
     notifyListeners();
+    // Cloud sync is best-effort, don't block UI.
+    syncToCloud();
   }
 
   /// 删除指定日程。
@@ -170,8 +173,8 @@ class ScheduleService extends ChangeNotifier {
     _data = ScheduleData(byDate: byDate);
 
     await _saveLocal();
-    await syncToCloud();
     notifyListeners();
+    syncToCloud();
   }
 
   /// 更新指定日程。
@@ -186,8 +189,8 @@ class ScheduleService extends ChangeNotifier {
     _data = ScheduleData(byDate: byDate);
 
     await _saveLocal();
-    await syncToCloud();
     notifyListeners();
+    syncToCloud();
   }
 
   /// 获取某天的日程列表（fixed + extra 合并，按时间排序）。
@@ -200,8 +203,8 @@ class ScheduleService extends ChangeNotifier {
   Future<void> clearAll() async {
     _data = const ScheduleData();
     await _saveLocal();
-    await syncToCloud();
     notifyListeners();
+    syncToCloud();
   }
 
   // ── 内部方法 ──────────────────────────────────────────────────────────
