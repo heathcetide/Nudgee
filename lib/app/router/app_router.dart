@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:nudgee/app/router/route_guard.dart';
-import 'package:nudgee/features/auth/presentation/ling_login_page.dart';
-import 'package:nudgee/features/auth/presentation/ling_register_page.dart';
+import 'package:nudgee/features/auth/presentation/nudgee_auth_page.dart';
+import 'package:nudgee/features/auth/presentation/nudgee_auth_widgets.dart';
 import 'package:nudgee/features/common/utils/route_observer.dart';
 import 'package:nudgee/features/profile/presentation/avatar_upload.dart';
 import 'package:nudgee/features/profile/presentation/change_nick_name.dart';
@@ -58,12 +58,16 @@ class AppRouter {
         GoRoute(
           path: login,
           name: 'login',
-          builder: (context, state) => const LingLoginPage(),
+          builder: (context, state) => NudgeeAuthPage(
+            initialMode: NudgeeAuthMode.login,
+          ),
         ),
         GoRoute(
           path: register,
           name: 'register',
-          builder: (context, state) => const LingRegisterPage(),
+          builder: (context, state) => NudgeeAuthPage(
+            initialMode: NudgeeAuthMode.signup,
+          ),
         ),
         GoRoute(
           path: myInformation,

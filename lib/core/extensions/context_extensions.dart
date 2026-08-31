@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 /// Extensions on [BuildContext] for convenient access to theme and media query.
 extension ContextExtensions on BuildContext {
@@ -24,4 +25,11 @@ extension ContextExtensions on BuildContext {
 
   void pop<T>([T? result]) => Navigator.of(this).pop(result);
   void popRoot() => Navigator.of(this).popUntil((route) => route.isFirst);
+
+  // ── L10n ─────────────────────────────────────────────────────────────
+
+  AppLocalizations get l10n => AppLocalizations.of(this)!;
+  TextDirection get textDirection => Localizations.maybeLocaleOf(this)?.languageCode == 'ar'
+      ? TextDirection.rtl
+      : TextDirection.ltr;
 }

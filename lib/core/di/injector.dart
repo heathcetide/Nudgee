@@ -16,6 +16,7 @@ import 'package:nudgee/core/services/api_cache_service.dart';
 import 'package:nudgee/core/services/app_lifecycle_service.dart';
 import 'package:nudgee/core/services/app_update_service.dart';
 import 'package:nudgee/core/services/auth_service.dart';
+import 'package:nudgee/core/services/social_login_service.dart';
 import 'package:nudgee/core/services/background_task_service.dart';
 import 'package:nudgee/core/services/bluetooth_service.dart';
 import 'package:nudgee/core/services/connectivity_service.dart';
@@ -124,6 +125,11 @@ Future<void> initDependencies() async {
           api: sl<ApiClient>(),
           logger: sl<LoggerService>(),
         ),
+      ));
+
+  // ── Social Login Service (stub until native SDKs are configured) ─────
+  _safeRegister(() => sl.registerLazySingleton<SocialLoginService>(
+        () => StubSocialLoginService(logger: sl<LoggerService>()),
       ));
 
   // ── Log Reporter Service ─────────────────────────────────────────────

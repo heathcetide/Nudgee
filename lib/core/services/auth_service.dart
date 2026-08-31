@@ -206,6 +206,166 @@ class AuthService {
     }
   }
 
+  // ── Provider constants ───────────────────────────────────────────────
+  static const _providerEmail = 'email';
+  static const _providerWechat = 'wechat';
+  static const _providerQq = 'qq';
+
+  /// Sends a verification code to [email].
+  Future<bool> sendEmailCode(String email) async {
+    try {
+      final response = await _api.post<Map<String, dynamic>>(
+        '/auth/email/code',
+        data: {'email': email},
+        options: Options(extra: {'skipTokenRefresh': true}),
+      );
+      final apiResponse = ApiResponse.fromJson(
+        response.data ?? const {},
+        fromJsonT: (raw) => raw is Map<String, dynamic> ? raw : {},
+      );
+      if (!apiResponse.success) {
+        _logger.w('Email code send failed: ${apiResponse.message}', tag: 'auth');
+        return false;
+      }
+      return true;
+    } catch (e, st) {
+      _logger.e('Email code send error', error: e, stackTrace: st, tag: 'auth');
+      return false;
+    }
+  }
+
+  /// Logs in with [email] and email verification [code].
+  Future<bool> loginWithEmailCode(String email, String code) async {
+    return _oauthLogin(
+      provider: _providerEmail,
+      credentials: {'email': email, 'code': code},
+      fallbackName: email,
+    );
+  }
+
+  /// Sends a password-reset verification code to [email].
+  Future<bool> sendForgotPasswordCode(String email) async {
+    try {
+      final response = await _api.post<Map<String, dynamic>>(
+        '/auth/forgot/send',
+        data: {'email': email},
+        options: Options(extra: {'skipTokenRefresh': true}),
+      );
+      final apiResponse = ApiResponse.fromJson(
+        response.data ?? const {},
+        fromJsonT: (raw) => raw is Map<String, dynamic> ? raw : {},
+      );
+      if (!apiResponse.success) {
+        _logger.w('Forgot password code send failed: ${apiResponse.message}', tag: 'auth');
+        return false;
+      }
+      return true;
+    } catch (e, st) {
+      _logger.e('Forgot password code send error', error: e, stackTrace: st, tag: 'auth');
+      return false;
+    }
+  }
+
+  /// Resets the password for [email] using the verification [code] and a
+  /// new [password].
+  Future<bool> resetPassword({
+    required String email,
+    required String code,
+    required String password,
+  }) async {
+    try {
+      final response = await _api.post<Map<String, dynamic>>(
+        '/auth/forgot/reset',
+        data: {'email': email, 'code': code, 'password': password},
+        options: Options(extra: {'skipTokenRefresh': true}),
+      );
+      final apiResponse = ApiResponse.fromJson(
+        response.data ?? const {},
+        fromJsonT: (raw) => raw is Map<String, dynamic> ? raw : {},
+      );
+      if (!apiResponse.success) {
+        _logger.w('Password reset failed: ${apiResponse.message}', tag: 'auth');
+        return false;
+      }
+      return true;
+    } catch (e, st) {
+      _logger.e('Password reset error', error: e, stackTrace: st, tag: 'auth');
+      return false;
+    }
+  }
+
+  /// Logs in with a WeChat OAuth [code] obtained from the WeChat SDK.
+  Future<bool> loginWithWechat(String code) async {
+    return _oauthLogin(
+      provider: _providerWechat,
+      credentials: {'code': code},
+      fallbackName: 'WeChat User',
+    );
+  }
+
+  /// Logs in with a QQ OAuth [code] obtained from the QQ SDK.
+  Future<bool> loginWithQq(String code) async {
+    return _oauthLogin(
+      provider: _providerQq,
+      credentials: {'code': code},
+      fallbackName: 'QQ User',
+    );
+  }
+
+  /// Internal: posts to `/auth/oauth` with the given [provider] and
+  /// [credentials], then persists tokens + user.
+  Future<bool> _oauthLogin({
+    required String provider,
+    required Map<String, String> credentials,
+    required String fallbackName,
+  }) async {
+    try {
+      final response = await _api.post<Map<String, dynamic>>(
+        '/auth/oauth',
+        data: {'provider': provider, ...credentials},
+        options: Options(extra: {'skipTokenRefresh': true}),
+      );
+
+      final body = response.data ?? const <String, dynamic>{};
+      final apiResponse = ApiResponse.fromJson(
+        body,
+        fromJsonT: (raw) => raw is Map<String, dynamic> ? raw : {},
+      );
+
+      if (!apiResponse.success) {
+        _logger.w('OAuth login ($provider) failed: ${apiResponse.message}', tag: 'auth');
+        return false;
+      }
+
+      final data = (apiResponse.data ?? const <String, dynamic>{});
+      final access = data['access_token'] as String? ??
+          data['accessToken'] as String?;
+      final refresh = data['refresh_token'] as String? ??
+          data['refreshToken'] as String?;
+
+      if (access == null || access.isEmpty) {
+        _logger.w('OAuth response missing access token', tag: 'auth');
+        return false;
+      }
+
+      await _persistTokens(access: access, refresh: refresh ?? '');
+
+      final user = data['user'] is Map<String, dynamic>
+          ? AuthUser.fromJson(data['user'] as Map<String, dynamic>)
+          : AuthUser(id: data['user_id']?.toString() ?? '', name: fallbackName);
+
+      currentUser.value = user;
+      isAuthenticated.value = true;
+      return true;
+    } on AppException catch (e) {
+      _logger.e('OAuth login ($provider) error: ${e.message}', error: e, tag: 'auth');
+      return false;
+    } catch (e, st) {
+      _logger.e('OAuth login ($provider) error', error: e, stackTrace: st, tag: 'auth');
+      return false;
+    }
+  }
+
   /// Logs out, clears local tokens and resets auth state.
   ///
   /// Best-effort notifies the server; network failures are ignored.
