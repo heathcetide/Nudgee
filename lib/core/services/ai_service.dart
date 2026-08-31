@@ -85,13 +85,11 @@ class AiService {
         final models = data
             .map((m) => (m is Map<String, dynamic> ? m['id'] : null) as String?)
             .whereType<String>()
-            // Only keep GPT-family models.
-            .where((id) => id.startsWith('gpt'))
             .toList();
 
         if (models.isNotEmpty) {
           _availableModels = models;
-          debugPrint('[AiService] Fetched ${models.length} GPT models from API');
+          debugPrint('[AiService] Fetched ${models.length} models from API');
         }
       }
     } catch (e) {
@@ -112,6 +110,8 @@ class AiService {
     'gpt-5.6-luna',
     'gpt-5.6-sol',
     'gpt-5.6-terra',
+    'grok-4.5',
+    'grok-4.6',
   ];
 
   /// Switch to a different model. Recreates the [FlutterAI] instance.

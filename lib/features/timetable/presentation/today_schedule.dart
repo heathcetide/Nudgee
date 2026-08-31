@@ -18,11 +18,19 @@ Color activeColor = const Color.fromARGB(255, 167, 189, 242);
 const markedTimes = [
   {
     'align': 'start',
+    'time': '06:30',
+  },
+  {
+    'align': 'end',
+    'time': '08:05',
+  },
+  {
+    'align': 'start',
     'time': '08:30',
   },
   {
     'align': 'end',
-    'time': '12:00',
+    'time': '11:10',
   },
   {
     'align': 'start',
@@ -30,21 +38,21 @@ const markedTimes = [
   },
   {
     'align': 'end',
-    'time': '17:30',
+    'time': '16:40',
   },
   {
     'align': 'start',
-    'time': '18:30',
+    'time': '19:00',
   },
   {
     'align': 'end',
-    'time': '20:55',
+    'time': '21:40',
   }
 ];
 
 const wholeDayPeriod = {
-  'start': '08:30',
-  'end': '20:55',
+  'start': '06:30',
+  'end': '21:40',
 };
 
 final totalDailyMinutes =
@@ -75,10 +83,10 @@ class TodaySchedule extends StatefulWidget {
 }
 
 class _TodayScheduleState extends State<TodaySchedule> {
-  Map<dynamic, dynamic> dailyClass = {}; // 从手机存储中读取的本学期全部课表
+  Map<dynamic, dynamic> dailyClass = {}; // 从手机存储中读取的本学期全部日程
   List<dynamic> todayClass = []; // 今天(当前页面显示的这一天)的课表
   Map<String, dynamic> todayClassState = {
-    // 根据系统时间实时计算出的今天课表的状态
+    // 根据系统时间实时计算出的今天日程的状态
     "stateList": [
       'passed',
       'upcoming',
@@ -135,13 +143,13 @@ class _TodayScheduleState extends State<TodaySchedule> {
       for (int i = 0; i < todayClass.length; i++) {
         if (nowMinute >= getMinutesFromTimeStr(todayClass[i]['startTime']) &&
             nowMinute < getMinutesFromTimeStr(todayClass[i]['endTime'])) {
-          // 上课中
+          // 任务进行中
           todayClassState['nowState'] = 'active';
           todayClassState['nowIndex'] = i;
           todayClassState['stateList'][i] = 'active';
           hasNowState = true;
         } else {
-          // 没在上课
+          // 未在任务中
           if (nowMinute > getMinutesFromTimeStr(todayClass[i]['startTime'])) {
             todayClassState['stateList'][i] = 'passed';
           } else {
@@ -336,23 +344,23 @@ class _HeaderIslandState extends State<HeaderIsland> {
     String leftText = l10n.loading;
     Color progressbarColor = Colors.white;
     if (state == 'finished') {
-      centerText = '今日课程已结束';
+      centerText = '今日日程已结束';
       leftTime = '--:--';
       rightTime = '--:--';
       leftText = 'Have a nice day!';
     } else if (state == 'hereafter') {
-      centerText = '今日课程已结束';
+      centerText = '今日日程已结束';
       leftTime = '--:--';
       rightTime = '--:--';
 
       leftText =
-          '以下为${widget.todayClassState['nowDate'].year}年${widget.todayClassState['nowDate'].month}月${widget.todayClassState['nowDate'].day}日的课程预览';
+          '以下为${widget.todayClassState['nowDate'].year}年${widget.todayClassState['nowDate'].month}月${widget.todayClassState['nowDate'].day}日的日程预览';
     } else if (widget.todayClass.length > 0) {
       if (state == 'active' || state == 'upcoming') {
         var nowClass = widget.todayClass[widget.todayClassState['nowIndex']];
         if (state == 'active') {
           centerText = nowClass['name'];
-          leftText = "教师: ${nowClass['teacher']} · 地点: ${nowClass['location']}";
+          leftText = "备注: ${nowClass['note'] ?? nowClass['teacher']} · 地点: ${nowClass['location']}";
           progressbarColor = activeColor;
           if (progress <= 0.001) {
             // 过渡动画
@@ -362,7 +370,7 @@ class _HeaderIslandState extends State<HeaderIsland> {
         } else if (state == 'upcoming') {
           centerText = '前往 ${nowClass['location']}';
           leftText =
-              "课程: ${nowClass['name'].length >= 12 ? nowClass['name'].substring(0, 11) + "..." : nowClass['name']} · 教师: ${nowClass['teacher']}";
+              "任务: ${nowClass['name'].length >= 12 ? nowClass['name'].substring(0, 11) + "..." : nowClass['name']} · 地点: ${nowClass['location']}";
           progressbarColor = upcomingColor;
         }
         leftTime = widget.todayClass[widget.todayClassState['nowIndex']]['startTime'];
@@ -777,7 +785,7 @@ class _TimelineDetailsState extends State<TimelineDetails> {
                               title: Row(
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  Text("课程详情 "),
+                                  Text("任务详情 "),
                                   Text(
                                     DateTime.now().add(tmpOffset).toString().split(' ')[0],
                                     style: TextStyle(fontSize: 16, color: Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey[600]!),
@@ -838,7 +846,7 @@ class _TimelineDetailsState extends State<TimelineDetails> {
                                 Padding(
                                   padding: const EdgeInsets.only(top: 6.0),
                                   child: Text(
-                                    "地点: ${widget.todayClass[index]['location']}\n教师: ${widget.todayClass[index]['teacher']}\n时间: ${widget.todayClass[index]['startTime']}-${widget.todayClass[index]['endTime']}",
+                                    "地点: ${widget.todayClass[index]['location']}\n备注: ${widget.todayClass[index]['note'] ?? widget.todayClass[index]['teacher']}\n时间: ${widget.todayClass[index]['startTime']}-${widget.todayClass[index]['endTime']}",
                                     style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                                   ),
                                 )

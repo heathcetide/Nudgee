@@ -91,7 +91,7 @@
   "authRegisterException": "Registration error: {error}",
   "@authRegisterException": {"placeholders": {"error": {"type": "String"}}},
 
-  "navTimetable": "Timetable",
+  "navTimetable": "Schedule",
   "navCampus": "Campus",
   "navChat": "Chat",
   "navComponents": "Components",
@@ -194,7 +194,7 @@
   "imageSaveError": "Save error: {error}",
   "@imageSaveError": {"placeholders": {"error": {"type": "String"}}},
 
-  "timetableOverview": "Timetable Overview",
+  "timetableOverview": "Schedule Overview",
   "timetableSingleDay": "Single Day",
   "timetableToday": "Today's Schedule",
   "timetableTomorrow": "Tomorrow's Schedule",
@@ -203,7 +203,7 @@
   "@timetableDateSchedule": {"placeholders": {"date": {"type": "String"}}},
   "timetableWeekN": "Week {n}",
   "@timetableWeekN": {"placeholders": {"n": {"type": "String"}}},
-  "timetableTotalSessions": "{count} sessions total",
+  "timetableTotalSessions": "{count} tasks total",
   "@timetableTotalSessions": {"placeholders": {"count": {"type": "int"}}},
   "timetableWeekMon": "Mon",
   "timetableWeekTue": "Tue",
@@ -224,7 +224,7 @@
   "aboutAppDesc": "Self-discipline · Budgeting · AI Companion",
   "aboutVersion": "Version",
   "aboutChangelog": "Changelog",
-  "aboutChangelogContent": "v1.0.0\n• Qiniu cloud storage user authentication\n• Profile management (nickname, gender, phone, avatar)\n• Timetable feature\n• Internationalization (中文 / English)\n• Dark / Light theme\n• App settings (theme, language, storage management)",
+  "aboutChangelogContent": "v1.0.0\n• Qiniu cloud storage user authentication\n• Profile management (nickname, gender, phone, avatar)\n• Schedule feature\n• Internationalization (中文 / English)\n• Dark / Light theme\n• App settings (theme, language, storage management)",
   "aboutChangelogTitle": "Changelog",
   "aboutOpenSource": "Open Source Licenses",
   "aboutOpenSourceDesc": "Nudgee is built using the following open-source projects",
@@ -239,7 +239,7 @@
   "privacyPolicyContent": "Nudgee takes your privacy seriously. This policy explains how we collect, use, and protect your data.\n\n1. Information Collection\nWe only collect information you actively provide, including username, password (encrypted), nickname, gender, phone, and avatar.\n\n2. Data Storage\nYour data is stored in Qiniu cloud object storage. Passwords are encrypted with SHA-256. Only login tokens and necessary cache data are stored locally.\n\n3. Information Use\nThe information we collect is used solely to provide and improve our services. We do not sell or share it with third parties.\n\n4. Data Security\nWe take reasonable technical measures to protect your data, including encrypted transmission and storage.\n\n5. Your Rights\nYou may modify or delete your personal information at any time. Local cache data is cleared upon logout.\n\n6. Contact Us\nIf you have any questions, contact admin@lingecho.com",
 
   "userAgreementTitle": "User Agreement",
-  "userAgreementContent": "Welcome to Nudgee. By using this app, you agree to the following terms.\n\n1. Service Description\nNudgee is a self-discipline assistant app providing timetable management, profile management, and more.\n\n2. User Responsibility\nYou are responsible for safeguarding your account credentials and all activities under your account. Do not post illegal or infringing content.\n\n3. Intellectual Property\nAll content in this app is copyrighted by the Nudgee team. Unauthorized reproduction is prohibited.\n\n4. Disclaimer\nThis app is provided \"as is\". We do not guarantee uninterrupted or error-free service.\n\n5. Agreement Changes\nWe reserve the right to modify this agreement at any time. Changes take effect upon publication.\n\n6. Contact Us\nIf you have any questions, contact admin@lingecho.com",
+  "userAgreementContent": "Welcome to Nudgee. By using this app, you agree to the following terms.\n\n1. Service Description\nNudgee is a self-discipline assistant app providing schedule management, profile management, and more.\n\n2. User Responsibility\nYou are responsible for safeguarding your account credentials and all activities under your account. Do not post illegal or infringing content.\n\n3. Intellectual Property\nAll content in this app is copyrighted by the Nudgee team. Unauthorized reproduction is prohibited.\n\n4. Disclaimer\nThis app is provided \"as is\". We do not guarantee uninterrupted or error-free service.\n\n5. Agreement Changes\nWe reserve the right to modify this agreement at any time. Changes take effect upon publication.\n\n6. Contact Us\nIf you have any questions, contact admin@lingecho.com",
 
   "feedbackTitle": "Feedback",
   "feedbackType": "Feedback Type",

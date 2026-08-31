@@ -81,35 +81,35 @@ String getWeekString(int digital) {
 }
 
 const periodsStartTime = [
+  '06:30',
+  '07:20',
   '08:30',
   '09:20',
   '10:25',
-  '11:15',
   '14:00',
   '14:50',
   '15:55',
-  '16:45',
-  // '18:30',
-  // '19:20',
-  // '20:10',
+  '19:00',
+  '19:50',
+  '20:55',
 ];
 
 const periodsEndTime = [
+  '07:15',
+  '08:05',
   '09:15',
   '10:05',
   '11:10',
-  '12:00',
   '14:45',
   '15:35',
   '16:40',
-  '17:30',
-  // '19:15',
-  // '20:05',
-  // '20:55',
+  '19:45',
+  '20:35',
+  '21:40',
 ];
 const dividerLocation = [
-  3,
-  // 7,
+  4,
+  7,
 ];
 
 class Timetable extends StatefulWidget {
@@ -463,7 +463,7 @@ class _DailyClassState extends State<DailyClass> {
                                   title: Row(
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
-                                      Text("其他课程 "),
+                                      Text("其他任务 "),
                                       Text(
                                         widget.date,
                                         style: TextStyle(fontSize: 16, color: Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey[600]!),
@@ -495,7 +495,7 @@ class _DailyClassState extends State<DailyClass> {
                                                     title: Row(
                                                       crossAxisAlignment: CrossAxisAlignment.end,
                                                       children: [
-                                                        Text("课程详情 "),
+                                                        Text("任务详情 "),
                                                         Text(
                                                           widget.date,
                                                           style: TextStyle(
@@ -624,7 +624,7 @@ class _ClassRectItemState extends State<ClassRectItem> {
                 title: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text("课程详情 "),
+                    Text("任务详情 "),
                     Text(
                       widget.date,
                       style: TextStyle(fontSize: 16, color: Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey[600]!),
