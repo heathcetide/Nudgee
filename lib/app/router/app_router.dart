@@ -9,8 +9,11 @@ import 'package:nudgee/features/profile/presentation/app_settings_page.dart';
 import 'package:nudgee/features/profile/presentation/about_page.dart';
 import 'package:nudgee/features/profile/presentation/avatar_upload.dart';
 import 'package:nudgee/features/profile/presentation/change_nick_name.dart';
+import 'package:nudgee/features/profile/presentation/feedback_page.dart';
 import 'package:nudgee/features/profile/presentation/my_information.dart';
 import 'package:nudgee/features/profile/presentation/personal_home_page.dart';
+import 'package:nudgee/features/profile/presentation/privacy_policy_page.dart';
+import 'package:nudgee/features/profile/presentation/user_agreement_page.dart';
 import 'package:nudgee/features/home/presentation/home_page.dart';
 import 'package:nudgee/features/splash/presentation/splash_page.dart';
 
@@ -27,6 +30,9 @@ class AppRouter {
   static const String home = '/home';
   static const String settings = '/settings';
   static const String about = '/about';
+  static const String feedback = '/feedback';
+  static const String privacyPolicy = '/privacyPolicy';
+  static const String userAgreement = '/userAgreement';
   static const String login = '/login';
   static const String register = '/register';
   static const String myInformation = '/profile/myInformation';
@@ -103,6 +109,21 @@ class AppRouter {
           path: about,
           name: 'about',
           builder: (context, state) => const AboutPage(),
+        ),
+        GoRoute(
+          path: feedback,
+          name: 'feedback',
+          builder: (context, state) => const FeedbackPage(),
+        ),
+        GoRoute(
+          path: privacyPolicy,
+          name: 'privacyPolicy',
+          builder: (context, state) => const PrivacyPolicyPage(),
+        ),
+        GoRoute(
+          path: userAgreement,
+          name: 'userAgreement',
+          builder: (context, state) => const UserAgreementPage(),
         ),
       ],
       errorBuilder: (context, state) => _ErrorPage(error: state.error),

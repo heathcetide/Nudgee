@@ -2,8 +2,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
+import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:nudgee/app/router/app_router.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/features/common/widgets/page_scaffold.dart';
 
@@ -167,13 +169,17 @@ class _AboutPageState extends State<AboutPage> {
                 leading: const Icon(Icons.privacy_tip_outlined),
                 title: Text(l10n.aboutPrivacyPolicy),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () {},
+                onTap: () {
+                  GoRouter.of(context).push(AppRouter.privacyPolicy);
+                },
               ),
               ListTile(
                 leading: const Icon(Icons.description_outlined),
                 title: Text(l10n.aboutUserAgreement),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () {},
+                onTap: () {
+                  GoRouter.of(context).push(AppRouter.userAgreement);
+                },
               ),
             ],
           ),

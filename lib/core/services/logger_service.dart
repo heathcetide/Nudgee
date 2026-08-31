@@ -29,7 +29,7 @@ class LoggerService {
 
   LoggerService({this.logFileService, this.logReporterService}) {
     _logger = Logger(
-      level: AppConfig.enableVerboseLogging ? Level.trace : Level.warning,
+      level: AppConfig.enableVerboseLogging ? Level.debug : Level.warning,
       printer: PrettyPrinter(
         methodCount: 0,
         errorMethodCount: 8,

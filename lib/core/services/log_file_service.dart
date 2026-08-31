@@ -11,11 +11,18 @@ import 'package:nudgee/core/models/ling_log_entry.dart';
 /// entry. Files older than [maxDays] are automatically purged on init and on
 /// each write cycle. Writes are buffered through an [IOSink] and flushed
 /// periodically or on demand via [flush].
+///
+/// To prevent unbounded growth, each daily log file is capped at
+/// [maxFileSizeBytes] (default 512 KB). When the cap is reached, further
+/// writes are silently dropped until the next rotation.
 class LogFileService {
-  LogFileService({this.maxDays = 7});
+  LogFileService({this.maxDays = 7, this.maxFileSizeBytes = 512 * 1024});
 
   /// Maximum number of days to retain log files.
   final int maxDays;
+
+  /// Max size per daily log file in bytes. Writes are dropped beyond this.
+  final int maxFileSizeBytes;
 
   Directory? _logDir;
   IOSink? _currentSink;
@@ -45,6 +52,11 @@ class LogFileService {
     final dateKey = _dateKey(entry.timestamp);
     if (_currentDateKey != dateKey || _currentSink == null) {
       await _rotateSink(dateKey);
+    }
+    // Enforce per-file size cap to prevent unbounded growth.
+    final file = File('${dir.path}/log_$dateKey.txt');
+    if (file.existsSync() && file.lengthSync() > maxFileSizeBytes) {
+      return; // silently drop — file is already too large
     }
     _currentSink?.writeln(entry.toLogLine());
   }

@@ -180,118 +180,146 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
       title: Text(context.l10n.profileMyInfo),
       leading: getPopLeading(context),
       child: ListView(
-        children: ListTile.divideTiles(
-          tiles: [
-            // 昵称
-            ListTile(
-              onTap: () {
-                GoRouter.of(context).push('/profile/changeNickName',
-                    extra: {'nickName': name});
-              },
-              title: Text(context.l10n.infoNickname),
-              trailing: ListTileTrailingTextArrow(text: name),
-            ),
-            // 头像
-            ListTile(
-              onTap: () async {
-                final bool granted = await _requestPhotoPermission();
-                if (!granted) {
-                  SmartDialog.showNotify(
-                      msg: context.l10n.infoPhotoPermission, notifyType: NotifyType.error);
-                  return;
-                }
-                final List<AssetEntity>? assetEntityList =
-                    await AssetPicker.pickAssets(context,
-                        pickerConfig: AssetPickerConfig(
-                            maxAssets: 1, requestType: RequestType.image));
-                if (assetEntityList == null) return;
-                GoRouter.of(context).push('/profile/avatarUpload',
-                    extra: {'assetEntityList': assetEntityList});
-              },
-              title: Text('\n${context.l10n.infoAvatar}\n'),
-              trailing: ListTileTrailingTextArrow(
-                text: SizedBox(
-                  width: 50,
-                  height: 50,
-                  child: Avatar(avatar, name: name),
+        children: [
+          // ── 资料区 ──────────────────────────────────────────────────────
+          ...ListTile.divideTiles(
+            context: context,
+            tiles: [
+              // 昵称
+              ListTile(
+                onTap: () {
+                  GoRouter.of(context).push('/profile/changeNickName',
+                      extra: {'nickName': name});
+                },
+                title: Text(context.l10n.infoNickname),
+                trailing: ListTileTrailingTextArrow(text: name),
+              ),
+              // 头像
+              ListTile(
+                onTap: () async {
+                  final bool granted = await _requestPhotoPermission();
+                  if (!granted) {
+                    SmartDialog.showNotify(
+                        msg: context.l10n.infoPhotoPermission, notifyType: NotifyType.error);
+                    return;
+                  }
+                  final List<AssetEntity>? assetEntityList =
+                      await AssetPicker.pickAssets(context,
+                          pickerConfig: AssetPickerConfig(
+                              maxAssets: 1, requestType: RequestType.image));
+                  if (assetEntityList == null) return;
+                  GoRouter.of(context).push('/profile/avatarUpload',
+                      extra: {'assetEntityList': assetEntityList});
+                },
+                title: Text('\n${context.l10n.infoAvatar}\n'),
+                trailing: ListTileTrailingTextArrow(
+                  text: SizedBox(
+                    width: 50,
+                    height: 50,
+                    child: Avatar(avatar, name: name),
+                  ),
                 ),
               ),
-            ),
-            // 用户ID（只读）
-            ListTile(
-              enabled: false,
-              title: Text(context.l10n.profileUserId),
-              trailing: ListTileTrailingTextArrow(text: id, arrow: false),
-            ),
-            // 性别（可设置）
-            ListTile(
-              onTap: _editGender,
-              title: Text(context.l10n.infoGender),
-              trailing: ListTileTrailingTextArrow(text: gender),
-            ),
-            // 手机号（可设置）
-            ListTile(
-              onTap: _editPhone,
-              title: Text(context.l10n.infoPhone),
-              trailing: ListTileTrailingTextArrow(text: phone),
-            ),
-            // 注销账号
-            TextButton(
-              onPressed: () {},
-              child: Text(
-                context.l10n.profileDeleteAccount,
-                style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.red,
-                    fontWeight: FontWeight.bold),
+              // 用户ID（只读）
+              ListTile(
+                enabled: false,
+                title: Text(context.l10n.profileUserId),
+                trailing: ListTileTrailingTextArrow(text: id, arrow: false),
               ),
-            ),
-            // 退出登录
-            TextButton(
-              onPressed: () async {
-                final router = GoRouter.of(context);
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: Text(context.l10n.logout),
-                    content: Text(context.l10n.infoLogoutConfirm),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: Text(context.l10n.cancel),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: Text(context.l10n.confirm),
-                      ),
-                    ],
+              // 性别（可设置）
+              ListTile(
+                onTap: _editGender,
+                title: Text(context.l10n.infoGender),
+                trailing: ListTileTrailingTextArrow(text: gender),
+              ),
+              // 手机号（可设置）
+              ListTile(
+                onTap: _editPhone,
+                title: Text(context.l10n.infoPhone),
+                trailing: ListTileTrailingTextArrow(text: phone),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 32),
+
+          // ── 账号操作区（底部） ──────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 注销账号
+                OutlinedButton(
+                  onPressed: () {},
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red, width: 0.5),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                );
-                if (confirmed != true) return;
-                try {
-                  final auth = sl<AuthService>();
-                  await auth.logout();
-                } catch (_) {}
-                router.go(AppRouter.login);
-              },
-              child: Text(
-                context.l10n.logout,
-                style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.orange,
-                    fontWeight: FontWeight.bold),
-              ),
+                  child: Text(
+                    context.l10n.profileDeleteAccount,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // 退出登录
+                FilledButton(
+                  onPressed: () async {
+                    final router = GoRouter.of(context);
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Text(context.l10n.logout),
+                        content: Text(context.l10n.infoLogoutConfirm),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: Text(context.l10n.cancel),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: Text(context.l10n.confirm),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirmed != true) return;
+                    try {
+                      final auth = sl<AuthService>();
+                      await auth.logout();
+                    } catch (_) {}
+                    router.go(AppRouter.login);
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    context.l10n.logout,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(),
-            Center(
-              child: Text(
-                context.l10n.reloginHint,
-                style: TextStyle(color: Theme.of(context).hintColor),
-              ),
+          ),
+
+          const SizedBox(height: 24),
+
+          Center(
+            child: Text(
+              context.l10n.reloginHint,
+              style: TextStyle(color: Theme.of(context).hintColor),
             ),
-          ] as Iterable<Widget>,
-          context: context,
-        ).toList(),
+          ),
+          const SizedBox(height: 32),
+        ],
       ),
     );
   }
