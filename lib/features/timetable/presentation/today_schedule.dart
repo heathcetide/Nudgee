@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:go_router/go_router.dart';
+import 'package:nudgee/app/router/app_router.dart';
+import 'package:nudgee/core/di/injector.dart';
+import 'package:nudgee/core/services/shared_prefs_service.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/features/common/utils/events.dart';
-import 'package:nudgee/features/common/widgets/page_scaffold.dart';
 import 'package:nudgee/features/timetable/presentation/timetable.dart';
 import 'package:nudgee/features/timetable/utils/mock_timetable_data.dart';
 import 'package:flutter/material.dart';
@@ -207,33 +211,54 @@ class _TodayScheduleState extends State<TodaySchedule> {
 
   @override
   Widget build(BuildContext context) {
-    return PageScaffold(
-      title: Text((() {
-        final l10n = context.l10n;
-        if (todayClassState['nowState'] == 'hereafter') {
-          DateTime now = DateTime.now().add(tmpOffset);
-          now = DateTime(now.year, now.month, now.day, 0, 0, 0);
-          Duration diff = todayClassState['nowDate'].difference(now);
-          if (diff.inDays == 1) {
-            return l10n.timetableTomorrow;
-          }
-          if (diff.inDays <= 5 && todayClassState['nowDate'].weekday == 1) {
-            return l10n.timetableNextWeek;
-          }
-          return l10n.timetableDateSchedule(todayClassState['nowDate'].toString().split(' ')[0]);
-        }
-        return l10n.timetableToday;
-      })()),
-      leading: IconButton(
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    String titleText;
+    if (todayClassState['nowState'] == 'hereafter') {
+      DateTime now = DateTime.now().add(tmpOffset);
+      now = DateTime(now.year, now.month, now.day, 0, 0, 0);
+      Duration diff = todayClassState['nowDate'].difference(now);
+      if (diff.inDays == 1) {
+        titleText = l10n.timetableTomorrow;
+      } else if (diff.inDays <= 5 && todayClassState['nowDate'].weekday == 1) {
+        titleText = l10n.timetableNextWeek;
+      } else {
+        titleText = l10n.timetableDateSchedule(todayClassState['nowDate'].toString().split(' ')[0]);
+      }
+    } else {
+      titleText = l10n.timetableToday;
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        backgroundColor: isDark
+            ? theme.colorScheme.surface
+            : theme.colorScheme.inversePrimary,
+        elevation: 3,
+        shadowColor: isDark ? Colors.black : Colors.black26,
+        title: Text(titleText),
+        leading: IconButton(
           onPressed: () {
             PublicEventBus.eventBus.fire(ChangePageEvent('timetable'));
           },
           icon: Text(
-            context.l10n.timetableOverview,
+            l10n.timetableOverview,
             style: TextStyle(
-                fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
-          )),
-      child: Column(
+                fontWeight: FontWeight.bold, color: theme.colorScheme.primary),
+          ),
+        ),
+        actions: [
+          IconButton(
+            onPressed: () => GoRouter.of(context).push(AppRouter.addSchedule),
+            icon: const Icon(Icons.add_circle_outline, size: 28),
+            tooltip: l10n.scheduleAddTitle,
+          ),
+        ],
+      ),
+      body: Column(
         children: [
           HeaderIsland(todayClass: todayClass, todayClassState: todayClassState),
           Expanded(
