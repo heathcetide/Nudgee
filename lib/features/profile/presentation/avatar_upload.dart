@@ -58,10 +58,12 @@ class _AvatarUploadState extends State<AvatarUpload> {
             if (_cropping) return;
             _cropping = true;
             try {
+              debugPrint('[AvatarUpload] start save...');
               SmartDialog.showLoading(msg: '图片裁剪中');
               final Uint8List? fileData =
                   (await cropImageDataWithNativeLibrary(_editorController))
                       .data;
+              debugPrint('[AvatarUpload] crop done, data=${fileData?.length}B');
               if (fileData == null) {
                 SmartDialog.dismiss();
                 SmartDialog.showNotify(
@@ -71,6 +73,7 @@ class _AvatarUploadState extends State<AvatarUpload> {
               }
 
               // 压缩：缩略图（128px）+ 原图（512px）
+              debugPrint('[AvatarUpload] compressing...');
               final Uint8List originalFileData = await getCompressedImage(
                   fileData,
                   minHeight: 512,
@@ -81,6 +84,7 @@ class _AvatarUploadState extends State<AvatarUpload> {
                   minHeight: 128,
                   minWidth: 128,
                   quality: 24);
+              debugPrint('[AvatarUpload] compress done: original=${originalFileData.length}B, thumb=${compressedFileData.length}B');
 
               SmartDialog.showLoading(msg: '图片上传中');
 
@@ -101,6 +105,7 @@ class _AvatarUploadState extends State<AvatarUpload> {
               final avatarKey = 'nudgee/${user.id}/avatar.jpg';
               final avatarOriginalKey = 'nudgee/${user.id}/avatar_original.jpg';
 
+              debugPrint('[AvatarUpload] uploading to qiniu...');
               final compressedUrl =
                   await qiniu.uploadBytes(avatarKey, compressedFileData);
               if (compressedUrl == null) {
@@ -115,13 +120,12 @@ class _AvatarUploadState extends State<AvatarUpload> {
               debugPrint('[AvatarUpload] cloud upload done: $compressedUrl');
 
               // ── 2. 保存到本地文件系统 ──────────────────────────────────
-              // 缩略图存到 avatars/ 目录，文件名用 userId
+              debugPrint('[AvatarUpload] saving to local...');
               final localAvatarPath = await fileStorage.saveBytes(
                 FileStorageService.dirAvatars,
                 '${user.id}_avatar.jpg',
                 compressedFileData,
               );
-              // 原图也存一份
               await fileStorage.saveBytes(
                 FileStorageService.dirAvatars,
                 '${user.id}_avatar_original.jpg',
@@ -130,20 +134,22 @@ class _AvatarUploadState extends State<AvatarUpload> {
               debugPrint('[AvatarUpload] local saved: $localAvatarPath');
 
               // ── 3. 更新云端 profile 的 avatar 字段 ─────────────────────
+              debugPrint('[AvatarUpload] updating profile...');
               final (profileOk, profileErr) =
                   await auth.updateProfile({'avatar': compressedUrl});
               if (!profileOk) {
                 debugPrint('[AvatarUpload] profile update failed: $profileErr');
-                // 头像已上传成功，profile 更新失败不阻断，继续更新本地
               }
 
+              debugPrint('[AvatarUpload] all done!');
               SmartDialog.dismiss();
               SmartDialog.showNotify(
                   msg: '头像修改成功', notifyType: NotifyType.success);
               Navigator.maybePop(context);
               return;
-            } catch (e) {
+            } catch (e, st) {
               debugPrint('[AvatarUpload] error: $e');
+              debugPrint('[AvatarUpload] stacktrace: $st');
             }
             SmartDialog.dismiss();
             SmartDialog.showNotify(
