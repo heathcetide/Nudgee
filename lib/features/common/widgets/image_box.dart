@@ -61,7 +61,6 @@ class ImageBox extends StatelessWidget {
             child: ExtendedImage.network(
               url,
               cache: true,
-              cacheKey: url,
             ),
           ),
         ),

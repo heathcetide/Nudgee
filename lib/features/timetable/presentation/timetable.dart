@@ -921,9 +921,14 @@ class _ClassInfoDetailState extends State<ClassInfoDetail> {
         thumbVisibility: true,
         child: ListView.builder(
           itemBuilder: (context, index) {
+            final value = widget.detail[index]['value']?.toString() ?? '';
             return ListTile(
               title: Text(widget.detail[index]['key']),
-              subtitle: Text(widget.detail[index]['value']),
+              subtitle: Text(
+                value,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             );
           },
           itemCount: widget.detail.length,
