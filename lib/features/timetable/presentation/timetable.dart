@@ -190,7 +190,6 @@ class _TimetableState extends State<Timetable> {
     }
     // Generate week period list from available dates (or default to current week).
     weekPeriodList = _generateWeekPeriods(allDates);
-    debugPrint('[Timetable] _loadData: dates=$allDates, weeks=${weekPeriodList.length}');
 
     if (!mounted) return;
     setState(() {});
@@ -484,12 +483,6 @@ class DailyClass extends StatefulWidget {
 class _DailyClassState extends State<DailyClass> {
   @override
   Widget build(BuildContext context) {
-    final fixedList = widget.classes['fixed'] as List? ?? [];
-    final extraList = widget.classes['extra'] as List? ?? [];
-    debugPrint('[DailyClass] date=${widget.date}, fixed=${fixedList.length}, extra=${extraList.length}');
-    for (final f in fixedList) {
-      debugPrint('[DailyClass]   fixed: name=${f['name']}, startIndex=${f['startIndex']}, length=${f['length']}, startTime=${f['startTime']}');
-    }
     return SizedBox(
       height: 42,
       child: Container(
@@ -532,7 +525,8 @@ class _DailyClassState extends State<DailyClass> {
                           ],
                         ),
                       ),
-                      if (widget.classes['extra'].length > 0)
+                      // Extra tasks are now rendered in the grid, no badge needed.
+                      if (false)
                         Positioned(
                           right: 2,
                           top: 2,
@@ -661,14 +655,16 @@ class _DailyClassState extends State<DailyClass> {
                       )),
                     ))
             ];
-            widget.classes['fixed']
+            // Merge fixed + extra, all render into grid cells.
+            final allClasses = [...widget.classes['fixed'], ...widget.classes['extra']];
+            allClasses
                 .sort((a, b) => (b['startIndex'] as int).compareTo(a['startIndex'] as int));
-            for (int i = 0; i < widget.classes['fixed'].length; i++) {
-              var name = widget.classes['fixed'][i]['name'];
-              var location = widget.classes['fixed'][i]['location'];
-              var startIndex = widget.classes['fixed'][i]['startIndex'];
-              var length = widget.classes['fixed'][i]['length'];
-              var others = widget.classes['fixed'][i]['others'];
+            for (int i = 0; i < allClasses.length; i++) {
+              var name = allClasses[i]['name'];
+              var location = allClasses[i]['location'];
+              var startIndex = (allClasses[i]['startIndex'] as int).clamp(0, 17);
+              var length = (allClasses[i]['length'] as int).clamp(1, 18 - startIndex);
+              var others = allClasses[i]['others'];
               children.insert(
                   startIndex + 1,
                   SizedBox(
