@@ -17,9 +17,7 @@ class ProfilePortal extends StatefulWidget {
 }
 
 class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
-  AuthUser? _user;
-
-  final List<Map<String, dynamic>> actions = [
+  final List<Map<String, dynamic>> _actions = [
     {
       'icon': Icons.person,
       'text': '个人主页',
@@ -27,11 +25,17 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
         GoRouter.of(context).push(AppRouter.personalHome);
       }
     },
-    {'icon': Icons.settings, 'text': '软件设置', 'onclick': (centext) {}},
+    {
+      'icon': Icons.settings,
+      'text': '软件设置',
+      'onclick': (context) {
+        GoRouter.of(context).push(AppRouter.settings);
+      }
+    },
     {'icon': AntDesign.heart_fill, 'text': '点赞列表', 'onclick': (centext) {}},
-    {'icon': Icons.settings, 'text': '任务记录', 'onclick': (centext) {}},
-    {'icon': Icons.help, 'text': '问题反馈', 'onclick': (centext) {}},
-    {'icon': Icons.info, 'text': '关于软件', 'onclick': (centext) {}}
+    {'icon': Icons.assignment_outlined, 'text': '任务记录', 'onclick': (centext) {}},
+    {'icon': Icons.help_outline, 'text': '问题反馈', 'onclick': (centext) {}},
+    {'icon': Icons.info_outline, 'text': '关于软件', 'onclick': (centext) {}},
   ];
 
   @override
@@ -42,7 +46,7 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
 
   @override
   void didPopNext() {
-    _loadUser();
+    setState(() {});
   }
 
   @override
@@ -52,94 +56,95 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
   }
 
   @override
-  void initState() {
-    _loadUser();
-    super.initState();
-  }
-
-  void _loadUser() {
-    final auth = sl<AuthService>();
-    setState(() {
-      _user = auth.currentUser.value;
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final name = _user?.name ?? '未设置';
-    final id = _user?.id ?? '';
-    final avatar = _user?.avatar;
+    final auth = sl<AuthService>();
+    final user = auth.currentUser.value;
+    final isLoggedIn = auth.isAuthenticated.value;
 
     return Container(
       color: isDark
           ? Theme.of(context).scaffoldBackgroundColor
           : Theme.of(context).colorScheme.inversePrimary.withAlpha(122),
       child: SafeArea(
-          child: Column(
-        children: [
-          Card(
-            clipBehavior: Clip.antiAlias,
-            margin: const EdgeInsets.only(left: 16, right: 16, bottom: 16, top: 16),
-            child: MaterialButton(
-              onPressed: () {
-                GoRouter.of(context).push('/profile/myInformation');
-              },
-              padding: const EdgeInsets.all(0),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: Container(
-                        width: 66,
-                        height: 66,
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-                        child: Avatar(avatar, name: name),
+        child: Column(
+          children: [
+            // ── User Card ────────────────────────────────────────────────
+            Card(
+              clipBehavior: Clip.antiAlias,
+              margin: const EdgeInsets.only(left: 16, right: 16, bottom: 16, top: 16),
+              child: MaterialButton(
+                onPressed: () {
+                  if (isLoggedIn) {
+                    GoRouter.of(context).push(AppRouter.myInformation);
+                  } else {
+                    GoRouter.of(context).go(AppRouter.login);
+                  }
+                },
+                padding: const EdgeInsets.all(0),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: Container(
+                          width: 66,
+                          height: 66,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+                          child: isLoggedIn
+                              ? Avatar(user?.avatar, name: user?.name ?? '')
+                              : const Center(
+                                  child: Icon(Icons.person, size: 36, color: Colors.white),
+                                ),
+                        ),
                       ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(name,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              isLoggedIn ? (user?.name ?? '未设置') : '未登录',
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                  fontSize: 22, fontWeight: FontWeight.bold, height: 1.2)),
-                          const SizedBox(height: 4),
-                          Text(
-                              id.length > 8
-                                  ? 'ID: ${id.substring(0, 7)}****${id.substring(id.length - 1)}'
-                                  : 'ID: $id',
-                              style: const TextStyle(fontSize: 15, height: 1)),
-                        ],
+                                  fontSize: 22, fontWeight: FontWeight.bold, height: 1.2),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              isLoggedIn
+                                  ? (user != null && user.id.length > 8
+                                      ? 'ID: ${user.id.substring(0, 7)}****${user.id.substring(user.id.length - 1)}'
+                                      : 'ID: ${user?.id ?? ""}')
+                                  : '点击登录以同步您的数据',
+                              style: const TextStyle(fontSize: 15, height: 1),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.only(right: 14.0),
-                      child: Icon(Icons.arrow_forward_ios, size: 20),
-                    )
-                  ],
+                      const Padding(
+                        padding: EdgeInsets.only(right: 14.0),
+                        child: Icon(Icons.arrow_forward_ios, size: 20),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          Expanded(
-            child: Card(
-              clipBehavior: Clip.antiAlias,
-              margin: const EdgeInsets.only(bottom: 16, left: 16, right: 16),
-              child: ListView.builder(
+            // ── Action List ───────────────────────────────────────────────
+            Expanded(
+              child: Card(
+                clipBehavior: Clip.antiAlias,
+                margin: const EdgeInsets.only(bottom: 16, left: 16, right: 16),
+                child: ListView.builder(
                   itemBuilder: (context, index) {
                     return ListTile(
-                      title: Text(actions[index]['text']),
-                      leading: Icon(actions[index]['icon']),
+                      title: Text(_actions[index]['text']),
+                      leading: Icon(_actions[index]['icon']),
                       onTap: () {
-                        actions[index]['onclick'](context);
+                        _actions[index]['onclick'](context);
                       },
                       trailing: const Icon(
                         Icons.arrow_forward_ios,
@@ -147,12 +152,14 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
                       ),
                     );
                   },
-                  itemCount: actions.length,
-                  shrinkWrap: true),
+                  itemCount: _actions.length,
+                  shrinkWrap: true,
+                ),
+              ),
             ),
-          )
-        ],
-      )),
+          ],
+        ),
+      ),
     );
   }
 }

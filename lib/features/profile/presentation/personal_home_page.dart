@@ -81,11 +81,27 @@ class _PersonalHomePageState extends State<PersonalHomePage> with RouteAware {
                   child: Avatar(avatar, name: name),
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  name,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                // Name + gender icon
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      name,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (gender != null && gender.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Icon(
+                        gender == '男' ? Icons.male : Icons.female,
+                        size: 22,
+                        color: gender == '男'
+                            ? Colors.blue
+                            : Colors.pink,
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(
