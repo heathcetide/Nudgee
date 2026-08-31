@@ -1,4 +1,5 @@
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:icons_plus/icons_plus.dart';
@@ -26,8 +27,11 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
 
   @override
   void didPopNext() {
-    setState(() {});
+    // Bump refresh counter to force avatar URL change → reload image.
+    setState(() => _avatarRefresh++);
   }
+
+  int _avatarRefresh = 0;
 
   @override
   void dispose() {
@@ -42,6 +46,10 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
     final auth = sl<AuthService>();
     final user = auth.currentUser.value;
     final isLoggedIn = auth.isAuthenticated.value;
+    // Append refresh counter to avatar URL to bust image cache.
+    final avatarUrl = user?.avatar != null && user!.avatar!.isNotEmpty
+        ? '${user.avatar}${user.avatar!.contains('?') ? '&' : '?'}r=$_avatarRefresh'
+        : null;
 
     final List<Map<String, dynamic>> actions = [
       {
@@ -113,7 +121,7 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
                                 : Theme.of(context).colorScheme.primaryContainer,
                           ),
                           child: isLoggedIn
-                              ? Avatar(user?.avatar, name: user?.name ?? '')
+                              ? Avatar(avatarUrl, name: user?.name ?? '')
                               : Center(
                                   child: Icon(
                                     Icons.person,

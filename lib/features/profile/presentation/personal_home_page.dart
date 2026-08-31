@@ -38,7 +38,10 @@ class _PersonalHomePageState extends State<PersonalHomePage> with RouteAware {
   @override
   void didPopNext() {
     _loadUser();
+    setState(() => _avatarRefresh++);
   }
+
+  int _avatarRefresh = 0;
 
   @override
   void dispose() {
@@ -59,7 +62,9 @@ class _PersonalHomePageState extends State<PersonalHomePage> with RouteAware {
     final theme = Theme.of(context);
     final name = _user?.name ?? l10n.notSet;
     final id = _user?.id ?? '';
-    final avatar = _user?.avatar;
+    final avatar = _user?.avatar != null && _user!.avatar!.isNotEmpty
+        ? '${_user!.avatar}${_user!.avatar!.contains('?') ? '&' : '?'}r=$_avatarRefresh'
+        : null;
     final gender = _user?.gender;
     final phone = _user?.phone;
 

@@ -39,7 +39,10 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
   @override
   void didPopNext() {
     _loadUser();
+    setState(() => _avatarRefresh++);
   }
+
+  int _avatarRefresh = 0;
 
   @override
   void dispose() {
@@ -172,7 +175,9 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
   Widget build(BuildContext context) {
     final name = _user?.name ?? context.l10n.notSet;
     final id = _user?.id ?? context.l10n.notSet;
-    final avatar = _user?.avatar;
+    final avatar = _user?.avatar != null && _user!.avatar!.isNotEmpty
+        ? '${_user!.avatar}${_user!.avatar!.contains('?') ? '&' : '?'}r=$_avatarRefresh'
+        : null;
     final gender = _user?.gender ?? context.l10n.notSet;
     final phone = _user?.phone ?? context.l10n.notSet;
 
