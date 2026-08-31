@@ -92,7 +92,7 @@
   "@authRegisterException": {"placeholders": {"error": {"type": "String"}}},
 
   "navTimetable": "Schedule",
-  "navCampus": "Campus",
+  "navCampus": "Feed",
   "navChat": "Chat",
   "navComponents": "Components",
   "navProfile": "Profile",

@@ -120,6 +120,9 @@ class _AvatarUploadState extends State<AvatarUpload> {
               await qiniu.uploadBytes(avatarOriginalKey, originalFileData);
               debugPrint('[AvatarUpload] cloud upload done: $compressedUrl');
 
+              // Cache-busting: append timestamp so ExtendedImage reloads the new image.
+              final cacheBustUrl = '$compressedUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+
               // ── 2. 保存到本地文件系统 ──────────────────────────────────
               debugPrint('[AvatarUpload] saving to local...');
               final localAvatarPath = await fileStorage.saveBytes(

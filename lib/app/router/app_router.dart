@@ -17,6 +17,7 @@ import 'package:nudgee/features/profile/presentation/privacy_policy_page.dart';
 import 'package:nudgee/features/profile/presentation/user_agreement_page.dart';
 import 'package:nudgee/features/home/presentation/home_page.dart';
 import 'package:nudgee/features/splash/presentation/splash_page.dart';
+import 'package:nudgee/features/campus_forum/presentation/create_post_page.dart';
 import 'package:nudgee/features/timetable/presentation/add_schedule_page.dart';
 
 /// Centralized route definitions.
@@ -43,6 +44,7 @@ class AppRouter {
   static const String avatarUpload = '/profile/avatarUpload';
   static const String personalHome = '/profile/personalHome';
   static const String addSchedule = '/addSchedule';
+  static const String createPost = '/createPost';
 
   /// Build the [GoRouter] instance.
   ///
@@ -138,6 +140,11 @@ class AppRouter {
           path: addSchedule,
           name: 'addSchedule',
           builder: (context, state) => const AddSchedulePage(),
+        ),
+        GoRoute(
+          path: createPost,
+          name: 'createPost',
+          builder: (context, state) => const CreatePostPage(),
         ),
       ],
       errorBuilder: (context, state) => _ErrorPage(error: state.error),

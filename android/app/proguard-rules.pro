@@ -25,3 +25,8 @@
 -dontwarn okhttp3.**
 -dontwarn okio.**
 -dontwarn javax.annotation.**
+
+# Play Core SplitCompat (referenced by Flutter, not always available)
+-dontwarn com.google.android.play.core.splitcompat.**
+-dontwarn com.google.android.play.core.splitinstall.**
+-keep class com.google.android.play.core.splitcompat.** { *; }

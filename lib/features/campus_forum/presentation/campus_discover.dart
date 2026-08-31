@@ -182,7 +182,7 @@ class _CampusDiscoverState extends State<CampusDiscover> {
   @override
   Widget build(BuildContext context) {
     return PageScaffold(
-      title: const Text("校园圈"),
+      title: const Text("信息圈"),
       leading: const SizedBox(),
       child: ListView.builder(
         itemCount: _posts.length,

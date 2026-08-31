@@ -25,6 +25,7 @@ class RouteGuard {
   static const Set<String> _protectedRoutes = <String>{
     '/home',
     '/addSchedule',
+    '/createPost',
     '/profile/myInformation',
     '/profile/changeNickName',
     '/profile/avatarUpload',

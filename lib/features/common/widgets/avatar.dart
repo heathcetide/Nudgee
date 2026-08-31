@@ -75,9 +75,16 @@ class Avatar extends StatelessWidget {
         );
       } else {
         final urlStr = url!;
+        // Strip cache-busting query param for the original image lookup.
+        final cleanUrl = urlStr.split('?').first;
+        final originalUrl = cleanUrl.replaceAll('avatar.jpg', 'avatar_original.jpg');
         if (onTap != null) {
           content = Container(
-              child: ExtendedImage.network(urlStr),
+              child: ExtendedImage.network(
+                urlStr,
+                cacheWidth: 256,
+                clearMemoryCacheWhenDispose: true,
+              ),
               decoration: BoxDecoration(
                 color: Colors.grey[200],
                 borderRadius:
@@ -86,7 +93,7 @@ class Avatar extends StatelessWidget {
         } else {
           content = ImageBox(urlStr,
               images: [
-                {'url': urlStr + '_original', 'tag': urlStr}
+                {'url': originalUrl, 'tag': urlStr}
               ],
               decoration: BoxDecoration(
                 borderRadius:
