@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
 import 'package:nudgee/core/config/app_config.dart';
+import 'package:nudgee/core/di/injector.dart' as di;
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
 import 'package:nudgee/core/services/secure_storage_service.dart';
 
@@ -168,7 +169,18 @@ class AuthService {
 
   /// Upload user profile JSON to Qiniu.
   Future<bool> _uploadUser(Map<String, dynamic> userJson) async {
-    if (_qiniu == null) {
+    // Resolve QiniuStorageService — try injected instance first,
+    // then fall back to GetIt (handles hot-reload where DI wasn't re-run).
+    QiniuStorageService? qiniu = _qiniu;
+    if (qiniu == null) {
+      try {
+        qiniu = di.sl<QiniuStorageService>();
+        debugPrint('[Auth] Resolved QiniuStorage from GetIt fallback');
+      } catch (e) {
+        debugPrint('[Auth] QiniuStorage not in GetIt: $e');
+      }
+    }
+    if (qiniu == null) {
       debugPrint('[Auth] QiniuStorage not available — cannot upload user');
       return false;
     }
@@ -176,7 +188,7 @@ class AuthService {
       final key = _profileKey(userJson['id'] as String);
       final bytes = Uint8List.fromList(utf8.encode(jsonEncode(userJson)));
       debugPrint('[Auth] Uploading user profile: $key');
-      final url = await _qiniu!.uploadBytes(key, bytes);
+      final url = await qiniu.uploadBytes(key, bytes);
       if (url != null) {
         debugPrint('[Auth] Upload success: $url');
         return true;
