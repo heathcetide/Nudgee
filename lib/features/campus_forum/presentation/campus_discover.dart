@@ -240,7 +240,8 @@ class _CampusDiscoverState extends State<CampusDiscover> {
               itemBuilder: (context, index) {
                 final p = _posts[index];
                 return SinglePosts(
-                  key: ValueKey("post_${p['posterUid']}_${p['time']}"),
+                  key: ValueKey("post_${p['id']}_${p['time']}"),
+                  postId: p["id"],
                   posterUid: p["posterUid"],
                   posterName: p["posterName"],
                   posterAvatar: p["posterAvatar"],
@@ -267,6 +268,7 @@ class _CampusDiscoverState extends State<CampusDiscover> {
 
 class SinglePosts extends StatefulWidget {
   final dynamic posterUid;
+  final String? postId;
   final String? posterName;
   final String? posterAvatar;
   final String? content;
@@ -283,6 +285,7 @@ class SinglePosts extends StatefulWidget {
   const SinglePosts({
     super.key,
     this.posterUid,
+    this.postId,
     this.posterName,
     this.posterAvatar,
     this.content,
@@ -363,8 +366,30 @@ class _SinglePostsState extends State<SinglePosts> {
                         likeCount: likeCount,
                         isLiked: isLiked,
                         onTap: (liked) async {
-                          setState(() => isLiked = !liked);
-                          return !liked;
+                          if (widget.postId == null) {
+                            setState(() => isLiked = !liked);
+                            return !liked;
+                          }
+                          // Call PostService to persist like state.
+                          final auth = sl<AuthService>();
+                          final user = auth.currentUser.value;
+                          final userId = user?.id ?? 'guest';
+                          final userName = user?.name ?? '游客';
+                          await sl<PostService>().toggleLike(
+                            widget.postId!,
+                            userId,
+                            userName,
+                          );
+                          // Local state follows the service (toggleLike flips isLiked).
+                          final posts = sl<PostService>().getPostsAsUIMap();
+                          final updated = posts.where((p) => p['id'] == widget.postId).firstOrNull;
+                          if (updated != null && mounted) {
+                            setState(() {
+                              isLiked = updated['isLiked'] as bool;
+                              likeCount = updated['likeCount'] as int;
+                            });
+                          }
+                          return updated?['isLiked'] ?? !liked;
                         },
                         likeBuilder: (liked) {
                           return Icon(

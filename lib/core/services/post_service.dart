@@ -72,6 +72,7 @@ class PostItem {
 
   /// 转换为 campus_discover UI 所需的 Map 格式。
   Map<String, dynamic> toUIMap() => {
+        'id': id,
         'posterUid': posterUid,
         'posterName': posterName,
         'posterAvatar': posterAvatar,
