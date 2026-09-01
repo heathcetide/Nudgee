@@ -136,45 +136,34 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              isLoggedIn ? (user?.name ?? l10n.notSet) : l10n.notLoggedIn,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 22, fontWeight: FontWeight.bold, height: 1.2),
-                            ),
-                            const SizedBox(height: 4),
                             Row(
                               children: [
                                 Text(
-                                  isLoggedIn
-                                      ? (user != null && user.id.length > 8
-                                          ? 'ID: ${user.id.substring(0, 7)}****${user.id.substring(user.id.length - 1)}'
-                                          : 'ID: ${user?.id ?? ""}')
-                                      : l10n.tapToLogin,
-                                  style: const TextStyle(fontSize: 15, height: 1),
+                                  isLoggedIn ? (user?.name ?? l10n.notSet) : l10n.notLoggedIn,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 22, fontWeight: FontWeight.bold, height: 1.2),
                                 ),
                                 if (isLoggedIn && user?.gender != null && user!.gender!.isNotEmpty) ...[
-                                  const SizedBox(width: 8),
+                                  const SizedBox(width: 6),
                                   Icon(
                                     user.gender == '男' ? Icons.male : Icons.female,
-                                    size: 16,
+                                    size: 20,
                                     color: user.gender == '男'
                                         ? Colors.blue
                                         : Colors.pink,
                                   ),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    user.gender!,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      height: 1,
-                                      color: user.gender == '男'
-                                          ? Colors.blue
-                                          : Colors.pink,
-                                    ),
-                                  ),
                                 ],
                               ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              isLoggedIn
+                                  ? (user != null && user.id.length > 8
+                                      ? 'ID: ${user.id.substring(0, 7)}****${user.id.substring(user.id.length - 1)}'
+                                      : 'ID: ${user?.id ?? ""}')
+                                  : l10n.tapToLogin,
+                              style: const TextStyle(fontSize: 15, height: 1),
                             ),
                           ],
                         ),
