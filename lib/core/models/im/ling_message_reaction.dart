@@ -24,4 +24,6 @@ class LingMessageReaction {
 
   @override
   String toString() => 'LingMessageReaction(emoji: $emoji, count: $count)';
+
+  Map<String, dynamic> toJson() => {'emoji': emoji, 'userIds': userIds};
 }

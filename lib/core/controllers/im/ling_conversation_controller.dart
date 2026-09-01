@@ -114,4 +114,28 @@ class LingConversationController extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Replace all conversations (used when syncing from a service).
+  void replaceAll(List<LingConversation> newConversations) {
+    _conversations
+      ..clear()
+      ..addAll(newConversations);
+    if (_searchQuery.isNotEmpty) {
+      _filtered
+        ..clear()
+        ..addAll(_conversations.where((c) =>
+            c.name.toLowerCase().contains(_searchQuery.toLowerCase())));
+    }
+    notifyListeners();
+  }
+
+  /// Whether this controller has been disposed.
+  bool get isDisposed => _isDisposed;
+  bool _isDisposed = false;
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
 }

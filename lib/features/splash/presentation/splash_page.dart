@@ -9,6 +9,7 @@ import 'package:nudgee/app/theme/app_colors.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/auth_service.dart';
+import 'package:nudgee/core/services/chat_service.dart';
 import 'package:nudgee/core/services/post_service.dart';
 import 'package:nudgee/core/services/schedule_service.dart';
 
@@ -94,6 +95,7 @@ class _SplashPageState extends State<SplashPage>
           if (user != null) {
             sl<ScheduleService>().setUserId(user.id);
             sl<PostService>().setUserId(user.id);
+            sl<ChatService>().setUserId(user.id);
           }
           context.go(AppRouter.home);
         } else {
