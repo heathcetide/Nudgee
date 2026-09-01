@@ -20,3 +20,16 @@ ai:
 #             → { stdout, stderr, exitCode, duration }
 sandbox:
   apiBaseUrl: https://your-sandbox-server.com
+
+# Git provider configuration (optional)
+# Enables AI to read/write repositories, create branches, open PRs, etc.
+# Supports: github | gitea | gitlab
+# For GitHub: create a Personal Access Token at https://github.com/settings/tokens
+#   (needs repo scope for private repos, public_repo for public only)
+# For Gitea: create a token at Settings > Applications > Generate New Token
+# For GitLab: create a token at Settings > Access Tokens (api scope)
+git:
+  provider: github
+  token: ghp_your_personal_access_token
+  # apiUrl: https://api.github.com    # auto-detected from provider
+  # defaultOwner: yourusername         # default owner for repo operations

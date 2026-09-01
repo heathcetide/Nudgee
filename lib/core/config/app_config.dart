@@ -58,6 +58,7 @@ class AppConfig {
   static StorageConfig? _storage;
   static AiConfig? _ai;
   static String? _sandboxApiBaseUrl;
+  static GitConfig? _git;
   static bool _configLoaded = false;
 
   /// Load runtime config from `assets/config.yaml`.
@@ -78,6 +79,10 @@ class AppConfig {
       final sandbox = doc['sandbox'] as YamlMap?;
       if (sandbox != null) {
         _sandboxApiBaseUrl = sandbox['apiBaseUrl'] as String?;
+      }
+      final git = doc['git'] as YamlMap?;
+      if (git != null) {
+        _git = GitConfig.fromYaml(git);
       }
     } catch (e) {
       debugPrint('[AppConfig] Failed to load config.yaml: $e');
@@ -103,6 +108,12 @@ class AppConfig {
   /// Whether cloud sandbox is configured.
   static bool get hasSandbox =>
       _sandboxApiBaseUrl != null && _sandboxApiBaseUrl!.isNotEmpty;
+
+  /// Git configuration, or `null` if not loaded / missing.
+  static GitConfig? get git => _git;
+
+  /// Whether git config is available.
+  static bool get hasGit => _git != null && _git!.token.isNotEmpty;
 }
 
 /// Storage configuration loaded from `config.yaml`.
@@ -161,6 +172,45 @@ class AiConfig {
       model: map['model'] as String? ?? 'deepseek-chat',
       baseUrl: map['baseUrl'] as String?,
       systemPrompt: map['systemPrompt'] as String?,
+    );
+  }
+}
+
+/// Git configuration loaded from `config.yaml`.
+///
+/// Supports GitHub and Gitea/GitLab (any REST API compatible provider).
+/// ```yaml
+/// git:
+///   provider: github   # github | gitea | gitlab
+///   token: ghp_xxxxx
+///   apiUrl: https://api.github.com   # optional, default per provider
+///   defaultOwner: myusername         # optional default owner for ops
+/// ```
+class GitConfig {
+  final String provider;
+  final String token;
+  final String apiUrl;
+  final String? defaultOwner;
+
+  const GitConfig({
+    required this.provider,
+    required this.token,
+    required this.apiUrl,
+    this.defaultOwner,
+  });
+
+  factory GitConfig.fromYaml(YamlMap map) {
+    final provider = map['provider'] as String? ?? 'github';
+    return GitConfig(
+      provider: provider,
+      token: map['token'] as String? ?? '',
+      apiUrl: map['apiUrl'] as String? ??
+          switch (provider) {
+            'gitea' => 'https://gitea.com/api/v1',
+            'gitlab' => 'https://gitlab.com/api/v4',
+            _ => 'https://api.github.com',
+          },
+      defaultOwner: map['defaultOwner'] as String?,
     );
   }
 }

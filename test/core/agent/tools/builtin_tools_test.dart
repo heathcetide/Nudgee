@@ -4,7 +4,7 @@ import 'package:nudgee/core/agent/tools/builtin/builtin_tools.dart';
 
 void main() {
   group('BuiltinTools registration', () {
-    test('registerBuiltinTools registers all 18 tools', () {
+    test('registerBuiltinTools registers all 19 tools', () {
       final registry = ToolRegistry();
       registerBuiltinTools(registry);
 
@@ -14,8 +14,8 @@ void main() {
       }
     });
 
-    test('builtinToolNames has 18 entries', () {
-      expect(builtinToolNames, hasLength(18));
+    test('builtinToolNames has 19 entries', () {
+      expect(builtinToolNames, hasLength(19));
     });
 
     test('definitionsFor returns all definitions', () {
@@ -23,7 +23,7 @@ void main() {
       registerBuiltinTools(registry);
 
       final defs = registry.definitionsFor(builtinToolNames);
-      expect(defs, hasLength(18));
+      expect(defs, hasLength(19));
     });
 
     test('mutation tools are marked correctly', () {
@@ -39,6 +39,7 @@ void main() {
       expect(registry.isMutation('memory.save'), true);
       expect(registry.isMutation('todo.write'), true);
       expect(registry.isMutation('workspace.fs'), true);
+      expect(registry.isMutation('git'), true);
 
       // These should NOT be mutations
       expect(registry.isMutation('schedule.query'), false);
