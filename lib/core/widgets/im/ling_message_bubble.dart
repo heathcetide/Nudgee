@@ -256,6 +256,7 @@ class LingMessageBubble extends StatelessWidget {
         case 'content':
           final text = seg['text'] as String? ?? '';
           final isIntermediate = seg['intermediate'] == true;
+          final isStreaming = message.metadata?['streaming'] == true;
           if (text.isNotEmpty) {
             if (isIntermediate) {
               // Intermediate content (AI narrating before tool call) — small, muted
@@ -270,11 +271,13 @@ class LingMessageBubble extends StatelessWidget {
                 ),
               ));
             } else {
-              // Final content — collapsible if long
+              // Final content — collapsible if long.
+              // During streaming, force plain Text (no Markdown) for performance.
               widgets.add(_CollapsibleContent(
                 text: text,
                 textColor: textColor,
-                isAiMessage: message.authorId == ChatService.aiAssistantId,
+                isAiMessage: !isStreaming &&
+                    message.authorId == ChatService.aiAssistantId,
               ));
             }
           }
@@ -579,15 +582,18 @@ class LingMessageBubble extends StatelessWidget {
 
     // AI assistant messages are rendered as Markdown.
     final isAiMessage = message.authorId == ChatService.aiAssistantId;
+    final isStreaming = message.metadata?['streaming'] == true;
+    // During streaming, use plain Text for performance (no Markdown parsing).
+    final renderAsMarkdown = isAiMessage && !isStreaming;
     // Long messages (both AI and plain) use collapsible widget
     if (text.length > 500) {
       return _CollapsibleContent(
         text: text,
         textColor: textColor,
-        isAiMessage: isAiMessage,
+        isAiMessage: renderAsMarkdown,
       );
     }
-    if (isAiMessage) {
+    if (renderAsMarkdown) {
       return _buildMarkdownText(context, textColor, text);
     }
 
@@ -1597,26 +1603,25 @@ class _CollapsibleContentState extends State<_CollapsibleContent> {
       // Short content — no collapse needed
       return Padding(
         padding: const EdgeInsets.only(bottom: 4),
-        child: _renderContent(theme),
+        child: _renderFull(theme),
       );
     }
 
-    // Long content — collapsible
+    // Long content — collapsible.
+    // Key optimization: when collapsed, render a lightweight Text (not MarkdownBody).
+    // MarkdownBody is expensive for long text and doesn't support maxLines.
+    // Only render MarkdownBody when explicitly expanded.
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Content (clipped or full)
-          AnimatedCrossFade(
-            duration: const Duration(milliseconds: 200),
-            crossFadeState: _expanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            firstChild: _renderContent(theme, maxLines: _collapsedMaxLines),
-            secondChild: _renderContent(theme, maxLines: null),
-          ),
+          // Content — only one branch is built (no AnimatedCrossFade)
+          if (_expanded)
+            _renderFull(theme)
+          else
+            _renderCollapsed(theme),
           // Toggle button
           const SizedBox(height: 2),
           GestureDetector(
@@ -1646,9 +1651,19 @@ class _CollapsibleContentState extends State<_CollapsibleContent> {
     );
   }
 
-  Widget _renderContent(ThemeData theme, {int? maxLines}) {
+  /// Collapsed view — lightweight Text with maxLines, no Markdown parsing.
+  Widget _renderCollapsed(ThemeData theme) {
+    return Text(
+      widget.text,
+      maxLines: _collapsedMaxLines,
+      overflow: TextOverflow.ellipsis,
+      style: theme.textTheme.bodyMedium?.copyWith(color: widget.textColor),
+    );
+  }
+
+  /// Full view — Markdown for AI messages, SelectableText for plain text.
+  Widget _renderFull(ThemeData theme) {
     if (widget.isAiMessage) {
-      // AI message — render as Markdown
       return MarkdownBody(
         data: widget.text,
         selectable: true,
@@ -1676,10 +1691,8 @@ class _CollapsibleContentState extends State<_CollapsibleContent> {
         ),
       );
     }
-    // Plain text
     return SelectableText(
       widget.text,
-      maxLines: maxLines,
       style: theme.textTheme.bodyMedium?.copyWith(color: widget.textColor),
     );
   }

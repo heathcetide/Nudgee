@@ -1,9 +1,7 @@
-import 'dart:io';
 import 'dart:math';
 
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:nudgee/features/common/widgets/image_box.dart';
-import 'package:nudgee/features/common/widgets/image_view.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
 
@@ -75,12 +73,15 @@ class Avatar extends StatelessWidget {
         );
       } else {
         final urlStr = url!;
-        // Build original image URL: avatar_<ts>.jpg → avatar_original_<ts>.jpg
+        // Preserve cache-busting query param for original image URL.
+        // e.g. avatar.jpg?t=123 → avatar_original.jpg?t=123
+        final queryPart = urlStr.contains('?') ? '?${urlStr.split('?').last}' : '';
         final cleanUrl = urlStr.split('?').first;
         final originalUrl = cleanUrl.replaceAll(
-          RegExp(r'avatar_(\d+)\.jpg'),
-          'avatar_original_\$1.jpg',
+          RegExp(r'avatar(\.jpg)'),
+          'avatar_original\$1',
         );
+        final originalUrlWithCache = '$originalUrl$queryPart';
         if (onTap != null) {
           content = Container(
               child: ExtendedImage.network(
@@ -96,7 +97,7 @@ class Avatar extends StatelessWidget {
         } else {
           content = ImageBox(urlStr,
               images: [
-                {'url': originalUrl, 'tag': urlStr}
+                {'url': originalUrlWithCache, 'tag': urlStr}
               ],
               decoration: BoxDecoration(
                 borderRadius:

@@ -161,6 +161,8 @@ class _LingMessageListState extends State<LingMessageList> {
           controller: _controller,
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(vertical: 8),
+          // Limit offscreen rendering to avoid jank with many messages.
+          cacheExtent: 500,
           itemCount: itemCount,
           itemBuilder: (context, index) {
             // Index 0: Load more indicator

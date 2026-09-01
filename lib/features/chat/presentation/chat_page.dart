@@ -202,6 +202,9 @@ class _ChatPageState extends State<ChatPage> {
     final segments = <Map<String, dynamic>>[];
     String? aiMsgId;
     StreamSubscription<AgentEvent>? sub;
+    // Throttle UI updates during streaming to avoid jank.
+    DateTime? _lastUiUpdate;
+    bool _uiUpdatePending = false;
 
     /// Gets or creates the last content segment for appending text.
     Map<String, dynamic>? _lastContentSegment() {
@@ -227,12 +230,13 @@ class _ChatPageState extends State<ChatPage> {
           .join('');
     }
 
-    /// Updates the AI message bubble with the current ordered segments.
-    void updateBubble() {
-      if (segments.isEmpty) return;
-
+    /// Performs the actual bubble update (no throttle).
+    void _doUpdateBubble() {
       final metadata = <String, dynamic>{
         'segments': List<Map<String, dynamic>>.from(segments),
+        // Mark as streaming so the bubble uses lightweight Text instead of
+        // expensive MarkdownBody during rapid updates.
+        'streaming': true,
       };
 
       // Also keep legacy fields for backward compatibility
@@ -265,6 +269,34 @@ class _ChatPageState extends State<ChatPage> {
           metadata: metadata,
         ));
       }
+    }
+
+    /// Updates the AI message bubble with the current ordered segments.
+    /// Throttled to max ~20fps during streaming to avoid jank from
+    /// rebuilding MarkdownBody/ListView on every tiny delta.
+    void updateBubble() {
+      if (segments.isEmpty) return;
+
+      final now = DateTime.now();
+      final elapsed = _lastUiUpdate == null
+          ? Duration.zero
+          : now.difference(_lastUiUpdate!);
+
+      if (elapsed.inMilliseconds < 50) {
+        // Too soon — schedule a deferred update if not already pending.
+        if (!_uiUpdatePending) {
+          _uiUpdatePending = true;
+          Future.delayed(const Duration(milliseconds: 50), () {
+            _uiUpdatePending = false;
+            _lastUiUpdate = DateTime.now();
+            _doUpdateBubble();
+          });
+        }
+        return;
+      }
+
+      _lastUiUpdate = now;
+      _doUpdateBubble();
     }
 
     sub = agentService.run(userText).listen(
@@ -332,6 +364,7 @@ class _ChatPageState extends State<ChatPage> {
                 : _fullContentText();
             final metadata = <String, dynamic>{
               'segments': List<Map<String, dynamic>>.from(segments),
+              'streaming': false, // Done — allow full Markdown rendering
             };
             // Legacy fields
             final thinkingText = segments
