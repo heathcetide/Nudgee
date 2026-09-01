@@ -34,6 +34,7 @@ export 'package:nudgee/core/agent/providers/deepseek_client.dart';
 export 'package:nudgee/core/agent/tools/agent_tool.dart';
 export 'package:nudgee/core/agent/tools/tool_registry.dart';
 export 'package:nudgee/core/agent/tools/tool_result.dart';
+export 'package:nudgee/core/agent/tools/builtin/builtin_tools.dart';
 
 // Trace & observability
 export 'package:nudgee/core/agent/trace/agent_trace.dart';

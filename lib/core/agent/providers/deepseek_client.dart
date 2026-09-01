@@ -32,6 +32,14 @@ class DeepSeekClient implements LLMClient {
   /// Request timeout for non-streaming calls.
   final Duration timeout;
 
+  /// Mapping from API-safe tool names to internal tool names.
+  ///
+  /// Some API gateways (e.g. Qiniu/LiteLLM) require tool names to match
+  /// `^[a-zA-Z0-9_-]+$` — dots are not allowed. We replace dots with
+  /// underscores when sending, and use this map to convert back when
+  /// parsing responses.
+  Map<String, String> _apiToInternalNames = const {};
+
   /// Creates a [DeepSeekClient].
   DeepSeekClient({
     required this.apiKey,
@@ -63,6 +71,7 @@ class DeepSeekClient implements LLMClient {
     if (temperature != null) body['temperature'] = temperature;
     if (maxTokens != null) body['max_tokens'] = maxTokens;
     if (tools != null && tools.isNotEmpty) {
+      _apiToInternalNames = _buildNameMap(tools);
       body['tools'] = tools.map((t) => t.toOpenAIJson()).toList();
     }
 
@@ -108,6 +117,7 @@ class DeepSeekClient implements LLMClient {
     if (temperature != null) body['temperature'] = temperature;
     if (maxTokens != null) body['max_tokens'] = maxTokens;
     if (tools != null && tools.isNotEmpty) {
+      _apiToInternalNames = _buildNameMap(tools);
       body['tools'] = tools.map((t) => t.toOpenAIJson()).toList();
     }
 
@@ -146,6 +156,24 @@ class DeepSeekClient implements LLMClient {
 
   // ── Private helpers ──────────────────────────────────────────────────
 
+  /// Builds a mapping from API-safe names (dots replaced with underscores)
+  /// to internal tool names.
+  Map<String, String> _buildNameMap(List<LlmToolDefinition> tools) {
+    final map = <String, String>{};
+    for (final t in tools) {
+      final apiName = t.name.replaceAll('.', '_');
+      if (apiName != t.name) {
+        map[apiName] = t.name;
+      }
+    }
+    return map;
+  }
+
+  /// Resolves an API-safe tool name back to the internal name.
+  String _resolveToolName(String apiName) {
+    return _apiToInternalNames[apiName] ?? apiName;
+  }
+
   List<Map<String, dynamic>> _buildMessages(
     List<LlmMessage> messages,
     String? systemPrompt,
@@ -171,7 +199,7 @@ class DeepSeekClient implements LLMClient {
               'id': tc.id,
               'type': 'function',
               'function': {
-                'name': tc.name,
+                'name': tc.name.replaceAll('.', '_'),
                 'arguments': jsonEncode(tc.arguments),
               },
             }).toList();
@@ -287,14 +315,14 @@ class DeepSeekClient implements LLMClient {
       // Accumulate
       final acc = accumulators.putIfAbsent(index, () => _ToolCallAccumulator());
       if (id != null) acc.id = id;
-      if (name != null) acc.name = name;
+      if (name != null) acc.name = _resolveToolName(name);
       if (argsDelta != null) acc.argumentsBuffer.write(argsDelta);
 
       return LlmChunk(
         toolCallDelta: LlmToolCallDelta(
           index: index,
           id: id,
-          name: name,
+          name: name != null ? _resolveToolName(name) : null,
           argumentsDelta: argsDelta,
         ),
       );
@@ -327,7 +355,7 @@ class DeepSeekClient implements LLMClient {
         }
         toolCalls.add(ToolCall(
           id: tcMap['id'] as String,
-          name: function['name'] as String,
+          name: _resolveToolName(function['name'] as String),
           arguments: parsedArgs,
         ));
       }

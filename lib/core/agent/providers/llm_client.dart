@@ -164,10 +164,15 @@ class LlmToolDefinition {
   });
 
   /// Converts to OpenAI function format.
+  ///
+  /// Some API gateways (e.g. Qiniu/LiteLLM) require tool names to match
+  /// `^[a-zA-Z0-9_-]+$` — dots are not allowed. We replace dots with
+  /// underscores here. The [DeepSeekClient] maintains a mapping to
+  /// convert tool names back when parsing responses.
   Map<String, dynamic> toOpenAIJson() => {
         'type': 'function',
         'function': {
-          'name': name,
+          'name': name.replaceAll('.', '_'),
           'description': description,
           'parameters': parametersSchema,
         },
