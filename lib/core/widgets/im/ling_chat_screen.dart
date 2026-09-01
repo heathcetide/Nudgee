@@ -11,8 +11,11 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:nudgee/core/controllers/im/ling_chat_controller.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/models/im/im.dart';
+import 'package:nudgee/core/services/agent_service.dart';
 import 'package:nudgee/core/services/chat_service.dart';
+import 'package:nudgee/core/services/shared_prefs_service.dart';
 import 'package:nudgee/core/widgets/feedback/ling_avatar.dart';
+import 'package:nudgee/core/widgets/im/ling_chat_background.dart';
 import 'package:nudgee/core/widgets/im/ling_chat_input.dart';
 import 'package:nudgee/core/widgets/im/ling_contact_profile.dart';
 import 'package:nudgee/core/widgets/im/ling_group_announcement.dart';
@@ -23,6 +26,7 @@ import 'package:nudgee/core/widgets/im/ling_message_multi_select.dart';
 import 'package:nudgee/core/widgets/im/ling_message_search.dart';
 import 'package:nudgee/core/widgets/im/ling_message_tooltip.dart';
 import 'package:nudgee/core/widgets/im/ling_typing_indicator.dart';
+import 'package:nudgee/core/widgets/im/ling_wallpaper_picker.dart';
 
 /// A complete chat screen combining message list + input bar.
 ///
@@ -105,7 +109,78 @@ class _LingChatScreenState extends State<LingChatScreen> {
   // Reply
   LingMessage? _replyingTo;
 
+  // Chat background
+  LingChatBackgroundType _bgType = LingChatBackgroundType.color;
+  int _bgIndex = 0;
+  static const _bgPrefPrefix = 'chat_bg_';
+
   String? get _selfAvatarUrl => widget.userMap[widget.currentUserId]?.avatarUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBackground();
+  }
+
+  Future<void> _loadBackground() async {
+    final prefs = sl<SharedPrefsService>();
+    final key = '$_bgPrefPrefix${widget.conversation.id}';
+    final saved = prefs.getString(key);
+    if (saved != null) {
+      final parts = saved.split('|');
+      if (parts.length == 2) {
+        final idx = int.tryParse(parts[0]) ?? 0;
+        final typeIdx = int.tryParse(parts[1]) ?? 0;
+        if (mounted) {
+          setState(() {
+            _bgIndex = idx;
+            _bgType = LingChatBackgroundType.values[typeIdx.clamp(0, 2)];
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _saveBackground(int index, LingChatBackgroundType type) async {
+    final prefs = sl<SharedPrefsService>();
+    final key = '$_bgPrefPrefix${widget.conversation.id}';
+    prefs.setString(key, '$index|${type.index}');
+  }
+
+  Future<void> _resetBackground() async {
+    final prefs = sl<SharedPrefsService>();
+    final key = '$_bgPrefPrefix${widget.conversation.id}';
+    prefs.remove(key);
+    if (mounted) {
+      setState(() {
+        _bgType = LingChatBackgroundType.color;
+        _bgIndex = 0;
+      });
+    }
+  }
+
+  void _openWallpaperPicker(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LingWallpaperPicker(
+          selectedType: _bgType,
+          selectedIndex: _bgIndex,
+          onSelected: (index, type) {
+            setState(() {
+              _bgIndex = index;
+              _bgType = type;
+            });
+            _saveBackground(index, type);
+            Navigator.pop(context);
+          },
+          onReset: () {
+            _resetBackground();
+            Navigator.pop(context);
+          },
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -128,47 +203,57 @@ class _LingChatScreenState extends State<LingChatScreen> {
             .where((u) => u.id != widget.currentUserId)
             .firstOrNull;
 
+        // Build background from selected preset.
+        final bgPreset = _bgIndex < lingWallpaperPresets.length
+            ? lingWallpaperPresets[_bgIndex]
+            : lingWallpaperPresets[0];
+
         return Scaffold(
           appBar: _buildAppBar(context, theme, subtitle),
           body: Column(
             children: [
-              // Message list
+              // Message list with background
               Expanded(
-                child: LingMessageList(
-                  messages: widget.controller.messages,
-                  currentUserId: widget.currentUserId,
-                  userMap: widget.userMap,
-                  isGroup: widget.conversation.isGroup,
-                  isTyping: widget.controller.isTyping,
-                  hasMore: widget.controller.hasMore,
-                  isLoadingMore: widget.controller.isLoadingMore,
-                  onLoadMore: widget.onLoadMore,
-                  selfAvatarUrl: _selfAvatarUrl,
-                  selectedMessageIds: _selectedIds,
-                  multiSelectMode: _multiSelectMode,
-                  typingIndicator: otherUser != null
-                      ? _AvatarTypingIndicator(
-                          avatarUrl: otherUser.avatarUrl,
-                          userName: otherUser.name,
-                        )
-                      : null,
-                  onMessageLongPress: (msg) {
-                    if (_multiSelectMode) {
-                      _toggleSelect(msg.id);
-                    } else {
-                      _showMessageTooltip(context, msg);
-                    }
-                  },
-                  onMessageTap: (msg) {
-                    if (_multiSelectMode) {
-                      _toggleSelect(msg.id);
-                    }
-                  },
-                  onAvatarTap: (user) => _openUserProfile(context, user),
-                  onContactCardTap: (user) => _openUserProfile(context, user),
-                  onReactionTapped: (emoji) {
-                    // Reactions handled by controller externally
-                  },
+                child: LingChatBackground(
+                  type: _bgType,
+                  color: bgPreset.color,
+                  gradient: bgPreset.gradient,
+                  child: LingMessageList(
+                    messages: widget.controller.messages,
+                    currentUserId: widget.currentUserId,
+                    userMap: widget.userMap,
+                    isGroup: widget.conversation.isGroup,
+                    isTyping: widget.controller.isTyping,
+                    hasMore: widget.controller.hasMore,
+                    isLoadingMore: widget.controller.isLoadingMore,
+                    onLoadMore: widget.onLoadMore,
+                    selfAvatarUrl: _selfAvatarUrl,
+                    selectedMessageIds: _selectedIds,
+                    multiSelectMode: _multiSelectMode,
+                    typingIndicator: otherUser != null
+                        ? _AvatarTypingIndicator(
+                            avatarUrl: otherUser.avatarUrl,
+                            userName: otherUser.name,
+                          )
+                        : null,
+                    onMessageLongPress: (msg) {
+                      if (_multiSelectMode) {
+                        _toggleSelect(msg.id);
+                      } else {
+                        _showMessageTooltip(context, msg);
+                      }
+                    },
+                    onMessageTap: (msg) {
+                      if (_multiSelectMode) {
+                        _toggleSelect(msg.id);
+                      }
+                    },
+                    onAvatarTap: (user) => _openUserProfile(context, user),
+                    onContactCardTap: (user) => _openUserProfile(context, user),
+                    onReactionTapped: (emoji) {
+                      // Reactions handled by controller externally
+                    },
+                  ),
                 ),
               ),
               // Multi-select bottom bar OR input bar
@@ -340,7 +425,10 @@ class _LingChatScreenState extends State<LingChatScreen> {
             ListTile(
               leading: const Icon(Icons.wallpaper_outlined),
               title: const Text('设置聊天背景'),
-              onTap: () => Navigator.pop(ctx),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openWallpaperPicker(context);
+              },
             ),
             ListTile(
               leading: Icon(Icons.clear_all, color: theme(context).colorScheme.error),
@@ -359,40 +447,16 @@ class _LingChatScreenState extends State<LingChatScreen> {
 
   /// Show AI model switcher bottom sheet.
   void _showModelSwitcher(BuildContext context) {
-    final models = widget.availableAiModels ?? const <String>[];
     showModalBottomSheet(
       context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text('选择 AI 模型',
-                  style: theme(ctx).textTheme.titleMedium),
-            ),
-            const Divider(height: 1),
-            if (models.isEmpty)
-              const ListTile(title: Text('暂无可用模型')),
-            for (final model in models)
-              ListTile(
-                leading: Icon(
-                  model == widget.currentAiModel
-                      ? Icons.check_circle
-                      : Icons.radio_button_unchecked,
-                  color: model == widget.currentAiModel
-                      ? theme(ctx).colorScheme.primary
-                      : null,
-                ),
-                title: Text(model),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  widget.onSwitchModel?.call(model);
-                },
-              ),
-            const SizedBox(height: 8),
-          ],
-        ),
+      isScrollControlled: true,
+      builder: (ctx) => _ModelSwitcherSheet(
+        currentModel: widget.currentAiModel,
+        staticModels: widget.availableAiModels ?? const <String>[],
+        onSelected: (model) {
+          Navigator.pop(ctx);
+          widget.onSwitchModel?.call(model);
+        },
       ),
     );
   }
@@ -437,21 +501,14 @@ class _LingChatScreenState extends State<LingChatScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => LingMessageSearch(
-          results: [],
-          onSearch: (query) {
-            // Mock: filter current messages
-            final matched = widget.controller.messages
-                .where((m) => (m.text ?? '').contains(query))
-                .map((m) => LingMessageSearchResult(
-                      message: m,
-                      conversationName: widget.conversation.name,
-                      authorName: widget.userMap[m.authorId]?.name ?? m.authorId,
-                    ))
-                .toList();
-            // LingMessageSearch is stateless for results, so we just print
-            // In a real app this would be a stateful search page
+          conversationId: widget.conversation.id,
+          userMap: widget.userMap,
+          conversations: [widget.conversation],
+          onResultTap: (result) {
+            // Close search and scroll to the message.
+            Navigator.of(context).pop();
+            // TODO: scroll to specific message in the list
           },
-          onResultTap: (result) {},
         ),
       ),
     );
@@ -1107,6 +1164,98 @@ class _AvatarTypingIndicator extends StatelessWidget {
           ),
           // Loading bubble with bouncing dots
           const LingTypingIndicator(),
+        ],
+      ),
+    );
+  }
+}
+
+/// Model switcher bottom sheet — fetches models from API.
+class _ModelSwitcherSheet extends StatefulWidget {
+  final String? currentModel;
+  final List<String> staticModels;
+  final ValueChanged<String> onSelected;
+
+  const _ModelSwitcherSheet({
+    required this.currentModel,
+    required this.staticModels,
+    required this.onSelected,
+  });
+
+  @override
+  State<_ModelSwitcherSheet> createState() => _ModelSwitcherSheetState();
+}
+
+class _ModelSwitcherSheetState extends State<_ModelSwitcherSheet> {
+  List<String> _models = const [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _models = widget.staticModels;
+    _fetchModels();
+  }
+
+  Future<void> _fetchModels() async {
+    try {
+      final agentService = sl<AgentService>();
+      final fetched = await agentService.fetchModels();
+      if (mounted) {
+        setState(() {
+          _models = fetched;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text('选择 AI 模型', style: t.textTheme.titleMedium),
+          ),
+          const Divider(height: 1),
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          if (!_isLoading && _models.isEmpty)
+            const ListTile(title: Text('暂无可用模型')),
+          if (!_isLoading)
+            for (final model in _models)
+              ListTile(
+                leading: Icon(
+                  model == widget.currentModel
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
+                  color: model == widget.currentModel
+                      ? t.colorScheme.primary
+                      : null,
+                ),
+                title: Text(model),
+                onTap: () => widget.onSelected(model),
+              ),
+          const SizedBox(height: 8),
         ],
       ),
     );

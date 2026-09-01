@@ -7,7 +7,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:nudgee/core/services/shared_prefs_service.dart';
 import 'package:sqflite/sqflite.dart';
 
-import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/models/im/ling_chat_user.dart';
 import 'package:nudgee/core/models/im/ling_conversation.dart';
 import 'package:nudgee/core/models/im/ling_enums.dart';
@@ -655,4 +654,54 @@ class ChatService extends ChangeNotifier {
         status: LingMessageStatus.values.firstWhere((e) => e.name == j['status'], orElse: () => LingMessageStatus.sent),
         createdAt: DateTime.tryParse(j['created_at'] as String? ?? '') ?? DateTime.now(),
       );
+
+  /// Searches messages across all conversations by keyword.
+  /// Returns results sorted by created_at descending.
+  Future<List<LingMessage>> searchMessages(String query) async {
+    if (query.trim().isEmpty) return [];
+    if (_db == null) return [];
+
+    try {
+      final rows = await _db!.query(
+        'messages',
+        where: 'text LIKE ?',
+        whereArgs: ['%$query%'],
+        orderBy: 'created_at DESC',
+        limit: 100,
+      );
+      return rows.map(_rowToMessage).toList();
+    } catch (e) {
+      debugPrint('[ChatService] searchMessages error: $e');
+      return [];
+    }
+  }
+
+  /// Searches messages within a specific conversation.
+  Future<List<LingMessage>> searchMessagesInConversation(
+    String conversationId,
+    String query,
+  ) async {
+    if (query.trim().isEmpty) return [];
+    if (_db == null) {
+      // Fallback to in-memory search.
+      return _messages[conversationId]
+              ?.where((m) => (m.text ?? '').toLowerCase().contains(query.toLowerCase()))
+              .toList() ??
+          [];
+    }
+
+    try {
+      final rows = await _db!.query(
+        'messages',
+        where: 'conversation_id = ? AND text LIKE ?',
+        whereArgs: [conversationId, '%$query%'],
+        orderBy: 'created_at DESC',
+        limit: 100,
+      );
+      return rows.map(_rowToMessage).toList();
+    } catch (e) {
+      debugPrint('[ChatService] searchMessagesInConversation error: $e');
+      return [];
+    }
+  }
 }

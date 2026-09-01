@@ -4,6 +4,77 @@ import 'package:nudgee/app/theme/app_colors.dart';
 import 'package:nudgee/core/constants/app_constants.dart';
 import 'package:nudgee/core/widgets/im/ling_chat_background.dart';
 
+/// A wallpaper preset (color or gradient).
+class LingWallpaperPreset {
+  final LingChatBackgroundType type;
+  final Color? color;
+  final LinearGradient? gradient;
+
+  const LingWallpaperPreset({
+    required this.type,
+    this.color,
+    this.gradient,
+  });
+}
+
+/// All available wallpaper presets.
+const List<LingWallpaperPreset> lingWallpaperPresets = [
+  LingWallpaperPreset(type: LingChatBackgroundType.color, color: Color(0xFFFFFFFF)),
+  LingWallpaperPreset(type: LingChatBackgroundType.color, color: Color(0xFFF8FAFC)),
+  LingWallpaperPreset(type: LingChatBackgroundType.color, color: Color(0xFFE0F2FE)),
+  LingWallpaperPreset(type: LingChatBackgroundType.color, color: Color(0xFFFCE7F3)),
+  LingWallpaperPreset(type: LingChatBackgroundType.color, color: Color(0xFFDCFCE7)),
+  LingWallpaperPreset(type: LingChatBackgroundType.color, color: Color(0xFFFEF3C7)),
+  LingWallpaperPreset(
+    type: LingChatBackgroundType.gradient,
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF4F6BED), Color(0xFF7B93F5)],
+    ),
+  ),
+  LingWallpaperPreset(
+    type: LingChatBackgroundType.gradient,
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF14B8A6), Color(0xFF22C55E)],
+    ),
+  ),
+  LingWallpaperPreset(
+    type: LingChatBackgroundType.gradient,
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFFF59E0B), Color(0xFFEF4444)],
+    ),
+  ),
+  LingWallpaperPreset(
+    type: LingChatBackgroundType.gradient,
+    gradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+    ),
+  ),
+  LingWallpaperPreset(
+    type: LingChatBackgroundType.gradient,
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+    ),
+  ),
+  LingWallpaperPreset(
+    type: LingChatBackgroundType.gradient,
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF06B6D4), Color(0xFF3B82F6)],
+    ),
+  ),
+];
+
 /// A wallpaper selection page for chat backgrounds.
 ///
 /// Displays preset wallpapers in a grid. Each preset is either a solid
@@ -35,63 +106,6 @@ class LingWallpaperPicker extends StatelessWidget {
     this.title = '聊天壁纸',
   });
 
-  static const List<_Preset> _presets = [
-    _Preset(type: LingChatBackgroundType.color, color: Color(0xFFFFFFFF)),
-    _Preset(type: LingChatBackgroundType.color, color: Color(0xFFF8FAFC)),
-    _Preset(type: LingChatBackgroundType.color, color: Color(0xFFE0F2FE)),
-    _Preset(type: LingChatBackgroundType.color, color: Color(0xFFFCE7F3)),
-    _Preset(type: LingChatBackgroundType.color, color: Color(0xFFDCFCE7)),
-    _Preset(type: LingChatBackgroundType.color, color: Color(0xFFFEF3C7)),
-    _Preset(
-      type: LingChatBackgroundType.gradient,
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF4F6BED), Color(0xFF7B93F5)],
-      ),
-    ),
-    _Preset(
-      type: LingChatBackgroundType.gradient,
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF14B8A6), Color(0xFF22C55E)],
-      ),
-    ),
-    _Preset(
-      type: LingChatBackgroundType.gradient,
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFFF59E0B), Color(0xFFEF4444)],
-      ),
-    ),
-    _Preset(
-      type: LingChatBackgroundType.gradient,
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
-      ),
-    ),
-    _Preset(
-      type: LingChatBackgroundType.gradient,
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
-      ),
-    ),
-    _Preset(
-      type: LingChatBackgroundType.gradient,
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF06B6D4), Color(0xFF3B82F6)],
-      ),
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -112,9 +126,9 @@ class LingWallpaperPicker extends StatelessWidget {
                 crossAxisSpacing: AppConstants.spacingSm,
                 childAspectRatio: 0.75,
               ),
-              itemCount: _presets.length,
+              itemCount: lingWallpaperPresets.length,
               itemBuilder: (context, index) {
-                final preset = _presets[index];
+                final preset = lingWallpaperPresets[index];
                 final isSelected = index == selectedIndex &&
                     preset.type == selectedType;
                 return _WallpaperTile(
@@ -157,20 +171,8 @@ class LingWallpaperPicker extends StatelessWidget {
   }
 }
 
-class _Preset {
-  final LingChatBackgroundType type;
-  final Color? color;
-  final LinearGradient? gradient;
-
-  const _Preset({
-    required this.type,
-    this.color,
-    this.gradient,
-  });
-}
-
 class _WallpaperTile extends StatelessWidget {
-  final _Preset preset;
+  final LingWallpaperPreset preset;
   final bool isSelected;
   final VoidCallback onTap;
 

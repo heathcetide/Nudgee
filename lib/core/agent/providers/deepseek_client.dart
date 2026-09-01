@@ -155,6 +155,37 @@ class DeepSeekClient implements LLMClient {
       ];
 
   @override
+  Future<List<String>> fetchModels() async {
+    try {
+      final url = Uri.parse('$baseUrl/models');
+      final response = await _httpClient.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $apiKey',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(timeout);
+
+      if (response.statusCode != 200) return availableModels();
+
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = json['data'] as List?;
+      if (data == null) return availableModels();
+
+      final models = data
+          .map((e) => (e as Map<String, dynamic>)['id'] as String?)
+          .where((id) => id != null && id.isNotEmpty)
+          .cast<String>()
+          .toList()
+        ..sort();
+
+      return models.isEmpty ? availableModels() : models;
+    } catch (_) {
+      return availableModels();
+    }
+  }
+
+  @override
   void dispose() {
     _httpClient.close();
   }

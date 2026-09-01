@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:nudgee/core/constants/app_constants.dart';
+import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/models/im/im.dart';
+import 'package:nudgee/core/services/chat_service.dart';
 import 'package:nudgee/core/widgets/inputs/ling_search_field.dart';
 
 /// A single search result pairing a [LingMessage] with its context.
@@ -29,11 +33,13 @@ class LingMessageSearchResult {
 /// name, the author name, and the timestamp. Matched keywords are highlighted
 /// in yellow via [RichText].
 class LingMessageSearch extends StatefulWidget {
-  /// Search results to render.
+  /// Initial search results to render (optional).
   final List<LingMessageSearchResult> results;
 
   /// Called whenever the search query changes.
-  final ValueChanged<String> onSearch;
+  /// Should return updated results that will be displayed.
+  /// If null, the page manages its own search via ChatService.
+  final Future<List<LingMessageSearchResult>> Function(String query)? onSearch;
 
   /// Called when a result row is tapped.
   final ValueChanged<LingMessageSearchResult> onResultTap;
@@ -44,13 +50,25 @@ class LingMessageSearch extends StatefulWidget {
   /// Title shown in the app bar.
   final String title;
 
+  /// Conversation ID to scope the search to (null = search all).
+  final String? conversationId;
+
+  /// User map for resolving author names.
+  final Map<String, LingChatUser> userMap;
+
+  /// Conversation list for resolving conversation names.
+  final List<LingConversation> conversations;
+
   const LingMessageSearch({
     super.key,
-    required this.results,
-    required this.onSearch,
+    this.results = const [],
+    this.onSearch,
     required this.onResultTap,
     this.searchHint = '搜索聊天记录',
     this.title = '搜索',
+    this.conversationId,
+    this.userMap = const {},
+    this.conversations = const [],
   });
 
   @override
@@ -61,10 +79,14 @@ class _LingMessageSearchState extends State<LingMessageSearch> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   String _query = '';
+  List<LingMessageSearchResult> _results = [];
+  bool _isSearching = false;
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
+    _results = widget.results;
     // Auto-focus the search field after the first frame.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focusNode.requestFocus();
@@ -73,9 +95,64 @@ class _LingMessageSearchState extends State<LingMessageSearch> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String v) {
+    setState(() => _query = v);
+    _debounce?.cancel();
+    if (v.trim().isEmpty) {
+      setState(() {
+        _results = [];
+        _isSearching = false;
+      });
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      _doSearch(v);
+    });
+  }
+
+  Future<void> _doSearch(String query) async {
+    setState(() => _isSearching = true);
+
+    try {
+      List<LingMessageSearchResult> results;
+
+      if (widget.onSearch != null) {
+        results = await widget.onSearch!(query);
+      } else {
+        // Use ChatService directly.
+        final chatService = sl<ChatService>();
+        final messages = widget.conversationId != null
+            ? await chatService.searchMessagesInConversation(widget.conversationId!, query)
+            : await chatService.searchMessages(query);
+
+        results = messages.map((m) {
+          final conv = widget.conversations.where((c) => c.id == m.conversationId).firstOrNull;
+          final authorName = widget.userMap[m.authorId]?.name ?? m.authorId;
+          return LingMessageSearchResult(
+            message: m,
+            conversationName: conv?.name ?? m.conversationId,
+            authorName: authorName,
+          );
+        }).toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _results = results;
+          _isSearching = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSearching = false);
+      }
+    }
   }
 
   @override
@@ -100,10 +177,7 @@ class _LingMessageSearchState extends State<LingMessageSearch> {
                     child: LingSearchField(
                       controller: _controller,
                       hint: widget.searchHint,
-                      onChanged: (v) {
-                        setState(() => _query = v);
-                        widget.onSearch(v);
-                      },
+                      onChanged: _onSearchChanged,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -121,24 +195,26 @@ class _LingMessageSearchState extends State<LingMessageSearch> {
             ),
           // Results
           Expanded(
-            child: widget.results.isEmpty
-                ? _buildEmpty(theme)
-                : ListView.separated(
-                    itemCount: widget.results.length,
-                    separatorBuilder: (_, __) => Divider(
-                      height: 1,
-                      indent: AppConstants.spacingMd,
-                      color: theme.dividerColor,
-                    ),
-                    itemBuilder: (context, index) {
-                      final r = widget.results[index];
-                      return _ResultTile(
-                        result: r,
-                        query: _query,
-                        onTap: () => widget.onResultTap(r),
-                      );
-                    },
-                  ),
+            child: _isSearching
+                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                : _results.isEmpty
+                    ? _buildEmpty(theme)
+                    : ListView.separated(
+                        itemCount: _results.length,
+                        separatorBuilder: (_, __) => Divider(
+                          height: 1,
+                          indent: AppConstants.spacingMd,
+                          color: theme.dividerColor,
+                        ),
+                        itemBuilder: (context, index) {
+                          final r = _results[index];
+                          return _ResultTile(
+                            result: r,
+                            query: _query,
+                            onTap: () => widget.onResultTap(r),
+                          );
+                        },
+                      ),
           ),
         ],
         ),

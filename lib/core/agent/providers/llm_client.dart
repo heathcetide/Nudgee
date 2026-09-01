@@ -48,8 +48,12 @@ abstract class LLMClient {
     String? systemPrompt,
   });
 
-  /// Lists available models.
+  /// Lists available models (static list, no network call).
   List<String> availableModels();
+
+  /// Fetches available models from the API (/v1/models endpoint).
+  /// Returns an empty list if the API doesn't support it or on error.
+  Future<List<String>> fetchModels();
 
   /// Releases resources.
   void dispose();

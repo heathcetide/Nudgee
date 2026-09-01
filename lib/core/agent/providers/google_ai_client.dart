@@ -148,6 +148,9 @@ class GoogleAIClient implements LLMClient {
       ];
 
   @override
+  Future<List<String>> fetchModels() async => availableModels();
+
+  @override
   void dispose() {
     _httpClient.close();
   }

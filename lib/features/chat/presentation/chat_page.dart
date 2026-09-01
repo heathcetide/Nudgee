@@ -261,7 +261,9 @@ class _ChatPageState extends State<ChatPage> {
           status: LingMessageStatus.sending,
           metadata: metadata,
         ));
-        controller.isTyping = false;
+        // Keep isTyping = true — only turn off on DoneEvent/ErrorEvent.
+        // The typing indicator (three dots) should remain visible while
+        // tools are executing or the AI is still thinking.
       } else {
         controller.updateMessage(aiMsgId!, (m) => m.copyWith(
           text: fullText,
@@ -543,7 +545,7 @@ class _ChatPageState extends State<ChatPage> {
           onDraftChanged: (text) => _onDraftChanged(conv, text),
           isAiConversation: isAiConv,
           currentAiModel: ai.currentModel,
-          availableAiModels: const [],
+          availableAiModels: ai.availableModels(),
           onSwitchModel: (model) async {
             ai.switchModel(model);
             // Reset context with the appropriate system prompt.
@@ -584,9 +586,16 @@ class _ChatPageState extends State<ChatPage> {
         transitionDuration: const Duration(milliseconds: 250),
         reverseTransitionDuration: const Duration(milliseconds: 200),
         pageBuilder: (context, animation, secondaryAnimation) => LingMessageSearch(
-          results: const [],
-          onSearch: (query) {},
-          onResultTap: (result) {},
+          userMap: _userMap,
+          conversations: _convController.conversations,
+          onResultTap: (result) {
+            // Close search, then open the conversation containing the message.
+            Navigator.of(context).pop();
+            final conv = _convController.conversations
+                .where((c) => c.id == result.message.conversationId)
+                .firstOrNull;
+            if (conv != null) _openChat(context, conv);
+          },
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           final offset = Tween<Offset>(

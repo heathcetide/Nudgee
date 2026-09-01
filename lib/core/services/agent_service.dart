@@ -50,6 +50,18 @@ class AgentService {
   /// The currently selected model.
   String get currentModel => _currentModel;
 
+  /// Returns the static list of available models from the LLM client.
+  List<String> availableModels() {
+    return _llmClient?.availableModels() ?? [];
+  }
+
+  /// Fetches available models from the API (/v1/models).
+  /// Falls back to the static list on error.
+  Future<List<String>> fetchModels() async {
+    if (_llmClient == null) return [];
+    return _llmClient!.fetchModels();
+  }
+
   /// The current system prompt.
   String get currentSystemPrompt => _agentConfig?.systemPrompt ?? '';
 
