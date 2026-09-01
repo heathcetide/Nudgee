@@ -334,7 +334,7 @@ class SimpleSandboxInterpreter implements SandboxInterpreter {
     }
 
     // Bridge function call: funcName(arg1, arg2, ...)
-    final callMatch = RegExp(r'^(\w+)\s*\((.*)\)$').firstMatch(trimmed);
+    final callMatch = RegExp(r'^([\w.]+)\s*\((.*)\)$').firstMatch(trimmed);
     if (callMatch != null) {
       final funcName = callMatch.group(1)!;
       final argsStr = callMatch.group(2)!;

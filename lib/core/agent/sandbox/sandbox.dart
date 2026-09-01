@@ -30,3 +30,4 @@ export 'package:nudgee/core/agent/sandbox/sandbox_models.dart';
 export 'package:nudgee/core/agent/sandbox/sandbox_analyzer.dart';
 export 'package:nudgee/core/agent/sandbox/sandbox_executor.dart';
 export 'package:nudgee/core/agent/sandbox/sandbox_exec_tool.dart';
+export 'package:nudgee/core/agent/sandbox/sandbox_fs_tool.dart';

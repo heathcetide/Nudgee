@@ -3,9 +3,12 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nudgee/core/agent/agent.dart';
 
-const String qiniuApiKey = 'sk-c3qxB9P3y1hq9xuiqOduUg';
-const String qiniuBaseUrl = 'https://llmapi.qiniu.io/v1';
-const String qiniuModel = 'gpt-5.4-mini';
+import '../test_env.dart';
+
+// LLM config from environment — tests skip if NUDGEE_LLM_API_KEY not set.
+final String qiniuApiKey = TestEnv.llmApiKey ?? '';
+final String qiniuBaseUrl = TestEnv.llmBaseUrl;
+final String qiniuModel = TestEnv.llmModel;
 
 class CalculatorTool extends AgentTool {
   @override
@@ -57,6 +60,7 @@ class TimeTool extends AgentTool {
 }
 
 void main() {
+  if (!TestEnv.hasLlmKey) return; // Skip: no NUDGEE_LLM_API_KEY
   group('Agent Trace — End-to-End Observability', () {
     late DeepSeekClient client;
     late ToolRegistry toolRegistry;
@@ -64,6 +68,8 @@ void main() {
     late PermissionContext permissionContext;
 
     setUpAll(() {
+      // Skip setup if no API key — individual tests will also check.
+      if (!TestEnv.hasLlmKey) return;
       client = DeepSeekClient(
         apiKey: qiniuApiKey,
         baseUrl: qiniuBaseUrl,

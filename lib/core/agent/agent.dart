@@ -16,6 +16,9 @@ export 'package:nudgee/core/agent/agent_core.dart';
 export 'package:nudgee/core/agent/agent_harness.dart';
 export 'package:nudgee/core/agent/orchestrator.dart';
 
+// Controller (Phase 7)
+export 'package:nudgee/core/agent/agent_controller.dart';
+
 // Context & compaction
 export 'package:nudgee/core/agent/context/context_governor.dart';
 export 'package:nudgee/core/agent/compaction/microcompact.dart';
@@ -50,3 +53,6 @@ export 'package:nudgee/core/agent/mcp/mcp.dart';
 
 // Sandbox execution (Phase 6)
 export 'package:nudgee/core/agent/sandbox/sandbox.dart';
+
+// UI widgets (Phase 7)
+export 'package:nudgee/core/agent/ui/agent_ui.dart';
