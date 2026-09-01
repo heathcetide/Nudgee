@@ -52,7 +52,7 @@ class PlanStep {
 
   @override
   String toString() =>
-      'PlanStep(${isCompleted ? "✅" : isActive ? "🔄" : "⬜"} $description)';
+      'PlanStep(${isCompleted ? "[done]" : isActive ? "[active]" : "[pending]"} $description)';
 }
 
 /// Severity of an Agent error event.

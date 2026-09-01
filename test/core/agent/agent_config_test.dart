@@ -147,7 +147,7 @@ void main() {
       const original = AgentConfig(
         id: 'roundtrip',
         name: 'Round Trip',
-        icon: '🔄',
+        icon: 'round-trip',
         systemPrompt: 'Round trip test',
         model: 'deepseek-reasoner',
         toolNames: ['x', 'y'],

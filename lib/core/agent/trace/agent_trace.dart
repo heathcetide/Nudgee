@@ -55,23 +55,23 @@ class TraceEntry {
 
 /// Types of trace entries.
 enum TraceEntryType {
-  runStart('🚀'),
-  runEnd('✅'),
-  stepStart('📍'),
-  stepEnd('📍'),
-  llmRequest('📤'),
-  llmResponse('📥'),
-  llmStreamChunk('💧'),
-  toolCall('🔧'),
-  toolResult('📦'),
-  permissionCheck('🔒'),
-  permissionDenied('⛔'),
-  permissionAsked('❓'),
-  contextCompacted('🗜️'),
-  contextSanitized('🧹'),
-  error('❌'),
-  warning('⚠️'),
-  info('ℹ️');
+  runStart('[START]'),
+  runEnd('[END]'),
+  stepStart('[STEP]'),
+  stepEnd('[STEP]'),
+  llmRequest('[REQ]'),
+  llmResponse('[RESP]'),
+  llmStreamChunk('[CHUNK]'),
+  toolCall('[TOOL]'),
+  toolResult('[RESULT]'),
+  permissionCheck('[PERM]'),
+  permissionDenied('[DENY]'),
+  permissionAsked('[ASK]'),
+  contextCompacted('[COMPACT]'),
+  contextSanitized('[SANITIZE]'),
+  error('[ERROR]'),
+  warning('[WARN]'),
+  info('[INFO]');
 
   final String icon;
   const TraceEntryType(this.icon);
@@ -244,7 +244,7 @@ class AgentTrace {
   }) {
     _add(
       TraceEntryType.toolResult,
-      'Result: $toolName → ${success ? "✅" : "❌"} '
+      'Result: $toolName -> ${success ? "OK" : "FAIL"} '
       '${_truncate(output ?? error ?? "", 60)}',
       {
         'toolName': toolName,

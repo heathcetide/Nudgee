@@ -133,9 +133,9 @@ void main() {
       const active = PlanStep(description: 'Active', isActive: true);
       const done = PlanStep(description: 'Done', isCompleted: true);
 
-      expect(pending.toString(), contains('⬜'));
-      expect(active.toString(), contains('🔄'));
-      expect(done.toString(), contains('✅'));
+      expect(pending.toString(), contains('[pending]'));
+      expect(active.toString(), contains('[active]'));
+      expect(done.toString(), contains('[done]'));
     });
   });
 
