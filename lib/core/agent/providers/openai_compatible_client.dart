@@ -4,28 +4,24 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'package:nudgee/core/agent/providers/llm_client.dart';
-import 'package:nudgee/core/agent/providers/openai_compatible_client.dart'
-    show LlmException;
-// Re-export LlmException for backward compatibility.
-export 'package:nudgee/core/agent/providers/openai_compatible_client.dart'
-    show LlmException;
 
-/// LLM client for DeepSeek API (OpenAI-compatible).
+/// LLM client for any OpenAI-compatible API.
 ///
-/// Directly calls the DeepSeek `/v1/chat/completions` endpoint with
-/// `stream: true`, supporting:
-/// - Streaming text content (content deltas)
-/// - Streaming thinking/reasoning content (reasoning deltas)
-/// - Streaming tool calls (incremental tool call deltas)
-/// - Token usage reporting
+/// This is the base class for all providers that use the OpenAI
+/// chat completions wire format (DeepSeek, Qiniu, OpenRouter, etc.).
 ///
-/// This bypasses the `flutter_ai_sdk` which doesn't support
-/// streaming + tools simultaneously.
-class DeepSeekClient implements LLMClient {
-  /// API key for DeepSeek.
+/// Subclasses just need to override:
+/// - [defaultBaseUrl] — the API base URL
+/// - [defaultModel] — the default model name
+/// - [availableModels] — list of supported models
+///
+/// The wire format (request building, SSE parsing, response parsing)
+/// is identical across all OpenAI-compatible providers.
+class OpenAICompatibleClient implements LLMClient {
+  /// API key.
   final String apiKey;
 
-  /// Base URL (default: https://api.deepseek.com/v1).
+  /// Base URL (e.g. 'https://api.openai.com/v1').
   final String baseUrl;
 
   /// Default model to use if not specified per-call.
@@ -38,18 +34,13 @@ class DeepSeekClient implements LLMClient {
   final Duration timeout;
 
   /// Mapping from API-safe tool names to internal tool names.
-  ///
-  /// Some API gateways (e.g. Qiniu/LiteLLM) require tool names to match
-  /// `^[a-zA-Z0-9_-]+$` — dots are not allowed. We replace dots with
-  /// underscores when sending, and use this map to convert back when
-  /// parsing responses.
   Map<String, String> _apiToInternalNames = const {};
 
-  /// Creates a [DeepSeekClient].
-  DeepSeekClient({
+  /// Creates an [OpenAICompatibleClient].
+  OpenAICompatibleClient({
     required this.apiKey,
-    this.baseUrl = 'https://api.deepseek.com/v1',
-    this.defaultModel = 'deepseek-chat',
+    required this.baseUrl,
+    required this.defaultModel,
     http.Client? httpClient,
     this.timeout = const Duration(seconds: 120),
   }) : _httpClient = httpClient ?? http.Client();
@@ -65,7 +56,6 @@ class DeepSeekClient implements LLMClient {
   }) async* {
     final actualModel = model ?? defaultModel;
 
-    // Build request body
     final body = <String, dynamic>{
       'model': actualModel,
       'messages': _buildMessages(messages, systemPrompt),
@@ -80,25 +70,21 @@ class DeepSeekClient implements LLMClient {
       body['tools'] = tools.map((t) => t.toOpenAIJson()).toList();
     }
 
-    // Make streaming request
     final request = http.Request('POST', Uri.parse('$baseUrl/chat/completions'));
     request.headers['Content-Type'] = 'application/json';
     request.headers['Authorization'] = 'Bearer $apiKey';
     request.body = jsonEncode(body);
 
-    final response = await _httpClient
-        .send(request)
-        .timeout(timeout);
+    final response = await _httpClient.send(request).timeout(timeout);
 
     if (response.statusCode != 200) {
       final errorBody = await response.stream.bytesToString();
       throw LlmException(
-        'DeepSeek API error ${response.statusCode}: $errorBody',
+        'API error ${response.statusCode}: $errorBody',
         statusCode: response.statusCode,
       );
     }
 
-    // Parse SSE stream
     yield* _parseSseStream(response.stream.transform(utf8.decoder));
   }
 
@@ -139,7 +125,7 @@ class DeepSeekClient implements LLMClient {
 
     if (response.statusCode != 200) {
       throw LlmException(
-        'DeepSeek API error ${response.statusCode}: ${response.body}',
+        'API error ${response.statusCode}: ${response.body}',
         statusCode: response.statusCode,
       );
     }
@@ -149,10 +135,7 @@ class DeepSeekClient implements LLMClient {
   }
 
   @override
-  List<String> availableModels() => const [
-        'deepseek-chat',
-        'deepseek-reasoner',
-      ];
+  List<String> availableModels() => [defaultModel];
 
   @override
   void dispose() {
@@ -161,8 +144,6 @@ class DeepSeekClient implements LLMClient {
 
   // ── Private helpers ──────────────────────────────────────────────────
 
-  /// Builds a mapping from API-safe names (dots replaced with underscores)
-  /// to internal tool names.
   Map<String, String> _buildNameMap(List<LlmToolDefinition> tools) {
     final map = <String, String>{};
     for (final t in tools) {
@@ -174,7 +155,6 @@ class DeepSeekClient implements LLMClient {
     return map;
   }
 
-  /// Resolves an API-safe tool name back to the internal name.
   String _resolveToolName(String apiName) {
     return _apiToInternalNames[apiName] ?? apiName;
   }
@@ -195,7 +175,6 @@ class DeepSeekClient implements LLMClient {
       if (msg.content != null) {
         m['content'] = msg.content;
       } else if (msg.role == 'assistant') {
-        // Assistant with tool calls but no text
         m['content'] = null;
       }
 
@@ -231,7 +210,6 @@ class DeepSeekClient implements LLMClient {
     await for (final line in lines) {
       buffer.write(line);
 
-      // Process complete lines
       while (true) {
         final bufStr = buffer.toString();
         final nlIndex = bufStr.indexOf('\n');
@@ -246,19 +224,13 @@ class DeepSeekClient implements LLMClient {
         if (!trimmed.startsWith('data: ')) continue;
 
         final data = trimmed.substring(6);
-        if (data == '[DONE]') {
-          // [DONE] just signals end of stream — don't yield another done chunk
-          // (the finish_reason chunk already yielded isDone=true)
-          return;
-        }
+        if (data == '[DONE]') return;
 
         try {
           final json = jsonDecode(data) as Map<String, dynamic>;
           final chunk = _parseStreamChunk(json, toolCallAccumulators);
           if (chunk != null) yield chunk;
-        } catch (e) {
-          // Skip malformed lines
-        }
+        } catch (_) {}
       }
     }
   }
@@ -269,13 +241,9 @@ class DeepSeekClient implements LLMClient {
   ) {
     final choices = json['choices'] as List<dynamic>?;
     if (choices == null || choices.isEmpty) {
-      // Check for usage-only chunk (sent at end with stream_options)
       final usage = json['usage'] as Map<String, dynamic>?;
       if (usage != null) {
-        return LlmChunk(
-          isDone: true,
-          usage: LlmUsage.fromJson(usage),
-        );
+        return LlmChunk(isDone: true, usage: LlmUsage.fromJson(usage));
       }
       return null;
     }
@@ -295,19 +263,17 @@ class DeepSeekClient implements LLMClient {
 
     if (delta == null) return null;
 
-    // Reasoning/thinking content (DeepSeek-reasoner)
+    // Reasoning/thinking content (DeepSeek-reasoner, o1, etc.)
     final reasoningContent = delta['reasoning_content'] as String?;
     if (reasoningContent != null && reasoningContent.isNotEmpty) {
       return LlmChunk(thinkingDelta: reasoningContent);
     }
 
-    // Regular content
     final content = delta['content'] as String?;
     if (content != null && content.isNotEmpty) {
       return LlmChunk(contentDelta: content);
     }
 
-    // Tool calls (incremental)
     final toolCalls = delta['tool_calls'] as List<dynamic>?;
     if (toolCalls != null && toolCalls.isNotEmpty) {
       final tc = toolCalls[0] as Map<String, dynamic>;
@@ -317,7 +283,6 @@ class DeepSeekClient implements LLMClient {
       final name = function?['name'] as String?;
       final argsDelta = function?['arguments'] as String?;
 
-      // Accumulate
       final acc = accumulators.putIfAbsent(index, () => _ToolCallAccumulator());
       if (id != null) acc.id = id;
       if (name != null) acc.name = _resolveToolName(name);
@@ -383,4 +348,16 @@ class _ToolCallAccumulator {
   String? id;
   String? name;
   final StringBuffer argumentsBuffer = StringBuffer();
+}
+
+/// Exception thrown by LLM clients.
+class LlmException implements Exception {
+  final String message;
+  final int? statusCode;
+
+  const LlmException(this.message, {this.statusCode});
+
+  @override
+  String toString() =>
+      'LlmException(${statusCode ?? "?"}): $message';
 }

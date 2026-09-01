@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:icons_plus/icons_plus.dart';
 
 import 'package:nudgee/core/models/im/im.dart';
+import 'package:nudgee/core/services/chat_service.dart';
 import 'package:nudgee/core/widgets/feedback/ling_avatar.dart';
 import 'package:nudgee/core/widgets/feedback/ling_file_viewer.dart';
 import 'package:nudgee/core/widgets/feedback/ling_image_viewer.dart';
@@ -13,6 +14,7 @@ import 'package:nudgee/core/widgets/feedback/ling_web_view_page.dart';
 import 'package:nudgee/core/widgets/im/ling_link_preview.dart';
 import 'package:nudgee/core/widgets/im/ling_link_preview_fetcher.dart';
 import 'package:nudgee/core/widgets/im/ling_message_reaction.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 /// A message bubble for IM chat.
 ///
@@ -254,6 +256,13 @@ class LingMessageBubble extends StatelessWidget {
 
   Widget _buildText(BuildContext context, Color textColor) {
     final text = message.text ?? '';
+
+    // AI assistant messages are rendered as Markdown.
+    final isAiMessage = message.authorId == ChatService.aiAssistantId;
+    if (isAiMessage) {
+      return _buildMarkdownText(context, textColor, text);
+    }
+
     final urlMatch = _urlRegex.firstMatch(text);
     if (urlMatch == null) {
       return Text(
@@ -274,6 +283,89 @@ class LingMessageBubble extends StatelessWidget {
         const SizedBox(height: 6),
         _LinkPreviewCard(url: url),
       ],
+    );
+  }
+
+  /// Build Markdown-formatted text for AI messages.
+  ///
+  /// Uses [MarkdownBody] from flutter_markdown to render rich content
+  /// (headers, lists, code blocks, bold, links, etc.).
+  Widget _buildMarkdownText(BuildContext context, Color textColor, String text) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // For outgoing (AI) messages on primary-colored bubbles, use onPrimary.
+    // For incoming AI messages on surface bubbles, use onSurface.
+    return MarkdownBody(
+      data: text,
+      selectable: true,
+      styleSheet: MarkdownStyleSheet(
+        p: theme.textTheme.bodyMedium?.copyWith(color: textColor),
+        h1: theme.textTheme.headlineSmall?.copyWith(
+            color: textColor, fontWeight: FontWeight.bold),
+        h2: theme.textTheme.titleLarge?.copyWith(
+            color: textColor, fontWeight: FontWeight.bold),
+        h3: theme.textTheme.titleMedium?.copyWith(
+            color: textColor, fontWeight: FontWeight.bold),
+        h4: theme.textTheme.titleSmall?.copyWith(
+            color: textColor, fontWeight: FontWeight.bold),
+        h5: theme.textTheme.labelLarge?.copyWith(
+            color: textColor, fontWeight: FontWeight.bold),
+        h6: theme.textTheme.labelMedium?.copyWith(
+            color: textColor, fontWeight: FontWeight.bold),
+        listBullet: theme.textTheme.bodyMedium?.copyWith(color: textColor),
+        strong: theme.textTheme.bodyMedium
+            ?.copyWith(color: textColor, fontWeight: FontWeight.bold),
+        em: theme.textTheme.bodyMedium
+            ?.copyWith(color: textColor, fontStyle: FontStyle.italic),
+        blockquote: theme.textTheme.bodyMedium?.copyWith(
+            color: textColor.withOpacity(0.8),
+            fontStyle: FontStyle.italic),
+        blockquoteDecoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(
+              color: textColor.withOpacity(0.3),
+              width: 3,
+            ),
+          ),
+        ),
+        code: theme.textTheme.bodySmall?.copyWith(
+          color: textColor,
+          fontFamily: 'monospace',
+          fontFamilyFallback: const ['Courier', 'Menlo', 'Monaco'],
+          backgroundColor: textColor.withOpacity(0.1),
+        ),
+        codeblockDecoration: BoxDecoration(
+          color: isDark
+              ? textColor.withOpacity(0.08)
+              : textColor.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        codeblockPadding: const EdgeInsets.all(12),
+        tableHead: theme.textTheme.bodyMedium
+            ?.copyWith(color: textColor, fontWeight: FontWeight.bold),
+        tableBody: theme.textTheme.bodyMedium?.copyWith(color: textColor),
+        tableColumnWidth: const FlexColumnWidth(),
+        tableCellsPadding: const EdgeInsets.symmetric(
+            horizontal: 10, vertical: 6),
+        tableHeadAlign: TextAlign.center,
+        a: theme.textTheme.bodyMedium?.copyWith(
+          color: isOutgoing
+              ? theme.colorScheme.onPrimary
+              : theme.colorScheme.primary,
+          decoration: TextDecoration.underline,
+        ),
+        listBulletPadding: const EdgeInsets.symmetric(horizontal: 4),
+        listIndent: 24,
+      ),
+      onTapLink: (url, _, __) {
+        // Open links in web view
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => LingWebViewPage(url: url, title: url),
+          ),
+        );
+      },
     );
   }
 
