@@ -134,11 +134,11 @@ class _CampusDiscoverState extends State<CampusDiscover> {
   ];
 
   /// 添加评论到指定帖子
-  void _addComment(int postIndex, String name, String? replyName, int? replyUid, String content) {
+  void _addComment(int postIndex, String name, String? replyName, dynamic replyUid, String content) {
     setState(() {
       final comments = _posts[postIndex]["displayCommentList"] as List;
       comments.add({
-        "uid": 9000 + Random().nextInt(999),
+        "uid": '${DateTime.now().millisecondsSinceEpoch}',
         "name": name,
         "replyName": replyName,
         "replyUid": replyUid,
@@ -153,7 +153,7 @@ class _CampusDiscoverState extends State<CampusDiscover> {
     BuildContext context,
     int postIndex, {
     String? replyName,
-    int? replyUid,
+    dynamic replyUid,
   }) async {
     final controller = TextEditingController();
     final hint = replyName != null ? "回复 $replyName" : "写评论...";
@@ -266,7 +266,7 @@ class _CampusDiscoverState extends State<CampusDiscover> {
 }
 
 class SinglePosts extends StatefulWidget {
-  final int? posterUid;
+  final dynamic posterUid;
   final String? posterName;
   final String? posterAvatar;
   final String? content;
