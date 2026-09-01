@@ -143,13 +143,38 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
                                   fontSize: 22, fontWeight: FontWeight.bold, height: 1.2),
                             ),
                             const SizedBox(height: 4),
-                            Text(
-                              isLoggedIn
-                                  ? (user != null && user.id.length > 8
-                                      ? 'ID: ${user.id.substring(0, 7)}****${user.id.substring(user.id.length - 1)}'
-                                      : 'ID: ${user?.id ?? ""}')
-                                  : l10n.tapToLogin,
-                              style: const TextStyle(fontSize: 15, height: 1),
+                            Row(
+                              children: [
+                                Text(
+                                  isLoggedIn
+                                      ? (user != null && user.id.length > 8
+                                          ? 'ID: ${user.id.substring(0, 7)}****${user.id.substring(user.id.length - 1)}'
+                                          : 'ID: ${user?.id ?? ""}')
+                                      : l10n.tapToLogin,
+                                  style: const TextStyle(fontSize: 15, height: 1),
+                                ),
+                                if (isLoggedIn && user?.gender != null && user!.gender!.isNotEmpty) ...[
+                                  const SizedBox(width: 8),
+                                  Icon(
+                                    user.gender == '男' ? Icons.male : Icons.female,
+                                    size: 16,
+                                    color: user.gender == '男'
+                                        ? Colors.blue
+                                        : Colors.pink,
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    user.gender!,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      height: 1,
+                                      color: user.gender == '男'
+                                          ? Colors.blue
+                                          : Colors.pink,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ],
                         ),

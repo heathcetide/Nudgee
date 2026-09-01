@@ -347,22 +347,38 @@ class AuthService {
       if (user == null) return (false, '未登录');
 
       // 1. Download current cloud profile (preserve passwordHash etc.)
-      final existing = await fetchUserProfile(user.id);
-      if (existing == null) {
-        return (false, '无法读取云端用户数据');
+      // Fall back to local profile if cloud fetch fails.
+      Map<String, dynamic> existing = {};
+      final cloudProfile = await fetchUserProfile(user.id);
+      if (cloudProfile != null) {
+        existing = cloudProfile;
+      } else {
+        debugPrint('[Auth] updateProfile — cloud fetch failed, using local profile');
+        final localProfile = _userStorage.getProfile();
+        if (localProfile != null) {
+          existing = Map<String, dynamic>.from(localProfile);
+        } else {
+          // Last resort: build from current user + minimal fields.
+          existing = {
+            'id': user.id,
+            'name': user.name,
+            'passwordHash': '', // placeholder
+          };
+        }
       }
 
       // 2. Merge updates
       existing.addAll(updates);
 
-      // 3. Upload back to Qiniu
+      // 3. Upload back to Qiniu (best-effort, don't block local save)
       final qiniu = _qiniu ?? di.sl<QiniuStorageService>();
       _qiniu = qiniu;
       final key = _profileKey(user.id);
       final bytes = Uint8List.fromList(utf8.encode(jsonEncode(existing)));
-      final url = await qiniu.uploadBytes(key, bytes);
-      if (url == null) {
-        return (false, '上传到七牛失败');
+      try {
+        await qiniu.uploadBytes(key, bytes);
+      } catch (e) {
+        debugPrint('[Auth] updateProfile — cloud upload failed (saved locally): $e');
       }
 
       // 4. Update local + memory
