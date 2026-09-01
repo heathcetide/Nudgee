@@ -303,6 +303,7 @@ class ChatServiceSystemPrompt {
       '- schedule.add/query/remove: 管理用户日程\n'
       '- post.create/query/like: 管理动态\n'
       '- memory.save/query: 保存和查询用户记忆\n'
+      '- datetime: 获取当前时间/日期、格式化日期、日期加减、计算日期差\n'
       '- tool.search: 搜索可用工具\n\n'
       '当用户问到你不确定的事实、最新事件、或需要计算时，主动使用工具。'
       '当用户问关于开源项目、GitHub 仓库、代码搜索时，使用 github.search。'

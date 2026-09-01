@@ -27,6 +27,9 @@ export 'package:nudgee/core/agent/tools/builtin/js_executor_tool.dart';
 export 'package:nudgee/core/agent/tools/builtin/workspace_fs_tool.dart';
 export 'package:nudgee/core/agent/tools/builtin/cloud_sandbox_tool.dart';
 
+// DateTime tool
+export 'package:nudgee/core/agent/tools/builtin/datetime_tool.dart';
+
 // Meta tools
 export 'package:nudgee/core/agent/tools/builtin/tool_search_tool.dart';
 export 'package:nudgee/core/agent/tools/builtin/ask_user_tool.dart';
@@ -42,6 +45,7 @@ import 'package:nudgee/core/agent/tools/builtin/git_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/js_executor_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/workspace_fs_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/cloud_sandbox_tool.dart';
+import 'package:nudgee/core/agent/tools/builtin/datetime_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/tool_search_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/ask_user_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/todo_write_tool.dart';
@@ -110,6 +114,9 @@ void registerBuiltinTools(ToolRegistry registry, {WorkspaceService? workspace}) 
   registry.register(ToolSearchTool(registry));
   registry.register(AskUserTool());
   registry.register(TodoWriteTool());
+
+  // DateTime
+  registry.register(DateTimeTool());
 }
 
 /// Returns the list of all built-in tool names.
@@ -140,4 +147,6 @@ const List<String> builtinToolNames = [
   'tool.search',
   'ask_user',
   'todo.write',
+  // DateTime
+  'datetime',
 ];
