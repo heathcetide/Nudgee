@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:icons_plus/icons_plus.dart';
 
 import 'package:nudgee/core/models/im/im.dart';
 import 'package:nudgee/core/widgets/feedback/ling_avatar.dart';
@@ -814,7 +815,7 @@ class _ThinkingBlockState extends State<_ThinkingBlock> {
                 child: Row(
                   children: [
                     Icon(
-                      widget.isStreaming ? Icons.psychology : Icons.lightbulb_outline,
+                      widget.isStreaming ? EvaIcons.flash : EvaIcons.bulb,
                       size: 14,
                       color: mutedColor,
                     ),
