@@ -1,11 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nudgee/core/agent/tools/agent_tool.dart';
 import 'package:nudgee/core/agent/tools/tool_registry.dart';
-import 'package:nudgee/core/agent/tools/tool_result.dart';
 import 'package:nudgee/core/agent/tools/builtin/builtin_tools.dart';
-import 'package:nudgee/core/agent/tools/builtin/todo_write_tool.dart';
-import 'package:nudgee/core/agent/tools/builtin/ask_user_tool.dart';
-import 'package:nudgee/core/agent/tools/builtin/tool_search_tool.dart';
 
 void main() {
   group('BuiltinTools registration', () {

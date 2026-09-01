@@ -1,5 +1,6 @@
 import 'package:nudgee/core/agent/agent_config.dart';
 import 'package:nudgee/core/agent/compaction/microcompact.dart';
+import 'package:nudgee/core/agent/memory/memory_manager.dart';
 import 'package:nudgee/core/agent/providers/llm_client.dart';
 import 'package:nudgee/core/agent/sanitize/message_sanitizer.dart';
 
@@ -24,20 +25,28 @@ class ContextGovernor {
   /// Message sanitizer for fixing broken history.
   final MessageSanitizer _sanitizer;
 
+  /// Optional memory manager for injecting long-term memory into the prompt.
+  final MemoryManager? memoryManager;
+
   /// Creates a [ContextGovernor].
   ContextGovernor({
     required this.systemPrompt,
     this.contextWindow = 64000,
     Microcompact? microcompact,
     MessageSanitizer? sanitizer,
+    this.memoryManager,
   })  : _microcompact = microcompact ?? Microcompact(),
         _sanitizer = sanitizer ?? MessageSanitizer();
 
   /// Creates from [AgentConfig].
-  factory ContextGovernor.fromConfig(AgentConfig config) {
+  factory ContextGovernor.fromConfig(
+    AgentConfig config, {
+    MemoryManager? memoryManager,
+  }) {
     return ContextGovernor(
       systemPrompt: config.systemPrompt,
       contextWindow: 64000,  // DeepSeek default
+      memoryManager: memoryManager,
     );
   }
 
@@ -65,11 +74,23 @@ class ContextGovernor {
     return messages;
   }
 
-  /// Returns the system prompt (potentially augmented with knowledge/memory).
+  /// Returns the system prompt augmented with memory and extra context.
   ///
-  /// In Phase 3, this will inject knowledge base and memory items.
+  /// Memory injection order:
+  /// 1. Base system prompt
+  /// 2. Long-term memory (user profile, preferences, recent sessions)
+  /// 3. Extra context (passed by caller)
   String buildSystemPrompt({String? extraContext}) {
     var prompt = systemPrompt;
+
+    // Inject memory context (Phase 3)
+    if (memoryManager != null && memoryManager!.isCacheLoaded) {
+      final memoryContext = memoryManager!.buildMemoryContext();
+      if (memoryContext.isNotEmpty) {
+        prompt = '$prompt\n\n--- User Memory ---\n$memoryContext';
+      }
+    }
+
     if (extraContext != null && extraContext.isNotEmpty) {
       prompt = '$prompt\n\n$extraContext';
     }

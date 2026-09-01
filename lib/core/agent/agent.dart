@@ -38,3 +38,6 @@ export 'package:nudgee/core/agent/tools/builtin/builtin_tools.dart';
 
 // Trace & observability
 export 'package:nudgee/core/agent/trace/agent_trace.dart';
+
+// Memory system (Phase 3)
+export 'package:nudgee/core/agent/memory/memory.dart';
