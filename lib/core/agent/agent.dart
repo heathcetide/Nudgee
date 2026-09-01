@@ -44,3 +44,6 @@ export 'package:nudgee/core/agent/memory/memory.dart';
 
 // Skill system (Phase 4)
 export 'package:nudgee/core/agent/skills/skills.dart';
+
+// MCP system (Phase 5)
+export 'package:nudgee/core/agent/mcp/mcp.dart';
