@@ -180,13 +180,33 @@ class _ChatPageState extends State<ChatPage> {
       (chunk) {
         if (chunk.isThinking) {
           thinkingBuffer.write(chunk.text);
-          // While thinking, keep typing indicator on.
+          // Create the message bubble on first thinking delta (with empty content),
+          // showing the thinking process streaming in real-time.
+          if (aiMsgId == null) {
+            aiMsgId = 'ai_${DateTime.now().millisecondsSinceEpoch}';
+            controller.addMessage(LingMessage(
+              id: aiMsgId!,
+              conversationId: conv.id,
+              authorId: ChatService.aiAssistantId,
+              type: LingMessageType.text,
+              text: '',
+              createdAt: DateTime.now(),
+              status: LingMessageStatus.sending,
+              metadata: {'thinking': thinkingBuffer.toString(), 'thinkingStreaming': true},
+            ));
+            controller.isTyping = false;
+          } else {
+            controller.updateMessage(aiMsgId!, (m) => m.copyWith(
+              metadata: {'thinking': thinkingBuffer.toString(), 'thinkingStreaming': true},
+            ));
+          }
           return;
         }
 
-        // Content delta.
+        // Content delta — transition from thinking to reply.
         contentBuffer.write(chunk.text);
         if (aiMsgId == null) {
+          // No thinking phase, create bubble on first content delta.
           aiMsgId = 'ai_${DateTime.now().millisecondsSinceEpoch}';
           controller.addMessage(LingMessage(
             id: aiMsgId!,
@@ -202,6 +222,7 @@ class _ChatPageState extends State<ChatPage> {
           ));
           controller.isTyping = false;
         } else {
+          // Update existing bubble: switch from thinking to content.
           controller.updateMessage(aiMsgId!, (m) => m.copyWith(
             text: contentBuffer.toString(),
             status: LingMessageStatus.sent,
@@ -441,7 +462,11 @@ class _ChatPageState extends State<ChatPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
-            onPressed: _openTemplatePage,
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('提示词模板功能即将上线')),
+              );
+            },
           ),
         ],
       ),

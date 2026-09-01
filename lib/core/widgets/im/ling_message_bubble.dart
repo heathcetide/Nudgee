@@ -213,11 +213,13 @@ class LingMessageBubble extends StatelessWidget {
     final theme = Theme.of(context);
     final thinking = message.metadata!['thinking'] as String;
     if (thinking.isEmpty) return const SizedBox.shrink();
+    final isStreaming = message.metadata?['thinkingStreaming'] == true;
 
     return _ThinkingBlock(
       thinking: thinking,
       textColor: textColor,
       theme: theme,
+      isStreaming: isStreaming,
     );
   }
 
@@ -753,11 +755,13 @@ class _ThinkingBlock extends StatefulWidget {
   final String thinking;
   final Color textColor;
   final ThemeData theme;
+  final bool isStreaming;
 
   const _ThinkingBlock({
     required this.thinking,
     required this.textColor,
     required this.theme,
+    this.isStreaming = false,
   });
 
   @override
@@ -768,13 +772,20 @@ class _ThinkingBlockState extends State<_ThinkingBlock> {
   bool _expanded = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Auto-expand while streaming.
+    _expanded = widget.isStreaming;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isOutgoing = widget.textColor == widget.theme.colorScheme.onPrimary;
     final mutedColor = isOutgoing
         ? widget.theme.colorScheme.onPrimary.withAlpha(140)
         : widget.theme.colorScheme.onSurfaceVariant;
     final bgColor = isOutgoing
-        ? widget.theme.colorScheme.primary.withAlpha(40)
+        ? widget.theme.colorScheme.primary.withAlpha(30)
         : widget.theme.colorScheme.surfaceContainerHighest;
 
     return Padding(
@@ -783,44 +794,65 @@ class _ThinkingBlockState extends State<_ThinkingBlock> {
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(8),
+          // Left accent bar — quote/blockquote style.
+          border: Border(
+            left: BorderSide(
+              color: mutedColor.withAlpha(80),
+              width: 3,
+            ),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header (tap to toggle)
             InkWell(
-              onTap: () => setState(() => _expanded = !_expanded),
+              onTap: widget.isStreaming ? null : () => setState(() => _expanded = !_expanded),
               borderRadius: BorderRadius.circular(8),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 child: Row(
                   children: [
-                    Icon(Icons.psychology, size: 14, color: mutedColor),
+                    Icon(
+                      widget.isStreaming ? Icons.psychology : Icons.lightbulb_outline,
+                      size: 14,
+                      color: mutedColor,
+                    ),
                     const SizedBox(width: 6),
                     Text(
-                      _expanded ? '思考过程' : '查看思考过程',
+                      widget.isStreaming
+                          ? '思考中…'
+                          : (_expanded ? '思考过程' : '查看思考过程'),
                       style: TextStyle(fontSize: 12, color: mutedColor),
                     ),
                     const Spacer(),
-                    Icon(
-                      _expanded ? Icons.expand_less : Icons.expand_more,
-                      size: 16,
-                      color: mutedColor,
-                    ),
+                    if (!widget.isStreaming)
+                      Icon(
+                        _expanded ? Icons.expand_less : Icons.expand_more,
+                        size: 16,
+                        color: mutedColor,
+                      ),
                   ],
                 ),
               ),
             ),
-            // Thinking content (collapsible)
+            // Thinking content (collapsible, auto-expanded while streaming)
             if (_expanded)
               Padding(
                 padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-                child: Text(
-                  widget.thinking,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.5,
-                    color: mutedColor,
+                child: RichText(
+                  text: TextSpan(
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.5,
+                      color: mutedColor,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    children: [
+                      TextSpan(text: widget.thinking),
+                      if (widget.isStreaming)
+                        const TextSpan(text: '▎'),
+                    ],
                   ),
                 ),
               ),
