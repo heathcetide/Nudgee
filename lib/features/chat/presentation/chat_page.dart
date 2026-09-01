@@ -127,19 +127,13 @@ class _ChatPageState extends State<ChatPage> {
   // ── 发送消息 ──────────────────────────────────────────────────────────
 
   void _onSend(LingConversation conv, String text) async {
-    // Persist user message via ChatService.
-    final msg = await sl<ChatService>().sendMessage(
+    // LingChatScreen already adds the user bubble to the controller internally.
+    // We only persist to ChatService here (no duplicate addMessage).
+    await sl<ChatService>().sendMessage(
       conversationId: conv.id,
       authorId: _currentUserId,
       text: text,
     );
-
-    // Update chat controller (LingChatScreen already added the bubble internally,
-    // but we sync from service to keep consistent).
-    final controller = _chatControllers[conv.id];
-    if (controller != null && !controller.messages.any((m) => m.id == msg.id)) {
-      controller.addMessage(msg);
-    }
 
     // Route to AI if this is the AI assistant or a template-based AI conversation.
     final isAiConv = conv.id == ChatService.aiAssistantId ||
@@ -177,13 +171,21 @@ class _ChatPageState extends State<ChatPage> {
 
     controller.isTyping = true;
 
-    final buffer = StringBuffer();
+    final contentBuffer = StringBuffer();
+    final thinkingBuffer = StringBuffer();
     String? aiMsgId;
-    StreamSubscription<String>? sub;
+    StreamSubscription<AiStreamChunk>? sub;
 
-    sub = ai.streamChat(userText).listen(
-      (delta) {
-        buffer.write(delta);
+    sub = ai.streamChatWithThinking(userText).listen(
+      (chunk) {
+        if (chunk.isThinking) {
+          thinkingBuffer.write(chunk.text);
+          // While thinking, keep typing indicator on.
+          return;
+        }
+
+        // Content delta.
+        contentBuffer.write(chunk.text);
         if (aiMsgId == null) {
           aiMsgId = 'ai_${DateTime.now().millisecondsSinceEpoch}';
           controller.addMessage(LingMessage(
@@ -191,25 +193,33 @@ class _ChatPageState extends State<ChatPage> {
             conversationId: conv.id,
             authorId: ChatService.aiAssistantId,
             type: LingMessageType.text,
-            text: buffer.toString(),
+            text: contentBuffer.toString(),
             createdAt: DateTime.now(),
             status: LingMessageStatus.sent,
+            metadata: thinkingBuffer.isNotEmpty
+                ? {'thinking': thinkingBuffer.toString()}
+                : null,
           ));
           controller.isTyping = false;
         } else {
           controller.updateMessage(aiMsgId!, (m) => m.copyWith(
-            text: buffer.toString(),
+            text: contentBuffer.toString(),
             status: LingMessageStatus.sent,
+            metadata: thinkingBuffer.isNotEmpty
+                ? {'thinking': thinkingBuffer.toString()}
+                : null,
           ));
         }
       },
       onDone: () {
         controller.isTyping = false;
-        final finalText = buffer.toString().isEmpty ? '...' : buffer.toString();
+        final finalText = contentBuffer.toString().isEmpty ? '...' : contentBuffer.toString();
+        final thinking = thinkingBuffer.toString();
         if (aiMsgId != null) {
           controller.updateMessage(aiMsgId!, (m) => m.copyWith(
             text: finalText,
             status: LingMessageStatus.read,
+            metadata: thinking.isNotEmpty ? {'thinking': thinking} : null,
           ));
         }
         // Persist the AI message to ChatService (SQLite + cloud).

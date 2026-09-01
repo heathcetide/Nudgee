@@ -193,6 +193,21 @@ class AiService {
     }
   }
 
+  /// Stream a response with thinking/reasoning support.
+  ///
+  /// Yields [AiStreamChunk] which distinguishes between thinking content
+  /// (reasoning process) and normal content (final reply).
+  Stream<AiStreamChunk> streamChatWithThinking(String message) async* {
+    if (_ai == null) throw StateError('AI service not configured');
+    await for (final chunk in _ai!.streamChat(message)) {
+      if (chunk.isThinkingDelta && chunk.delta != null) {
+        yield AiStreamChunk.thinking(chunk.delta!);
+      } else if (chunk.isDelta && chunk.delta != null) {
+        yield AiStreamChunk.content(chunk.delta!);
+      }
+    }
+  }
+
   /// Clear conversation context.
   void clearContext() {
     _ai?.clearContext();
@@ -211,4 +226,15 @@ class AiService {
     _ai?.dispose();
     _ai = null;
   }
+}
+
+/// A chunk from the AI stream that distinguishes thinking vs content.
+class AiStreamChunk {
+  final String text;
+  final bool isThinking;
+
+  const AiStreamChunk._(this.text, this.isThinking);
+
+  const AiStreamChunk.thinking(String text) : this._(text, true);
+  const AiStreamChunk.content(String text) : this._(text, false);
 }

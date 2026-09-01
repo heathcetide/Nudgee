@@ -145,6 +145,9 @@ class LingMessageBubble extends StatelessWidget {
                       children: [
                         // Reply quote
                         if (message.replyTo != null) _buildReplyQuote(context, textColor),
+                        // Thinking process (for AI reasoning models)
+                        if (message.metadata?['thinking'] != null)
+                          _buildThinkingBlock(context, textColor),
                         // Content
                         customContent ?? _buildContent(context, textColor),
                         // Time + status
@@ -202,6 +205,19 @@ class LingMessageBubble extends StatelessWidget {
       topRight: Radius.circular(radius),
       bottomLeft: Radius.circular(4),
       bottomRight: Radius.circular(radius),
+    );
+  }
+
+  /// Build a collapsible thinking/reasoning block for AI messages.
+  Widget _buildThinkingBlock(BuildContext context, Color textColor) {
+    final theme = Theme.of(context);
+    final thinking = message.metadata!['thinking'] as String;
+    if (thinking.isEmpty) return const SizedBox.shrink();
+
+    return _ThinkingBlock(
+      thinking: thinking,
+      textColor: textColor,
+      theme: theme,
     );
   }
 
@@ -727,6 +743,89 @@ class _LinkPreviewCardState extends State<_LinkPreviewCard> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => LingWebViewPage(url: widget.url),
+      ),
+    );
+  }
+}
+
+/// A collapsible thinking/reasoning block shown above AI message content.
+class _ThinkingBlock extends StatefulWidget {
+  final String thinking;
+  final Color textColor;
+  final ThemeData theme;
+
+  const _ThinkingBlock({
+    required this.thinking,
+    required this.textColor,
+    required this.theme,
+  });
+
+  @override
+  State<_ThinkingBlock> createState() => _ThinkingBlockState();
+}
+
+class _ThinkingBlockState extends State<_ThinkingBlock> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isOutgoing = widget.textColor == widget.theme.colorScheme.onPrimary;
+    final mutedColor = isOutgoing
+        ? widget.theme.colorScheme.onPrimary.withAlpha(140)
+        : widget.theme.colorScheme.onSurfaceVariant;
+    final bgColor = isOutgoing
+        ? widget.theme.colorScheme.primary.withAlpha(40)
+        : widget.theme.colorScheme.surfaceContainerHighest;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header (tap to toggle)
+            InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Row(
+                  children: [
+                    Icon(Icons.psychology, size: 14, color: mutedColor),
+                    const SizedBox(width: 6),
+                    Text(
+                      _expanded ? '思考过程' : '查看思考过程',
+                      style: TextStyle(fontSize: 12, color: mutedColor),
+                    ),
+                    const Spacer(),
+                    Icon(
+                      _expanded ? Icons.expand_less : Icons.expand_more,
+                      size: 16,
+                      color: mutedColor,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Thinking content (collapsible)
+            if (_expanded)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                child: Text(
+                  widget.thinking,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.5,
+                    color: mutedColor,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
