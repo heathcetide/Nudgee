@@ -98,7 +98,8 @@ class _TodayScheduleState extends State<TodaySchedule> {
     _initState();
     super.initState();
     timer = Timer.periodic(Duration(seconds: 1), (_timer) {
-      updateTodayClassState();
+      if (!mounted) return;
+      setState(updateTodayClassState);
     });
   }
 
@@ -125,7 +126,11 @@ class _TodayScheduleState extends State<TodaySchedule> {
   bool _scheduleListenerAdded = false;
 
   void _onScheduleChanged() {
-    _loadDailyClass();
+    // Defer to avoid setState during build (ScheduleService.notifyListeners
+    // can fire during the build phase, e.g. from init()).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadDailyClass();
+    });
   }
 
   void _loadDailyClass() {
@@ -150,62 +155,60 @@ class _TodayScheduleState extends State<TodaySchedule> {
   }
 
   void updateTodayClassState() {
-    setState(() {
-      if (todayClassState['nowState'] == 'hereafter') {
-        todayClassState['stateList'] = List.filled(todayClass.length, 'future');
-        DateTime now = DateTime.now().add(tmpOffset);
-        if (now.isAfter(todayClassState['nowDate'])) {
-          todayClassState['nowState'] = 'finished';
-          todayClassState['nowIndex'] = -1;
-        }
-        return;
-      }
+    if (todayClassState['nowState'] == 'hereafter') {
+      todayClassState['stateList'] = List.filled(todayClass.length, 'future');
       DateTime now = DateTime.now().add(tmpOffset);
-      int nowMinute = now.hour * 60 + now.minute;
-      todayClassState['stateList'] = List.filled(todayClass.length, 'passed');
-      bool hasNowState = false;
-      todayClassState['nowIndex'] = -1;
-      todayClassState['nowState'] = 'finished';
-      for (int i = 0; i < todayClass.length; i++) {
-        if (nowMinute >= getMinutesFromTimeStr(todayClass[i]['startTime']) &&
-            nowMinute < getMinutesFromTimeStr(todayClass[i]['endTime'])) {
-          // 任务进行中
-          todayClassState['nowState'] = 'active';
-          todayClassState['nowIndex'] = i;
-          todayClassState['stateList'][i] = 'active';
-          hasNowState = true;
+      if (now.isAfter(todayClassState['nowDate'])) {
+        todayClassState['nowState'] = 'finished';
+        todayClassState['nowIndex'] = -1;
+      }
+      return;
+    }
+    DateTime now = DateTime.now().add(tmpOffset);
+    int nowMinute = now.hour * 60 + now.minute;
+    todayClassState['stateList'] = List.filled(todayClass.length, 'passed');
+    bool hasNowState = false;
+    todayClassState['nowIndex'] = -1;
+    todayClassState['nowState'] = 'finished';
+    for (int i = 0; i < todayClass.length; i++) {
+      if (nowMinute >= getMinutesFromTimeStr(todayClass[i]['startTime']) &&
+          nowMinute < getMinutesFromTimeStr(todayClass[i]['endTime'])) {
+        // 任务进行中
+        todayClassState['nowState'] = 'active';
+        todayClassState['nowIndex'] = i;
+        todayClassState['stateList'][i] = 'active';
+        hasNowState = true;
+      } else {
+        // 未在任务中
+        if (nowMinute > getMinutesFromTimeStr(todayClass[i]['startTime'])) {
+          todayClassState['stateList'][i] = 'passed';
         } else {
-          // 未在任务中
-          if (nowMinute > getMinutesFromTimeStr(todayClass[i]['startTime'])) {
-            todayClassState['stateList'][i] = 'passed';
+          if (hasNowState) {
+            todayClassState['stateList'][i] = 'future';
           } else {
-            if (hasNowState) {
-              todayClassState['stateList'][i] = 'future';
-            } else {
-              hasNowState = true;
-              todayClassState['stateList'][i] = 'upcoming';
-              todayClassState['nowState'] = 'upcoming';
-              todayClassState['nowIndex'] = i;
-            }
+            hasNowState = true;
+            todayClassState['stateList'][i] = 'upcoming';
+            todayClassState['nowState'] = 'upcoming';
+            todayClassState['nowIndex'] = i;
           }
         }
       }
-      if (todayClassState['nowState'] == 'finished') {
-        DateTime currentDate = DateTime.now().add(tmpOffset);
-        for (int i = 1; i <= 14; i++) {
-          // 向后找两周
-          DateTime date = currentDate.add(Duration(days: i));
-          date = DateTime(date.year, date.month, date.day, 0, 0, 0);
-          if (dailyClass[date.toString().split(' ')[0]] != null) {
-            todayClass = getTodayClassFromDateStr(date.toString().split(' ')[0]);
-            todayClassState['nowState'] = 'hereafter';
-            todayClassState["nowDate"] = date;
-            updateTodayClassState();
-            break;
-          }
+    }
+    if (todayClassState['nowState'] == 'finished') {
+      DateTime currentDate = DateTime.now().add(tmpOffset);
+      for (int i = 1; i <= 14; i++) {
+        // 向后找两周
+        DateTime date = currentDate.add(Duration(days: i));
+        date = DateTime(date.year, date.month, date.day, 0, 0, 0);
+        if (dailyClass[date.toString().split(' ')[0]] != null) {
+          todayClass = getTodayClassFromDateStr(date.toString().split(' ')[0]);
+          todayClassState['nowState'] = 'hereafter';
+          todayClassState["nowDate"] = date;
+          updateTodayClassState();
+          break;
         }
       }
-    });
+    }
   }
 
   List<dynamic> getTodayClassFromDateStr(String dateStr) {
