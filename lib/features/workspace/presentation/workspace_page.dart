@@ -15,6 +15,7 @@ import 'package:nudgee/core/agent/tools/builtin/js_executor_tool.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/workspace_service.dart';
+import 'package:nudgee/features/workspace/presentation/html_preview_page.dart';
 
 /// 个人空间页面 — 浏览和管理 AI 工作区文件。
 ///
@@ -223,6 +224,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
   Widget _buildEntryTile(ThemeData theme, WorkspaceEntry entry) {
     final isCode = _isCodeFile(entry.name);
     final isJs = entry.name.toLowerCase().endsWith('.js');
+    final isHtml = entry.name.toLowerCase().endsWith('.html') ||
+        entry.name.toLowerCase().endsWith('.htm');
     return ListTile(
       leading: Icon(
         entry.isDirectory ? Icons.folder : (isCode ? Icons.code : Icons.description),
@@ -235,6 +238,12 @@ class _WorkspacePageState extends State<WorkspacePage> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (isHtml && !entry.isDirectory)
+            IconButton(
+              icon: const Icon(Icons.preview, size: 20),
+              tooltip: '预览',
+              onPressed: () => _previewHtml(entry),
+            ),
           if (isJs && !entry.isDirectory)
             IconButton(
               icon: const Icon(Icons.play_arrow, size: 22),
@@ -259,6 +268,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
                 case 'run':
                   _runJsFile(entry);
                   break;
+                case 'preview':
+                  _previewHtml(entry);
+                  break;
                 case 'rename':
                   _showRenameDialog(entry);
                   break;
@@ -274,6 +286,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
                 const PopupMenuItem(value: 'edit', child: Text('编辑')),
               if (isJs && !entry.isDirectory)
                 const PopupMenuItem(value: 'run', child: Text('运行')),
+              if (isHtml && !entry.isDirectory)
+                const PopupMenuItem(value: 'preview', child: Text('预览')),
               const PopupMenuItem(value: 'rename', child: Text('重命名')),
               PopupMenuItem(
                 value: 'delete',
@@ -285,7 +299,17 @@ class _WorkspacePageState extends State<WorkspacePage> {
       ),
       onTap: entry.isDirectory
           ? () => _enterDir(entry)
-          : () => _showFileViewer(entry),
+          : isHtml
+              ? () => _previewHtml(entry)
+              : () => _showFileViewer(entry),
+    );
+  }
+
+  void _previewHtml(WorkspaceEntry entry) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => HtmlPreviewPage(relativePath: entry.relativePath),
+      ),
     );
   }
 

@@ -13,3 +13,10 @@ ai:
   model: deepseek-chat
   baseUrl: https://api.deepseek.com    # optional, only for custom endpoints
   systemPrompt: "You are a helpful assistant."
+
+# Cloud sandbox for remote code execution (optional)
+# When configured, AI can run Node.js/Python/Go code on your server.
+# Server API: POST /api/sandbox/execute { language, code, timeout }
+#             → { stdout, stderr, exitCode, duration }
+sandbox:
+  apiBaseUrl: https://your-sandbox-server.com

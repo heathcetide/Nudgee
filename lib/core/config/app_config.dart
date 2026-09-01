@@ -57,6 +57,7 @@ class AppConfig {
 
   static StorageConfig? _storage;
   static AiConfig? _ai;
+  static String? _sandboxApiBaseUrl;
   static bool _configLoaded = false;
 
   /// Load runtime config from `assets/config.yaml`.
@@ -73,6 +74,10 @@ class AppConfig {
       final ai = doc['ai'] as YamlMap?;
       if (ai != null) {
         _ai = AiConfig.fromYaml(ai);
+      }
+      final sandbox = doc['sandbox'] as YamlMap?;
+      if (sandbox != null) {
+        _sandboxApiBaseUrl = sandbox['apiBaseUrl'] as String?;
       }
     } catch (e) {
       debugPrint('[AppConfig] Failed to load config.yaml: $e');
@@ -91,6 +96,13 @@ class AppConfig {
 
   /// Whether AI config is available.
   static bool get hasAi => _ai != null;
+
+  /// Cloud sandbox API base URL, or `null` if not configured.
+  static String? get sandboxApiBaseUrl => _sandboxApiBaseUrl;
+
+  /// Whether cloud sandbox is configured.
+  static bool get hasSandbox =>
+      _sandboxApiBaseUrl != null && _sandboxApiBaseUrl!.isNotEmpty;
 }
 
 /// Storage configuration loaded from `config.yaml`.

@@ -292,6 +292,7 @@ class ChatServiceSystemPrompt {
       '- github.search: 搜索 GitHub 仓库/代码/Issues/用户\n'
       '- workspace.fs: 在用户本地工作区读写文件 (write/read/list/delete/mkdir)\n'
       '- workspace.js.exec: 在本地执行 JavaScript 代码 (计算/数据处理/算法)\n'
+      '- cloud.exec: 在云端沙箱执行代码 (Node.js/Python/Go, 支持 npm install)\n'
       '- schedule.add/query/remove: 管理用户日程\n'
       '- post.create/query/like: 管理动态\n'
       '- memory.save/query: 保存和查询用户记忆\n'

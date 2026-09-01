@@ -22,6 +22,7 @@ export 'package:nudgee/core/agent/tools/builtin/github_search_tool.dart';
 // Workspace tools
 export 'package:nudgee/core/agent/tools/builtin/js_executor_tool.dart';
 export 'package:nudgee/core/agent/tools/builtin/workspace_fs_tool.dart';
+export 'package:nudgee/core/agent/tools/builtin/cloud_sandbox_tool.dart';
 
 // Meta tools
 export 'package:nudgee/core/agent/tools/builtin/tool_search_tool.dart';
@@ -36,6 +37,7 @@ import 'package:nudgee/core/agent/tools/builtin/web_search_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/github_search_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/js_executor_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/workspace_fs_tool.dart';
+import 'package:nudgee/core/agent/tools/builtin/cloud_sandbox_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/tool_search_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/ask_user_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/todo_write_tool.dart';
@@ -91,10 +93,11 @@ void registerBuiltinTools(ToolRegistry registry, {WorkspaceService? workspace}) 
   // GitHub search
   registry.register(GitHubSearchTool());
 
-  // Workspace (file system + JS execution)
+  // Workspace (file system + JS execution + cloud sandbox)
   // WorkspaceFsTool lazily fetches WorkspaceService from DI if not provided.
   registry.register(WorkspaceFsTool(workspace));
   registry.register(JsExecutorTool());
+  registry.register(CloudSandboxTool());
 
   // Meta tools
   registry.register(ToolSearchTool(registry));
@@ -124,6 +127,7 @@ const List<String> builtinToolNames = [
   // Workspace
   'workspace.fs',
   'workspace.js.exec',
+  'cloud.exec',
   // Meta
   'tool.search',
   'ask_user',

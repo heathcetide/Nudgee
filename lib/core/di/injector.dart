@@ -18,6 +18,7 @@ import 'package:nudgee/core/services/app_update_service.dart';
 import 'package:nudgee/core/services/ai_service.dart';
 import 'package:nudgee/core/services/agent_service.dart';
 import 'package:nudgee/core/services/workspace_service.dart';
+import 'package:nudgee/core/services/cloud_sandbox_service.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/core/services/social_login_service.dart';
 import 'package:nudgee/core/services/background_task_service.dart';
@@ -178,6 +179,15 @@ Future<void> initDependencies() async {
     sl<WorkspaceService>().init();
   });
   debugPrint('[Init] WorkspaceService registered');
+
+  // ── Cloud Sandbox Service (remote code execution) ───────────────────
+  _safeRegister(() {
+    sl.registerLazySingleton<CloudSandboxService>(() {
+      final sandboxUrl = AppConfig.sandboxApiBaseUrl;
+      return CloudSandboxService(sl<Dio>(), apiBaseUrl: sandboxUrl);
+    });
+  });
+  debugPrint('[Init] CloudSandboxService registered');
 
   // ── Auth Service (Qiniu-backed, no backend) ──────────────────────────
   _safeRegister(() => sl.registerLazySingleton<AuthService>(
