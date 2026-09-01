@@ -16,6 +16,7 @@ import 'package:nudgee/core/services/api_cache_service.dart';
 import 'package:nudgee/core/services/app_lifecycle_service.dart';
 import 'package:nudgee/core/services/app_update_service.dart';
 import 'package:nudgee/core/services/ai_service.dart';
+import 'package:nudgee/core/services/agent_service.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/core/services/social_login_service.dart';
 import 'package:nudgee/core/services/background_task_service.dart';
@@ -162,6 +163,13 @@ Future<void> initDependencies() async {
     sl<AiService>().init();
   });
   debugPrint('[Init] AiService registered (configured: ${AppConfig.hasAi})');
+
+  // ── Agent Service (Full Agent Stack — AgentCore + Tools) ─────────────
+  _safeRegister(() {
+    sl.registerLazySingleton<AgentService>(() => AgentService());
+    sl<AgentService>().init();
+  });
+  debugPrint('[Init] AgentService registered');
 
   // ── Auth Service (Qiniu-backed, no backend) ──────────────────────────
   _safeRegister(() => sl.registerLazySingleton<AuthService>(

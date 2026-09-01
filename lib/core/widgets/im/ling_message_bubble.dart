@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -151,6 +152,9 @@ class LingMessageBubble extends StatelessWidget {
                         // Thinking process (for AI reasoning models)
                         if (message.metadata?['thinking'] != null)
                           _buildThinkingBlock(context, textColor),
+                        // Tool calls (for agent-based AI messages)
+                        if (message.metadata?['toolCalls'] != null)
+                          _buildToolCallsBlock(context, textColor),
                         // Content
                         customContent ?? _buildContent(context, textColor),
                         // Time + status
@@ -224,6 +228,174 @@ class LingMessageBubble extends StatelessWidget {
       theme: theme,
       isStreaming: isStreaming,
     );
+  }
+
+  /// Build a tool calls display block for agent-based AI messages.
+  ///
+  /// Shows each tool call with its name, status (running/success/error),
+  /// and expandable arguments + results.
+  Widget _buildToolCallsBlock(BuildContext context, Color textColor) {
+    final theme = Theme.of(context);
+    final toolCallsRaw = message.metadata!['toolCalls'];
+    if (toolCallsRaw is! List || toolCallsRaw.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final toolCalls = toolCallsRaw.cast<Map<String, dynamic>>();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(60),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Row(
+              children: [
+                Icon(Icons.build_circle, size: 14,
+                    color: theme.colorScheme.primary),
+                const SizedBox(width: 6),
+                Text(
+                  '工具调用 (${toolCalls.length})',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Tool call items
+          for (final tc in toolCalls) _buildToolCallItem(context, tc),
+        ],
+      ),
+    );
+  }
+
+  /// Build a single tool call item.
+  Widget _buildToolCallItem(BuildContext context, Map<String, dynamic> tc) {
+    final theme = Theme.of(context);
+    final name = tc['name'] as String? ?? 'unknown';
+    final status = tc['status'] as String? ?? 'running';
+    final args = tc['arguments'];
+    final result = tc['result'] as String?;
+
+    final (icon, color, label) = switch (status) {
+      'running' => (Icons.hourglass_top, theme.colorScheme.primary, '执行中...'),
+      'success' => (Icons.check_circle, Colors.green, '完成'),
+      'error' => (Icons.error, theme.colorScheme.error, '失败'),
+      _ => (Icons.help, theme.colorScheme.onSurfaceVariant, status),
+    };
+
+    return ExpansionTile(
+      tilePadding: const EdgeInsets.symmetric(horizontal: 10),
+      dense: true,
+      leading: Icon(icon, size: 16, color: color),
+      title: Text(
+        name,
+        style: theme.textTheme.bodySmall?.copyWith(
+          fontFamily: 'monospace',
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(color: color),
+      ),
+      children: [
+        // Arguments
+        if (args != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('参数',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    )),
+                const SizedBox(height: 2),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest
+                        .withAlpha(100),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: SelectableText(
+                    _formatArgs(args),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        // Result
+        if (result != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('结果',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: status == 'error'
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.onSurfaceVariant,
+                    )),
+                const SizedBox(height: 2),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(6),
+                  constraints: const BoxConstraints(maxHeight: 200),
+                  decoration: BoxDecoration(
+                    color: status == 'error'
+                        ? theme.colorScheme.errorContainer.withAlpha(40)
+                        : theme.colorScheme.surfaceContainerHighest
+                            .withAlpha(100),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: SingleChildScrollView(
+                    child: SelectableText(
+                      result.length > 500
+                          ? '${result.substring(0, 500)}...'
+                          : result,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Format tool arguments for display.
+  String _formatArgs(dynamic args) {
+    if (args is Map) {
+      try {
+        return const JsonEncoder.withIndent('  ').convert(args);
+      } catch (_) {
+        return args.toString();
+      }
+    }
+    return args?.toString() ?? '(none)';
   }
 
   Widget _buildContent(BuildContext context, Color textColor) {

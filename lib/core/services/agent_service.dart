@@ -1,0 +1,266 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+
+import 'package:nudgee/core/agent/agent.dart';
+import 'package:nudgee/core/agent/providers/providers.dart';
+import 'package:nudgee/core/config/app_config.dart';
+import 'package:nudgee/core/di/injector.dart' as di;
+
+/// Agent service — integrates AgentCore with tools, memory, and LLM config.
+///
+/// This is the **full agent stack** for the AI assistant "星语":
+/// - Uses [AgentCore] (ReAct loop) instead of raw LLM streaming
+/// - Has access to all built-in tools (web.search, schedule, post, memory, etc.)
+/// - Has access to sandbox execution (sandbox.exec, sandbox.fs)
+/// - Emits [AgentEvent]s (thinking, content, tool calls, tool results)
+///   so the UI can visualize the full agent process
+///
+/// Compared to [AiService] (which is a thin wrapper around FlutterAI SDK),
+/// AgentService provides:
+/// - Tool calling (web.search, schedule.add, memory.save, etc.)
+/// - Multi-step reasoning (ReAct loop)
+/// - Memory integration
+/// - Full trace/observability
+///
+/// Usage:
+/// ```dart
+/// final agentService = sl<AgentService>();
+/// await for (final event in agentService.run('What is the weather?')) {
+///   if (event is ThinkingEvent) print('Thinking: ${event.delta}');
+///   if (event is ContentEvent) print('Content: ${event.delta}');
+///   if (event is ToolCallEvent) print('Tool: ${event.call.name}');
+///   if (event is DoneEvent) print('Done: ${event.finalReply}');
+/// }
+/// ```
+class AgentService {
+  late final ToolRegistry _toolRegistry;
+  late final LLMClient _llmClient;
+  late final AgentConfig _agentConfig;
+  late final ContextGovernor _contextGovernor;
+
+  bool _initialized = false;
+  String _currentModel = '';
+  List<LlmMessage> _history = [];
+
+  /// Whether the agent service is configured and ready.
+  bool get isConfigured => _initialized;
+
+  /// The currently selected model.
+  String get currentModel => _currentModel;
+
+  /// The tool registry (for registering additional tools).
+  ToolRegistry get toolRegistry => _toolRegistry;
+
+  /// The conversation history.
+  List<LlmMessage> get history => List.unmodifiable(_history);
+
+  /// Initialize from [AppConfig]. Safe to call multiple times.
+  void init() {
+    if (_initialized) return;
+
+    final cfg = AppConfig.ai;
+    if (cfg == null || cfg.apiKey.isEmpty) {
+      debugPrint('[AgentService] No valid AI config found, service disabled');
+      return;
+    }
+
+    _currentModel = cfg.model;
+    _llmClient = _createLlmClient(cfg);
+    _toolRegistry = ToolRegistry();
+    registerBuiltinTools(_toolRegistry);
+
+    _agentConfig = AgentConfig(
+      id: 'nudgee-assistant',
+      name: '星语',
+      systemPrompt: ChatServiceSystemPrompt.defaultPrompt,
+      model: _currentModel,
+      toolNames: builtinToolNames,
+      maxSteps: 10,
+    );
+
+    _contextGovernor = ContextGovernor(
+      systemPrompt: _agentConfig.systemPrompt,
+    );
+
+    _initialized = true;
+    debugPrint('[AgentService] Initialized with model=$_currentModel, '
+        'tools=${_toolRegistry.names.length}');
+  }
+
+  /// Creates the appropriate LLM client based on config.
+  LLMClient _createLlmClient(AiConfig cfg) {
+    final provider = cfg.provider.toLowerCase();
+    final baseUrl = cfg.baseUrl ?? '';
+    final model = cfg.model;
+    final apiKey = cfg.apiKey;
+
+    // Try to match by provider name, then by baseUrl, then default to OpenAI-compatible
+    switch (provider) {
+      case 'anthropic' || 'claude':
+        return AnthropicClient(
+          apiKey: apiKey,
+          baseUrl: baseUrl.isNotEmpty ? baseUrl : 'https://api.anthropic.com/v1',
+          defaultModel: model,
+        );
+      case 'google' || 'gemini' || 'googleai':
+        return GoogleAIClient(
+          apiKey: apiKey,
+          baseUrl: baseUrl.isNotEmpty
+              ? baseUrl
+              : 'https://generativelanguage.googleapis.com/v1beta',
+          defaultModel: model,
+        );
+      case 'mistral':
+        return MistralClient(
+          apiKey: apiKey,
+          baseUrl: baseUrl.isNotEmpty ? baseUrl : 'https://api.mistral.ai/v1',
+          defaultModel: model,
+        );
+      case 'xai' || 'grok':
+        return XAIClient(
+          apiKey: apiKey,
+          baseUrl: baseUrl.isNotEmpty ? baseUrl : 'https://api.x.ai/v1',
+          defaultModel: model,
+        );
+      case 'ollama':
+        return OllamaClient(
+          baseUrl: baseUrl.isNotEmpty ? baseUrl : 'http://localhost:11434/v1',
+          defaultModel: model,
+        );
+      case 'deepseek':
+        return DeepSeekClientV2(
+          apiKey: apiKey,
+          baseUrl: baseUrl.isNotEmpty ? baseUrl : 'https://api.deepseek.com/v1',
+          defaultModel: model,
+        );
+      case 'qiniu':
+        return QiniuClient(
+          apiKey: apiKey,
+          baseUrl: baseUrl.isNotEmpty ? baseUrl : 'https://llmapi.qiniu.io/v1',
+          defaultModel: model,
+        );
+      case 'openrouter':
+        return OpenRouterClient(
+          apiKey: apiKey,
+          baseUrl: baseUrl.isNotEmpty ? baseUrl : 'https://openrouter.ai/api/v1',
+          defaultModel: model,
+        );
+      default:
+        // Default: OpenAI-compatible (works for OpenAI, Qiniu, LiteLLM, etc.)
+        return OpenAICompatibleClient(
+          apiKey: apiKey,
+          baseUrl: baseUrl.isNotEmpty ? baseUrl : 'https://api.openai.com/v1',
+          defaultModel: model,
+        );
+    }
+  }
+
+  /// Runs the agent with [userInput] and yields [AgentEvent]s.
+  ///
+  /// Events include:
+  /// - [ThinkingEvent]: reasoning deltas
+  /// - [ContentEvent]: reply text deltas
+  /// - [ToolCallEvent]: the agent is calling a tool
+  /// - [ToolResultEvent]: a tool finished
+  /// - [DoneEvent]: the run completed
+  /// - [ErrorEvent]: an error occurred
+  Stream<AgentEvent> run(
+    String userInput, {
+    String? systemPrompt,
+    String? extraSystemContext,
+  }) {
+    if (!_initialized) {
+      return Stream.error(StateError('AgentService not configured'));
+    }
+
+    // Update system prompt if provided
+    final effectivePrompt = systemPrompt ?? _agentConfig.systemPrompt;
+    if (effectivePrompt != _agentConfig.systemPrompt) {
+      _agentConfig = AgentConfig(
+        id: _agentConfig.id,
+        name: _agentConfig.name,
+        systemPrompt: effectivePrompt,
+        model: _currentModel,
+        toolNames: _agentConfig.toolNames,
+        maxSteps: _agentConfig.maxSteps,
+      );
+      _contextGovernor = ContextGovernor(systemPrompt: effectivePrompt);
+    }
+
+    final core = AgentCore(
+      config: _agentConfig,
+      llmClient: _llmClient,
+      toolRegistry: _toolRegistry,
+      contextGovernor: _contextGovernor,
+      permissionContext:
+          PermissionContext.fixed(PermissionMode.bypassPermissions),
+    );
+
+    // Track history for multi-turn conversations
+    _history.add(LlmMessage.user(userInput));
+
+    return core.run(
+      userInput: userInput,
+      history: _history,
+      extraSystemContext: extraSystemContext,
+    );
+  }
+
+  /// Resets the conversation history and optionally changes the system prompt.
+  void reset({String? systemPrompt}) {
+    _history.clear();
+    if (systemPrompt != null) {
+      _agentConfig = AgentConfig(
+        id: _agentConfig.id,
+        name: _agentConfig.name,
+        systemPrompt: systemPrompt,
+        model: _currentModel,
+        toolNames: _agentConfig.toolNames,
+        maxSteps: _agentConfig.maxSteps,
+      );
+      _contextGovernor = ContextGovernor(systemPrompt: systemPrompt);
+    }
+  }
+
+  /// Clears conversation context (keeps system prompt).
+  void clearContext() {
+    _history.clear();
+  }
+
+  /// Switches to a different model.
+  void switchModel(String model) {
+    _currentModel = model;
+    _agentConfig = AgentConfig(
+      id: _agentConfig.id,
+      name: _agentConfig.name,
+      systemPrompt: _agentConfig.systemPrompt,
+      model: model,
+      toolNames: _agentConfig.toolNames,
+      maxSteps: _agentConfig.maxSteps,
+    );
+    debugPrint('[AgentService] Switched to model: $model');
+  }
+
+  /// Releases resources.
+  void dispose() {
+    _llmClient.dispose();
+  }
+}
+
+/// System prompt constants for the AI assistant.
+class ChatServiceSystemPrompt {
+  static const String defaultPrompt =
+      '你是星语，Nudgee 应用的 AI 助手。你温暖、聪明、有同理心，'
+      '擅长帮助用户规划日程、解答问题、提供生活建议。'
+      '回复简洁自然，像朋友间的对话。使用用户的语言回复。\n\n'
+      '你拥有以下工具，可以在需要时使用：\n'
+      '- web.search: 搜索网络获取最新信息\n'
+      '- schedule.add/query/remove: 管理用户日程\n'
+      '- post.create/query/like: 管理动态\n'
+      '- memory.save/query: 保存和查询用户记忆\n'
+      '- sandbox.exec: 执行 Dart 代码进行计算\n'
+      '- tool.search: 搜索可用工具\n\n'
+      '当用户问到你不确定的事实、最新事件、或需要计算时，主动使用工具。'
+      '使用工具时，先用简短的语言说明你要做什么。';
+}

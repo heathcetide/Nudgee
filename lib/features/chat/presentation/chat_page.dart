@@ -3,11 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 
+import 'package:nudgee/core/agent/agent.dart';
 import 'package:nudgee/core/controllers/im/im.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/models/im/im.dart';
-import 'package:nudgee/core/services/ai_service.dart';
+import 'package:nudgee/core/services/agent_service.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/core/services/chat_service.dart';
 import 'package:nudgee/core/widgets/im/ling_chat_screen.dart';
@@ -139,19 +140,21 @@ class _ChatPageState extends State<ChatPage> {
     final isAiConv = conv.id == ChatService.aiAssistantId ||
         _convSystemPrompts.containsKey(conv.id);
     if (isAiConv) {
-      // For the default assistant, ensure default system prompt is set.
-      if (conv.id == ChatService.aiAssistantId) {
-        _convSystemPrompts.remove(conv.id); // Clear any custom prompt.
-        sl<AiService>().reset(systemPrompt: ChatService.aiAssistantSystemPrompt);
-      }
-      _streamAiReply(conv, text);
+      _streamAgentReply(conv, text);
     }
   }
 
-  /// Stream an AI reply from AiService and persist it.
-  void _streamAiReply(LingConversation conv, String userText) {
-    final ai = sl<AiService>();
-    if (!ai.isConfigured) {
+  /// Stream an AI reply from AgentService (full agent stack with tools).
+  ///
+  /// Uses AgentCore's ReAct loop — the agent can call tools (web.search,
+  /// schedule, memory, sandbox, etc.) and the UI visualizes each step:
+  /// - Thinking process (streaming)
+  /// - Tool calls (name + arguments)
+  /// - Tool results (output)
+  /// - Final reply (streaming markdown)
+  void _streamAgentReply(LingConversation conv, String userText) {
+    final agentService = sl<AgentService>();
+    if (!agentService.isConfigured) {
       SmartDialog.showNotify(
         msg: context.l10n.aiNotConfigured,
         notifyType: NotifyType.error,
@@ -162,93 +165,170 @@ class _ChatPageState extends State<ChatPage> {
     final controller = _chatControllers[conv.id];
     if (controller == null) return;
 
-    // If this conversation has a custom system prompt (from a template),
-    // reset the AI context with it before streaming.
-    final systemPrompt = _convSystemPrompts[conv.id];
-    if (systemPrompt != null) {
-      ai.reset(systemPrompt: systemPrompt);
-    }
+    // Use custom system prompt for template-based conversations,
+    // or the default 星语 prompt for the main AI conversation.
+    final systemPrompt = _convSystemPrompts[conv.id] ??
+        ChatService.aiAssistantSystemPrompt;
+
+    // Reset agent context for this conversation
+    agentService.reset(systemPrompt: systemPrompt);
 
     controller.isTyping = true;
 
     final contentBuffer = StringBuffer();
     final thinkingBuffer = StringBuffer();
+    final toolCalls = <Map<String, dynamic>>[];
     String? aiMsgId;
-    StreamSubscription<AiStreamChunk>? sub;
+    StreamSubscription<AgentEvent>? sub;
 
-    sub = ai.streamChatWithThinking(userText).listen(
-      (chunk) {
-        if (chunk.isThinking) {
-          thinkingBuffer.write(chunk.text);
-          // Create the message bubble on first thinking delta (with empty content),
-          // showing the thinking process streaming in real-time.
-          if (aiMsgId == null) {
-            aiMsgId = 'ai_${DateTime.now().millisecondsSinceEpoch}';
-            controller.addMessage(LingMessage(
-              id: aiMsgId!,
-              conversationId: conv.id,
-              authorId: ChatService.aiAssistantId,
-              type: LingMessageType.text,
-              text: '',
-              createdAt: DateTime.now(),
-              status: LingMessageStatus.sending,
-              metadata: {'thinking': thinkingBuffer.toString(), 'thinkingStreaming': true},
-            ));
-            controller.isTyping = false;
-          } else {
-            controller.updateMessage(aiMsgId!, (m) => m.copyWith(
-              metadata: {'thinking': thinkingBuffer.toString(), 'thinkingStreaming': true},
-            ));
-          }
-          return;
-        }
+    /// Updates the AI message bubble with current state (thinking + tools + content).
+    void updateBubble() {
+      final metadata = <String, dynamic>{};
+      if (thinkingBuffer.isNotEmpty) {
+        metadata['thinking'] = thinkingBuffer.toString();
+      }
+      if (toolCalls.isNotEmpty) {
+        metadata['toolCalls'] = List<Map<String, dynamic>>.from(toolCalls);
+      }
+      if (contentBuffer.isEmpty && thinkingBuffer.isEmpty && toolCalls.isEmpty) {
+        return; // Nothing to show yet
+      }
 
-        // Content delta — transition from thinking to reply.
-        contentBuffer.write(chunk.text);
-        if (aiMsgId == null) {
-          // No thinking phase, create bubble on first content delta.
-          aiMsgId = 'ai_${DateTime.now().millisecondsSinceEpoch}';
-          controller.addMessage(LingMessage(
-            id: aiMsgId!,
-            conversationId: conv.id,
-            authorId: ChatService.aiAssistantId,
-            type: LingMessageType.text,
-            text: contentBuffer.toString(),
-            createdAt: DateTime.now(),
-            status: LingMessageStatus.sent,
-            metadata: thinkingBuffer.isNotEmpty
-                ? {'thinking': thinkingBuffer.toString()}
-                : null,
-          ));
-          controller.isTyping = false;
-        } else {
-          // Update existing bubble: switch from thinking to content.
-          controller.updateMessage(aiMsgId!, (m) => m.copyWith(
-            text: contentBuffer.toString(),
-            status: LingMessageStatus.sent,
-            metadata: thinkingBuffer.isNotEmpty
-                ? {'thinking': thinkingBuffer.toString()}
-                : null,
-          ));
-        }
-      },
-      onDone: () {
-        controller.isTyping = false;
-        final finalText = contentBuffer.toString().isEmpty ? '...' : contentBuffer.toString();
-        final thinking = thinkingBuffer.toString();
-        if (aiMsgId != null) {
-          controller.updateMessage(aiMsgId!, (m) => m.copyWith(
-            text: finalText,
-            status: LingMessageStatus.read,
-            metadata: thinking.isNotEmpty ? {'thinking': thinking} : null,
-          ));
-        }
-        // Persist the AI message to ChatService (SQLite + cloud).
-        sl<ChatService>().addAiMessage(
+      if (aiMsgId == null) {
+        aiMsgId = 'ai_${DateTime.now().millisecondsSinceEpoch}';
+        controller.addMessage(LingMessage(
+          id: aiMsgId!,
           conversationId: conv.id,
-          text: finalText,
-        );
-        sub?.cancel();
+          authorId: ChatService.aiAssistantId,
+          type: LingMessageType.text,
+          text: contentBuffer.toString(),
+          createdAt: DateTime.now(),
+          status: LingMessageStatus.sending,
+          metadata: metadata,
+        ));
+        controller.isTyping = false;
+      } else {
+        controller.updateMessage(aiMsgId!, (m) => m.copyWith(
+          text: contentBuffer.toString(),
+          status: LingMessageStatus.sent,
+          metadata: metadata,
+        ));
+      }
+    }
+
+    sub = agentService.run(userText).listen(
+      (event) {
+        switch (event) {
+          case ThinkingEvent():
+            thinkingBuffer.write(event.delta);
+            updateBubble();
+
+          case ContentEvent():
+            contentBuffer.write(event.delta);
+            updateBubble();
+
+          case ToolCallEvent():
+            // Record tool call — UI will show it in the message metadata
+            toolCalls.add({
+              'name': event.call.name,
+              'arguments': event.call.arguments,
+              'status': 'running',
+            });
+            updateBubble();
+
+          case ToolResultEvent():
+            // Update the last matching tool call with its result
+            for (var i = toolCalls.length - 1; i >= 0; i--) {
+              if (toolCalls[i]['name'] == event.toolName &&
+                  toolCalls[i]['status'] == 'running') {
+                toolCalls[i] = {
+                  'name': event.toolName,
+                  'arguments': toolCalls[i]['arguments'],
+                  'status': event.result.success ? 'success' : 'error',
+                  'result': event.result.success
+                      ? event.result.output
+                      : event.result.error,
+                };
+                break;
+              }
+            }
+            updateBubble();
+
+          case DoneEvent():
+            controller.isTyping = false;
+            final finalText =
+                contentBuffer.toString().isEmpty ? '...' : contentBuffer.toString();
+            final metadata = <String, dynamic>{};
+            if (thinkingBuffer.isNotEmpty) {
+              metadata['thinking'] = thinkingBuffer.toString();
+            }
+            if (toolCalls.isNotEmpty) {
+              metadata['toolCalls'] = List<Map<String, dynamic>>.from(toolCalls);
+            }
+            if (event.stats.steps > 0) {
+              metadata['stats'] = {
+                'steps': event.stats.steps,
+                'toolCalls': event.stats.toolCalls,
+                'tokens': event.stats.inputTokens + event.stats.outputTokens,
+                'durationMs': event.stats.duration.inMilliseconds,
+              };
+            }
+            if (aiMsgId != null) {
+              controller.updateMessage(aiMsgId!, (m) => m.copyWith(
+                text: finalText,
+                status: LingMessageStatus.read,
+                metadata: metadata,
+              ));
+            } else {
+              controller.addMessage(LingMessage(
+                id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
+                conversationId: conv.id,
+                authorId: ChatService.aiAssistantId,
+                type: LingMessageType.text,
+                text: finalText,
+                createdAt: DateTime.now(),
+                status: LingMessageStatus.read,
+                metadata: metadata,
+              ));
+            }
+            // Persist the AI message to ChatService (SQLite + cloud).
+            sl<ChatService>().addAiMessage(
+              conversationId: conv.id,
+              text: finalText,
+            );
+
+          case ErrorEvent():
+            controller.isTyping = false;
+            final errText = context.l10n.aiError(event.message);
+            if (aiMsgId != null) {
+              controller.updateMessage(aiMsgId!, (m) => m.copyWith(
+                text: errText,
+                status: LingMessageStatus.failed,
+              ));
+            } else {
+              controller.addMessage(LingMessage(
+                id: 'ai_err_${DateTime.now().millisecondsSinceEpoch}',
+                conversationId: conv.id,
+                authorId: ChatService.aiAssistantId,
+                type: LingMessageType.text,
+                text: errText,
+                createdAt: DateTime.now(),
+                status: LingMessageStatus.failed,
+              ));
+            }
+
+          case HumanConfirmationEvent():
+            // Auto-approve in bypass mode
+            break;
+
+          case LoopWarningEvent():
+            debugPrint('[ChatPage] Loop warning at step ${event.stepCount}');
+            break;
+
+          case PlanEvent():
+            // Could display plan steps in UI
+            break;
+        }
       },
       onError: (e) {
         controller.isTyping = false;
@@ -271,6 +351,11 @@ class _ChatPageState extends State<ChatPage> {
         }
         sub?.cancel();
       },
+      onDone: () {
+        controller.isTyping = false;
+        sub?.cancel();
+      },
+      cancelOnError: true,
     );
   }
 
@@ -303,7 +388,7 @@ class _ChatPageState extends State<ChatPage> {
     final isAiConv = conv.id == ChatService.aiAssistantId ||
         _convSystemPrompts.containsKey(conv.id);
 
-    final ai = sl<AiService>();
+    final ai = sl<AgentService>();
 
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -318,9 +403,9 @@ class _ChatPageState extends State<ChatPage> {
           onDraftChanged: (text) => _onDraftChanged(conv, text),
           isAiConversation: isAiConv,
           currentAiModel: ai.currentModel,
-          availableAiModels: ai.availableModels,
+          availableAiModels: const [],
           onSwitchModel: (model) async {
-            await ai.switchModel(model);
+            ai.switchModel(model);
             // Reset context with the appropriate system prompt.
             final prompt = _convSystemPrompts[conv.id] ??
                 ChatService.aiAssistantSystemPrompt;
@@ -439,7 +524,7 @@ class _ChatPageState extends State<ChatPage> {
     await chatService.addAiMessage(conversationId: convId, text: welcomeMsg.text ?? '');
 
     // Reset AI context with the template's system prompt.
-    sl<AiService>().reset(systemPrompt: filledPrompt);
+    sl<AgentService>().reset(systemPrompt: filledPrompt);
 
     // Store the system prompt in memory for this conversation.
     _convSystemPrompts[convId] = filledPrompt;
