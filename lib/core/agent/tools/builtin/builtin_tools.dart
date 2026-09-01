@@ -15,6 +15,9 @@ export 'package:nudgee/core/agent/tools/builtin/memory_tools.dart';
 // Web search tool
 export 'package:nudgee/core/agent/tools/builtin/web_search_tool.dart';
 
+// GitHub search tool
+export 'package:nudgee/core/agent/tools/builtin/github_search_tool.dart';
+
 // Meta tools
 export 'package:nudgee/core/agent/tools/builtin/tool_search_tool.dart';
 export 'package:nudgee/core/agent/tools/builtin/ask_user_tool.dart';
@@ -25,6 +28,7 @@ import 'package:nudgee/core/agent/tools/builtin/post_tools.dart';
 import 'package:nudgee/core/agent/tools/builtin/notification_tools.dart';
 import 'package:nudgee/core/agent/tools/builtin/memory_tools.dart';
 import 'package:nudgee/core/agent/tools/builtin/web_search_tool.dart';
+import 'package:nudgee/core/agent/tools/builtin/github_search_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/tool_search_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/ask_user_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/todo_write_tool.dart';
@@ -38,6 +42,7 @@ import 'package:nudgee/core/agent/tools/builtin/todo_write_tool.dart';
 /// - memory.save / memory.query
 /// - user.profile
 /// - web.search
+/// - github.search
 /// - tool.search
 /// - ask_user
 /// - todo.write
@@ -75,6 +80,9 @@ void registerBuiltinTools(ToolRegistry registry) {
   // Web search
   registry.register(WebSearchTool());
 
+  // GitHub search
+  registry.register(GitHubSearchTool());
+
   // Meta tools
   registry.register(ToolSearchTool(registry));
   registry.register(AskUserTool());
@@ -99,6 +107,7 @@ const List<String> builtinToolNames = [
   'user.profile',
   // Web
   'web.search',
+  'github.search',
   // Meta
   'tool.search',
   'ask_user',
