@@ -47,3 +47,6 @@ export 'package:nudgee/core/agent/skills/skills.dart';
 
 // MCP system (Phase 5)
 export 'package:nudgee/core/agent/mcp/mcp.dart';
+
+// Sandbox execution (Phase 6)
+export 'package:nudgee/core/agent/sandbox/sandbox.dart';
