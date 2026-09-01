@@ -149,14 +149,17 @@ class LingMessageBubble extends StatelessWidget {
                       children: [
                         // Reply quote
                         if (message.replyTo != null) _buildReplyQuote(context, textColor),
-                        // Thinking process (for AI reasoning models)
-                        if (message.metadata?['thinking'] != null)
-                          _buildThinkingBlock(context, textColor),
-                        // Tool calls (for agent-based AI messages)
-                        if (message.metadata?['toolCalls'] != null)
-                          _buildToolCallsBlock(context, textColor),
-                        // Content
-                        customContent ?? _buildContent(context, textColor),
+                        // Ordered segments (new) or legacy layout (backward compat)
+                        if (message.metadata?['segments'] != null)
+                          ..._buildOrderedSegments(context, textColor)
+                        else ...[
+                          // Legacy: thinking → tool calls → content
+                          if (message.metadata?['thinking'] != null)
+                            _buildThinkingBlock(context, textColor),
+                          if (message.metadata?['toolCalls'] != null)
+                            _buildToolCallsBlock(context, textColor),
+                          customContent ?? _buildContent(context, textColor),
+                        ],
                         // Time + status
                         const SizedBox(height: 2),
                         _buildTimeAndStatus(context, textColor),
@@ -212,6 +215,249 @@ class LingMessageBubble extends StatelessWidget {
       topRight: Radius.circular(radius),
       bottomLeft: Radius.circular(4),
       bottomRight: Radius.circular(radius),
+    );
+  }
+
+  /// Build ordered segments — renders thinking, tool calls, and content
+  /// in the order they actually occurred during the agent run.
+  ///
+  /// This replaces the legacy layout (thinking → all tools → all content)
+  /// with an interleaved view:
+  /// ```
+  /// [thinking] Let me search...
+  /// [tool call] web.search "flutter"
+  /// [content] Based on the results...
+  /// [tool call] workspace.fs write
+  /// [content] Done!
+  /// ```
+  List<Widget> _buildOrderedSegments(BuildContext context, Color textColor) {
+    final theme = Theme.of(context);
+    final segmentsRaw = message.metadata!['segments'];
+    if (segmentsRaw is! List || segmentsRaw.isEmpty) return [];
+
+    final segments = segmentsRaw.cast<Map<String, dynamic>>();
+    final widgets = <Widget>[];
+
+    for (final seg in segments) {
+      final type = seg['type'] as String?;
+      switch (type) {
+        case 'thinking':
+          final text = seg['text'] as String? ?? '';
+          if (text.isNotEmpty) {
+            widgets.add(_ThinkingBlock(
+              thinking: text,
+              textColor: textColor,
+              theme: theme,
+              isStreaming: false,
+            ));
+          }
+          break;
+
+        case 'content':
+          final text = seg['text'] as String? ?? '';
+          if (text.isNotEmpty) {
+            widgets.add(Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: SelectableText(
+                text,
+                style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
+              ),
+            ));
+          }
+          break;
+
+        case 'toolCall':
+          widgets.add(_buildSegmentToolCallCard(context, seg));
+          break;
+      }
+    }
+
+    return widgets;
+  }
+
+  /// Build a single tool call card from a segment.
+  Widget _buildSegmentToolCallCard(BuildContext context, Map<String, dynamic> seg) {
+    final theme = Theme.of(context);
+    final name = seg['name'] as String? ?? 'unknown';
+    final status = seg['status'] as String? ?? 'running';
+    final args = seg['arguments'] as Map<String, dynamic>? ?? {};
+    final result = seg['result'] as String?;
+    final isError = status == 'error';
+
+    final (icon, color, label) = switch (status) {
+      'running' => (Icons.hourglass_top, theme.colorScheme.primary, '执行中'),
+      'success' => (Icons.check_circle, Colors.green, '成功'),
+      'error' => (Icons.error, theme.colorScheme.error, '失败'),
+      _ => (Icons.help, theme.colorScheme.onSurfaceVariant, status),
+    };
+
+    // Build summary
+    String summary = '';
+    switch (name) {
+      case 'workspace.fs':
+        final action = args['action'] as String? ?? '';
+        final path = args['path'] as String? ?? '';
+        if (action == 'write' || action == 'read') {
+          final content = args['content'] as String? ?? '';
+          final lines = content.split('\n').length;
+          summary = '$action → $path ($lines 行)';
+        } else {
+          summary = '$action → $path';
+        }
+      case 'workspace.js.exec':
+        final code = args['code'] as String? ?? '';
+        summary = '执行 ${code.split('\n').length} 行 JS';
+      case 'cloud.exec':
+        final lang = args['language'] as String? ?? '';
+        final code = args['code'] as String? ?? '';
+        summary = '$lang · ${code.split('\n').length} 行';
+      case 'web.search':
+        final query = args['query'] as String? ?? '';
+        summary = query.length > 30 ? '${query.substring(0, 30)}...' : query;
+      case 'github.search':
+        final query = args['query'] as String? ?? '';
+        final type = args['type'] as String? ?? 'repositories';
+        summary = '$type: $query';
+      default:
+        for (final entry in args.entries) {
+          if (entry.value is String && entry.value.toString().isNotEmpty) {
+            final val = entry.value.toString();
+            summary = val.length > 40 ? '${val.substring(0, 40)}...' : val;
+            break;
+          }
+        }
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withAlpha(80), width: 1),
+      ),
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+        leading: Icon(icon, color: color, size: 18),
+        title: Text(
+          name,
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontFamily: 'monospace',
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: Text(
+          summary.isNotEmpty ? '$label · $summary' : label,
+          style: theme.textTheme.bodySmall?.copyWith(color: color),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        initiallyExpanded: false,
+        children: [
+          if (args.isNotEmpty)
+            _buildSegmentArgs(context, args),
+          if (result != null)
+            _buildSegmentResult(context, result, isError),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSegmentArgs(BuildContext context, Map<String, dynamic> args) {
+    final theme = Theme.of(context);
+    final hasLargeContent = args.values.any(
+      (v) => v is String && v.length > 200,
+    );
+
+    if (!hasLargeContent) {
+      try {
+        final formatted = const JsonEncoder.withIndent('  ').convert(args);
+        return _buildSegmentSection(context, '参数', formatted);
+      } catch (_) {
+        return const SizedBox.shrink();
+      }
+    }
+
+    // Large args — show per field with truncation
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('参数',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurface.withAlpha(120),
+                fontWeight: FontWeight.w600,
+              )),
+          const SizedBox(height: 4),
+          for (final entry in args.entries)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${entry.key}:',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      )),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(8),
+                    margin: const EdgeInsets.only(top: 2),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest.withAlpha(60),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: entry.value is String && (entry.value as String).length > 200
+                        ? _SegmentTruncatedText(text: entry.value.toString(), maxLines: 5)
+                        : SelectableText(
+                            entry.value?.toString() ?? 'null',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontFamily: 'monospace', fontSize: 12),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSegmentResult(BuildContext context, String result, bool isError) {
+    return _buildSegmentSection(context, isError ? '错误' : '结果', result, isError: isError);
+  }
+
+  Widget _buildSegmentSection(BuildContext context, String title, String content,
+      {bool isError = false}) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurface.withAlpha(120),
+                fontWeight: FontWeight.w600,
+              )),
+          const SizedBox(height: 4),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isError
+                  ? theme.colorScheme.errorContainer.withAlpha(40)
+                  : theme.colorScheme.surfaceContainerHighest.withAlpha(60),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: content.length > 500
+                ? _SegmentTruncatedText(text: content, maxLines: 10)
+                : SelectableText(content,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontFamily: 'monospace', fontSize: 12)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1124,6 +1370,63 @@ class _ThinkingBlockState extends State<_ThinkingBlock> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// A text widget that can be expanded to show full content.
+/// Used in tool call segments for large arguments/results.
+class _SegmentTruncatedText extends StatefulWidget {
+  final String text;
+  final int maxLines;
+
+  const _SegmentTruncatedText({required this.text, required this.maxLines});
+
+  @override
+  State<_SegmentTruncatedText> createState() => _SegmentTruncatedTextState();
+}
+
+class _SegmentTruncatedTextState extends State<_SegmentTruncatedText> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SelectableText(
+          widget.text,
+          maxLines: _expanded ? null : widget.maxLines,
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontFamily: 'monospace',
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 4),
+        GestureDetector(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _expanded ? Icons.expand_less : Icons.expand_more,
+                size: 14,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 2),
+              Text(
+                _expanded
+                    ? '收起'
+                    : '展开全部 (${widget.text.length} 字符)',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

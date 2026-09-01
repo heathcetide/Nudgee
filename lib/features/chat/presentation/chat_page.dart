@@ -178,24 +178,53 @@ class _ChatPageState extends State<ChatPage> {
 
     controller.isTyping = true;
 
-    final contentBuffer = StringBuffer();
-    final thinkingBuffer = StringBuffer();
-    final toolCalls = <Map<String, dynamic>>[];
+    // Ordered segments — each segment is a content/thinking/toolCall block
+    // that renders in the order it occurred, interleaved with other segments.
+    final segments = <Map<String, dynamic>>[];
     String? aiMsgId;
     StreamSubscription<AgentEvent>? sub;
 
-    /// Updates the AI message bubble with current state (thinking + tools + content).
+    /// Gets or creates the last content segment for appending text.
+    Map<String, dynamic>? _lastContentSegment() {
+      if (segments.isNotEmpty && segments.last['type'] == 'content') {
+        return segments.last;
+      }
+      return null;
+    }
+
+    /// Gets or creates the last thinking segment for appending text.
+    Map<String, dynamic>? _lastThinkingSegment() {
+      if (segments.isNotEmpty && segments.last['type'] == 'thinking') {
+        return segments.last;
+      }
+      return null;
+    }
+
+    /// Builds the full content text from all content segments (for persistence).
+    String _fullContentText() {
+      return segments
+          .where((s) => s['type'] == 'content')
+          .map((s) => s['text'] as String)
+          .join('');
+    }
+
+    /// Updates the AI message bubble with the current ordered segments.
     void updateBubble() {
-      final metadata = <String, dynamic>{};
-      if (thinkingBuffer.isNotEmpty) {
-        metadata['thinking'] = thinkingBuffer.toString();
-      }
-      if (toolCalls.isNotEmpty) {
-        metadata['toolCalls'] = List<Map<String, dynamic>>.from(toolCalls);
-      }
-      if (contentBuffer.isEmpty && thinkingBuffer.isEmpty && toolCalls.isEmpty) {
-        return; // Nothing to show yet
-      }
+      if (segments.isEmpty) return;
+
+      final metadata = <String, dynamic>{
+        'segments': List<Map<String, dynamic>>.from(segments),
+      };
+
+      // Also keep legacy fields for backward compatibility
+      final fullText = _fullContentText();
+      final thinkingText = segments
+          .where((s) => s['type'] == 'thinking')
+          .map((s) => s['text'] as String)
+          .join('');
+      if (thinkingText.isNotEmpty) metadata['thinking'] = thinkingText;
+      final toolCallsList = segments.where((s) => s['type'] == 'toolCall').toList();
+      if (toolCallsList.isNotEmpty) metadata['toolCalls'] = toolCallsList;
 
       if (aiMsgId == null) {
         aiMsgId = 'ai_${DateTime.now().millisecondsSinceEpoch}';
@@ -204,7 +233,7 @@ class _ChatPageState extends State<ChatPage> {
           conversationId: conv.id,
           authorId: ChatService.aiAssistantId,
           type: LingMessageType.text,
-          text: contentBuffer.toString(),
+          text: fullText,
           createdAt: DateTime.now(),
           status: LingMessageStatus.sending,
           metadata: metadata,
@@ -212,7 +241,7 @@ class _ChatPageState extends State<ChatPage> {
         controller.isTyping = false;
       } else {
         controller.updateMessage(aiMsgId!, (m) => m.copyWith(
-          text: contentBuffer.toString(),
+          text: fullText,
           status: LingMessageStatus.sent,
           metadata: metadata,
         ));
@@ -223,16 +252,29 @@ class _ChatPageState extends State<ChatPage> {
       (event) {
         switch (event) {
           case ThinkingEvent():
-            thinkingBuffer.write(event.delta);
+            // Append to last thinking segment, or create new one
+            final last = _lastThinkingSegment();
+            if (last != null) {
+              last['text'] = (last['text'] as String) + event.delta;
+            } else {
+              segments.add({'type': 'thinking', 'text': event.delta});
+            }
             updateBubble();
 
           case ContentEvent():
-            contentBuffer.write(event.delta);
+            // Append to last content segment, or create new one
+            final last = _lastContentSegment();
+            if (last != null) {
+              last['text'] = (last['text'] as String) + event.delta;
+            } else {
+              segments.add({'type': 'content', 'text': event.delta});
+            }
             updateBubble();
 
           case ToolCallEvent():
-            // Record tool call — UI will show it in the message metadata
-            toolCalls.add({
+            // Always create a new tool call segment (preserves order)
+            segments.add({
+              'type': 'toolCall',
               'name': event.call.name,
               'arguments': event.call.arguments,
               'status': 'running',
@@ -240,13 +282,15 @@ class _ChatPageState extends State<ChatPage> {
             updateBubble();
 
           case ToolResultEvent():
-            // Update the last matching tool call with its result
-            for (var i = toolCalls.length - 1; i >= 0; i--) {
-              if (toolCalls[i]['name'] == event.toolName &&
-                  toolCalls[i]['status'] == 'running') {
-                toolCalls[i] = {
+            // Update the last matching running toolCall segment
+            for (var i = segments.length - 1; i >= 0; i--) {
+              if (segments[i]['type'] == 'toolCall' &&
+                  segments[i]['name'] == event.toolName &&
+                  segments[i]['status'] == 'running') {
+                segments[i] = {
+                  'type': 'toolCall',
                   'name': event.toolName,
-                  'arguments': toolCalls[i]['arguments'],
+                  'arguments': segments[i]['arguments'],
                   'status': event.result.success ? 'success' : 'error',
                   'result': event.result.success
                       ? event.result.output
@@ -259,15 +303,20 @@ class _ChatPageState extends State<ChatPage> {
 
           case DoneEvent():
             controller.isTyping = false;
-            final finalText =
-                contentBuffer.toString().isEmpty ? '...' : contentBuffer.toString();
-            final metadata = <String, dynamic>{};
-            if (thinkingBuffer.isNotEmpty) {
-              metadata['thinking'] = thinkingBuffer.toString();
-            }
-            if (toolCalls.isNotEmpty) {
-              metadata['toolCalls'] = List<Map<String, dynamic>>.from(toolCalls);
-            }
+            final finalText = _fullContentText().isEmpty
+                ? '...'
+                : _fullContentText();
+            final metadata = <String, dynamic>{
+              'segments': List<Map<String, dynamic>>.from(segments),
+            };
+            // Legacy fields
+            final thinkingText = segments
+                .where((s) => s['type'] == 'thinking')
+                .map((s) => s['text'] as String)
+                .join('');
+            if (thinkingText.isNotEmpty) metadata['thinking'] = thinkingText;
+            final toolCallsList = segments.where((s) => s['type'] == 'toolCall').toList();
+            if (toolCallsList.isNotEmpty) metadata['toolCalls'] = toolCallsList;
             if (event.stats.steps > 0) {
               metadata['stats'] = {
                 'steps': event.stats.steps,
