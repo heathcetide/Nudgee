@@ -270,13 +270,11 @@ class LingMessageBubble extends StatelessWidget {
                 ),
               ));
             } else {
-              // Final content — normal style
-              widgets.add(Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: SelectableText(
-                  text,
-                  style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
-                ),
+              // Final content — collapsible if long
+              widgets.add(_CollapsibleContent(
+                text: text,
+                textColor: textColor,
+                isAiMessage: message.authorId == ChatService.aiAssistantId,
               ));
             }
           }
@@ -581,6 +579,14 @@ class LingMessageBubble extends StatelessWidget {
 
     // AI assistant messages are rendered as Markdown.
     final isAiMessage = message.authorId == ChatService.aiAssistantId;
+    // Long messages (both AI and plain) use collapsible widget
+    if (text.length > 500) {
+      return _CollapsibleContent(
+        text: text,
+        textColor: textColor,
+        isAiMessage: isAiMessage,
+      );
+    }
     if (isAiMessage) {
       return _buildMarkdownText(context, textColor, text);
     }
@@ -1553,6 +1559,128 @@ class _DevinToolCallCardState extends State<_DevinToolCallCard>
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Collapsible content widget for long messages.
+/// - Short content (< 500 chars): always fully visible
+/// - Long content: collapsed by default, shows first ~8 lines + "展开" button
+/// - Expanded: shows full content + "收起" button
+class _CollapsibleContent extends StatefulWidget {
+  final String text;
+  final Color textColor;
+  final bool isAiMessage;
+
+  const _CollapsibleContent({
+    required this.text,
+    required this.textColor,
+    required this.isAiMessage,
+  });
+
+  @override
+  State<_CollapsibleContent> createState() => _CollapsibleContentState();
+}
+
+class _CollapsibleContentState extends State<_CollapsibleContent> {
+  bool _expanded = false;
+
+  static const _collapseThreshold = 500; // chars
+  static const _collapsedMaxLines = 8;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isLong = widget.text.length > _collapseThreshold;
+
+    if (!isLong) {
+      // Short content — no collapse needed
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: _renderContent(theme),
+      );
+    }
+
+    // Long content — collapsible
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Content (clipped or full)
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 200),
+            crossFadeState: _expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            firstChild: _renderContent(theme, maxLines: _collapsedMaxLines),
+            secondChild: _renderContent(theme, maxLines: null),
+          ),
+          // Toggle button
+          const SizedBox(height: 2),
+          GestureDetector(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 16,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 2),
+                Text(
+                  _expanded
+                      ? '收起'
+                      : '展开全部 (${widget.text.length} 字符)',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _renderContent(ThemeData theme, {int? maxLines}) {
+    if (widget.isAiMessage) {
+      // AI message — render as Markdown
+      return MarkdownBody(
+        data: widget.text,
+        selectable: true,
+        styleSheet: MarkdownStyleSheet(
+          p: theme.textTheme.bodyMedium?.copyWith(color: widget.textColor),
+          h1: theme.textTheme.headlineSmall?.copyWith(
+              color: widget.textColor, fontWeight: FontWeight.bold),
+          h2: theme.textTheme.titleLarge?.copyWith(
+              color: widget.textColor, fontWeight: FontWeight.bold),
+          h3: theme.textTheme.titleMedium?.copyWith(
+              color: widget.textColor, fontWeight: FontWeight.bold),
+          code: theme.textTheme.bodySmall?.copyWith(
+              fontFamily: 'monospace',
+              color: widget.textColor,
+              backgroundColor: theme.colorScheme.surfaceContainerHighest
+                  .withAlpha(60)),
+          codeblockDecoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          a: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.primary,
+            decoration: TextDecoration.underline,
+          ),
+        ),
+      );
+    }
+    // Plain text
+    return SelectableText(
+      widget.text,
+      maxLines: maxLines,
+      style: theme.textTheme.bodyMedium?.copyWith(color: widget.textColor),
     );
   }
 }
