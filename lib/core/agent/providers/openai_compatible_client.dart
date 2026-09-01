@@ -159,6 +159,64 @@ class OpenAICompatibleClient implements LLMClient {
     return _apiToInternalNames[apiName] ?? apiName;
   }
 
+  /// Attempts to repair common JSON issues from LLM responses.
+  ///
+  /// Common problems:
+  /// - Truncated JSON (incomplete string/value at the end)
+  /// - Trailing comma before } or ]
+  /// - Unescaped newlines in string values
+  String _repairJson(String json) {
+    var result = json.trim();
+
+    // Remove trailing commas before } or ]
+    result = result.replaceAll(RegExp(r',\s*}'), '}');
+    result = result.replaceAll(RegExp(r',\s*\]'), ']');
+
+    // If the JSON is truncated (unbalanced braces), try to close it
+    int braces = 0;
+    int brackets = 0;
+    bool inString = false;
+    String? stringChar;
+    for (var i = 0; i < result.length; i++) {
+      final ch = result[i];
+      if (inString) {
+        if (ch == '\\') {
+          i++; // skip next char
+        } else if (ch == stringChar) {
+          inString = false;
+        }
+      } else {
+        if (ch == '"' || ch == "'") {
+          inString = true;
+          stringChar = ch;
+        } else if (ch == '{') {
+          braces++;
+        } else if (ch == '}') {
+          braces--;
+        } else if (ch == '[') {
+          brackets++;
+        } else if (ch == ']') {
+          brackets--;
+        }
+      }
+    }
+
+    // Close unclosed strings
+    if (inString) {
+      result += stringChar!;
+    }
+
+    // Close unclosed brackets and braces
+    for (var i = 0; i < brackets; i++) {
+      result += ']';
+    }
+    for (var i = 0; i < braces; i++) {
+      result += '}';
+    }
+
+    return result;
+  }
+
   List<Map<String, dynamic>> _buildMessages(
     List<LlmMessage> messages,
     String? systemPrompt,
@@ -316,12 +374,25 @@ class OpenAICompatibleClient implements LLMClient {
       for (final tc in toolCallsJson) {
         final tcMap = tc as Map<String, dynamic>;
         final function = tcMap['function'] as Map<String, dynamic>;
-        final args = function['arguments'] as String;
+        final args = function['arguments'];
         Map<String, dynamic> parsedArgs;
         try {
-          parsedArgs = jsonDecode(args) as Map<String, dynamic>;
-        } catch (_) {
-          parsedArgs = {'_raw': args};
+          // arguments may be a String (JSON) or already a Map
+          if (args is Map<String, dynamic>) {
+            parsedArgs = args;
+          } else if (args is String) {
+            parsedArgs = jsonDecode(args) as Map<String, dynamic>;
+          } else {
+            parsedArgs = {'_raw': args.toString()};
+          }
+        } catch (e) {
+          // JSON parsing failed — try to repair common issues
+          final repaired = _repairJson(args.toString());
+          try {
+            parsedArgs = jsonDecode(repaired) as Map<String, dynamic>;
+          } catch (_) {
+            parsedArgs = {'_raw': args.toString()};
+          }
         }
         toolCalls.add(ToolCall(
           id: tcMap['id'] as String,

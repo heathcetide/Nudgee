@@ -401,6 +401,10 @@ class _ThinkingCardState extends State<ThinkingCard>
 }
 
 /// Displays a tool call with its arguments and result.
+///
+/// For tool calls with large arguments (e.g. file content in workspace.fs),
+/// only a summary is shown in the collapsed view. The full content can be
+/// expanded by the user.
 class ToolCallCard extends StatelessWidget {
   final _ToolCallDisplay toolCall;
 
@@ -413,12 +417,15 @@ class ToolCallCard extends StatelessWidget {
 
     final (icon, color, label) = switch (status) {
       _ToolCallStatus.running =>
-        (Icons.hourglass_top, theme.colorScheme.primary, 'Running'),
+        (Icons.hourglass_top, theme.colorScheme.primary, '执行中'),
       _ToolCallStatus.success =>
-        (Icons.check_circle, Colors.green, 'Success'),
+        (Icons.check_circle, Colors.green, '成功'),
       _ToolCallStatus.error =>
-        (Icons.error, theme.colorScheme.error, 'Error'),
+        (Icons.error, theme.colorScheme.error, '失败'),
     };
+
+    // Build a short summary for the subtitle
+    final summary = _buildSummary();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -438,24 +445,155 @@ class ToolCallCard extends StatelessWidget {
           ),
         ),
         subtitle: Text(
-          label,
+          summary.isNotEmpty ? '$label · $summary' : label,
           style: theme.textTheme.bodySmall?.copyWith(color: color),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
+        initiallyExpanded: false,
         children: [
-          // Arguments
+          // Arguments (with smart truncation for large values)
           if (toolCall.arguments.isNotEmpty)
-            _buildSection(context, 'Arguments', _formatJson(toolCall.arguments)),
+            _buildArgumentsSection(context),
           // Result
           if (toolCall.result != null)
             _buildSection(
               context,
-              'Result',
+              '结果',
               toolCall.result!,
               isError: toolCall.isError,
             ),
           // Error
           if (toolCall.error != null)
-            _buildSection(context, 'Error', toolCall.error!, isError: true),
+            _buildSection(context, '错误', toolCall.error!, isError: true),
+        ],
+      ),
+    );
+  }
+
+  /// Builds a short summary string for the subtitle.
+  /// e.g. "write → match3/index.html" or "exec → 45 lines"
+  String _buildSummary() {
+    final args = toolCall.arguments;
+    if (args.isEmpty) return '';
+
+    switch (toolCall.name) {
+      case 'workspace.fs':
+        final action = args['action'] as String? ?? '';
+        final path = args['path'] as String? ?? '';
+        if (action == 'write' || action == 'read') {
+          final content = args['content'] as String? ?? '';
+          final lines = content.split('\n').length;
+          return '$action → $path ($lines 行)';
+        }
+        return '$action → $path';
+      case 'workspace.js.exec':
+        final code = args['code'] as String? ?? '';
+        final lines = code.split('\n').length;
+        return '执行 $lines 行 JS';
+      case 'cloud.exec':
+        final lang = args['language'] as String? ?? '';
+        final code = args['code'] as String? ?? '';
+        final lines = code.split('\n').length;
+        return '$lang · $lines 行';
+      case 'web.search':
+        final query = args['query'] as String? ?? '';
+        return query.length > 30 ? '${query.substring(0, 30)}...' : query;
+      case 'github.search':
+        final query = args['query'] as String? ?? '';
+        final type = args['type'] as String? ?? 'repositories';
+        return '$type: $query';
+      case 'schedule.add':
+        final title = args['title'] as String? ?? '';
+        return title;
+      case 'memory.save':
+        final key = args['key'] as String? ?? '';
+        return key;
+      default:
+        // Generic: show first string value
+        for (final entry in args.entries) {
+          if (entry.value is String && entry.value.toString().isNotEmpty) {
+            final val = entry.value.toString();
+            return val.length > 40 ? '${val.substring(0, 40)}...' : val;
+          }
+        }
+        return '';
+    }
+  }
+
+  /// Builds the arguments section with smart truncation.
+  /// Large string values (like file content) are truncated to a preview,
+  /// with a "show full" toggle.
+  Widget _buildArgumentsSection(BuildContext context) {
+    final theme = Theme.of(context);
+    final args = toolCall.arguments;
+
+    // Check if any argument value is very long (> 200 chars)
+    final hasLargeContent = args.values.any(
+      (v) => v is String && v.length > 200,
+    );
+
+    if (!hasLargeContent) {
+      // Small arguments — show all
+      return _buildSection(context, '参数', _formatJson(args));
+    }
+
+    // Large arguments — show truncated preview per field
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '参数',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurface.withAlpha(120),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          for (final entry in args.entries)
+            _buildArgumentField(context, entry.key, entry.value),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildArgumentField(BuildContext context, String key, dynamic value) {
+    final theme = Theme.of(context);
+    final valueStr = value?.toString() ?? 'null';
+    final isLong = valueStr.length > 200;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$key:',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurface.withAlpha(160),
+            ),
+          ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(8),
+            margin: const EdgeInsets.only(top: 2),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withAlpha(60),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: isLong
+                ? _TruncatedText(text: valueStr, maxLines: 5)
+                : SelectableText(
+                    valueStr,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
+          ),
         ],
       ),
     );
@@ -486,13 +624,15 @@ class ToolCallCard extends StatelessWidget {
                   : theme.colorScheme.surfaceContainerHighest.withAlpha(60),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: SelectableText(
-              content,
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontFamily: 'monospace',
-                fontSize: 12,
-              ),
-            ),
+            child: content.length > 500
+                ? _TruncatedText(text: content, maxLines: 10)
+                : SelectableText(
+                    content,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
           ),
         ],
       ),
@@ -505,6 +645,62 @@ class ToolCallCard extends StatelessWidget {
     } catch (_) {
       return json.toString();
     }
+  }
+}
+
+/// A text widget that can be expanded to show full content.
+class _TruncatedText extends StatefulWidget {
+  final String text;
+  final int maxLines;
+
+  const _TruncatedText({required this.text, required this.maxLines});
+
+  @override
+  State<_TruncatedText> createState() => _TruncatedTextState();
+}
+
+class _TruncatedTextState extends State<_TruncatedText> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SelectableText(
+          widget.text,
+          maxLines: _expanded ? null : widget.maxLines,
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontFamily: 'monospace',
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 4),
+        GestureDetector(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _expanded ? Icons.expand_less : Icons.expand_more,
+                size: 14,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 2),
+              Text(
+                _expanded
+                    ? '收起'
+                    : '展开全部 (${widget.text.length} 字符)',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
