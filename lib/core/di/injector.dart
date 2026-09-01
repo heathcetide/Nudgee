@@ -26,6 +26,7 @@ import 'package:nudgee/core/services/file_picker_service.dart';
 import 'package:nudgee/core/services/file_storage_service.dart';
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
 import 'package:nudgee/core/services/chat_service.dart';
+import 'package:nudgee/core/services/prompt_template_service.dart';
 import 'package:nudgee/core/services/notification_service.dart';
 import 'package:nudgee/core/services/post_service.dart';
 import 'package:nudgee/core/services/schedule_service.dart';
@@ -215,6 +216,15 @@ Future<void> initDependencies() async {
   // ── Chat Service (聊天 — SQLite local + Qiniu cloud) ─────────────────
   _safeRegister(() => sl.registerLazySingleton<ChatService>(
         () => ChatService(
+          qiniu: sl<QiniuStorageService>(),
+          prefs: sl<SharedPrefsService>(),
+        ),
+      ));
+
+  // ── Prompt Template Service (提示词模板 — local + Qiniu cloud) ───────
+  _safeRegister(() => sl.registerLazySingleton<PromptTemplateService>(
+        () => PromptTemplateService(
+          fileStorage: sl<FileStorageService>(),
           qiniu: sl<QiniuStorageService>(),
           prefs: sl<SharedPrefsService>(),
         ),

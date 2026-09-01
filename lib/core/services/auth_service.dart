@@ -9,6 +9,7 @@ import 'package:nudgee/core/config/app_config.dart';
 import 'package:nudgee/core/di/injector.dart' as di;
 import 'package:nudgee/core/services/chat_service.dart';
 import 'package:nudgee/core/services/post_service.dart';
+import 'package:nudgee/core/services/prompt_template_service.dart';
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
 import 'package:nudgee/core/services/schedule_service.dart';
 import 'package:nudgee/core/services/user_cache_service.dart';
@@ -424,6 +425,7 @@ class AuthService {
       di.sl<ScheduleService>().setUserId('default');
       di.sl<PostService>().setUserId('default');
       di.sl<ChatService>().setUserId('default');
+      di.sl<PromptTemplateService>().setUserId('default');
     } catch (e) {
       debugPrint('[Auth] Logout — reset services failed: $e');
     }

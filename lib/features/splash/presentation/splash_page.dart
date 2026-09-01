@@ -11,6 +11,7 @@ import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/core/services/chat_service.dart';
 import 'package:nudgee/core/services/post_service.dart';
+import 'package:nudgee/core/services/prompt_template_service.dart';
 import 'package:nudgee/core/services/schedule_service.dart';
 
 /// Splash / loading page shown on app launch.
@@ -96,6 +97,7 @@ class _SplashPageState extends State<SplashPage>
             sl<ScheduleService>().setUserId(user.id);
             sl<PostService>().setUserId(user.id);
             sl<ChatService>().setUserId(user.id);
+            sl<PromptTemplateService>().setUserId(user.id);
           }
           context.go(AppRouter.home);
         } else {

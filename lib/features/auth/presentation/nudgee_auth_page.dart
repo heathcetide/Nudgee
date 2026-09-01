@@ -8,6 +8,7 @@ import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/core/services/chat_service.dart';
 import 'package:nudgee/core/services/post_service.dart';
+import 'package:nudgee/core/services/prompt_template_service.dart';
 import 'package:nudgee/core/services/schedule_service.dart';
 import 'package:nudgee/features/auth/presentation/nudgee_auth_widgets.dart';
 

@@ -13,6 +13,8 @@ import 'package:nudgee/core/services/chat_service.dart';
 import 'package:nudgee/core/widgets/im/ling_chat_screen.dart';
 import 'package:nudgee/core/widgets/im/ling_message_search.dart';
 import 'package:nudgee/core/widgets/im/im.dart';
+import 'package:nudgee/features/chat/presentation/prompt_template_page.dart';
+import 'package:nudgee/core/models/prompt_template.dart';
 
 /// 聊天页面 — 会话列表 + 聊天详情。
 ///
@@ -29,6 +31,8 @@ class _ChatPageState extends State<ChatPage> {
   late final LingConversationController _convController = LingConversationController();
   final Map<String, LingChatController> _chatControllers = {};
   final Map<String, LingChatUser> _userMap = {};
+  /// Per-conversation AI system prompts (for template-based AI sessions).
+  final Map<String, String> _convSystemPrompts = {};
   bool _isListening = false;
 
   String get _currentUserId =>
@@ -137,8 +141,15 @@ class _ChatPageState extends State<ChatPage> {
       controller.addMessage(msg);
     }
 
-    // Route to AI if this is the AI assistant conversation.
-    if (conv.id == ChatService.aiAssistantId) {
+    // Route to AI if this is the AI assistant or a template-based AI conversation.
+    final isAiConv = conv.id == ChatService.aiAssistantId ||
+        _convSystemPrompts.containsKey(conv.id);
+    if (isAiConv) {
+      // For the default assistant, ensure default system prompt is set.
+      if (conv.id == ChatService.aiAssistantId) {
+        _convSystemPrompts.remove(conv.id); // Clear any custom prompt.
+        sl<AiService>().reset(systemPrompt: ChatService.aiAssistantSystemPrompt);
+      }
       _streamAiReply(conv, text);
     }
   }
@@ -156,6 +167,13 @@ class _ChatPageState extends State<ChatPage> {
 
     final controller = _chatControllers[conv.id];
     if (controller == null) return;
+
+    // If this conversation has a custom system prompt (from a template),
+    // reset the AI context with it before streaming.
+    final systemPrompt = _convSystemPrompts[conv.id];
+    if (systemPrompt != null) {
+      ai.reset(systemPrompt: systemPrompt);
+    }
 
     controller.isTyping = true;
 
@@ -317,6 +335,76 @@ class _ChatPageState extends State<ChatPage> {
     setState(() {});
   }
 
+  /// 打开模板选择页面，选择模板后创建新的 AI 会话。
+  Future<void> _openTemplatePage() async {
+    final result = await Navigator.of(context).push<(PromptTemplate, String)>(
+      MaterialPageRoute(
+        builder: (_) => const PromptTemplatePage(),
+      ),
+    );
+    if (result == null) return;
+
+    final (template, filledPrompt) = result;
+    await _createAiConversationFromTemplate(template, filledPrompt);
+  }
+
+  /// 根据模板创建新的 AI 会话。
+  Future<void> _createAiConversationFromTemplate(
+    PromptTemplate template,
+    String filledPrompt,
+  ) async {
+    final chatService = sl<ChatService>();
+    final convId = 'ai_${template.id}_${DateTime.now().millisecondsSinceEpoch}';
+
+    final me = LingChatUser(
+      id: _currentUserId,
+      name: sl<AuthService>().currentUser.value?.name ?? '我',
+      avatarUrl: sl<AuthService>().currentUser.value?.avatar,
+      status: LingUserStatus.online,
+    );
+    final ai = LingChatUser(
+      id: convId,
+      name: template.name,
+      avatarUrl: '',
+      status: LingUserStatus.online,
+    );
+
+    // Welcome message from the AI with the template persona.
+    final welcomeMsg = LingMessage(
+      id: '${convId}_welcome',
+      conversationId: convId,
+      authorId: convId,
+      type: LingMessageType.text,
+      text: '你好！我是${template.name} ${template.icon}\n${template.description}\n有什么可以帮你的吗？',
+      createdAt: DateTime.now(),
+      status: LingMessageStatus.read,
+    );
+
+    await chatService.createConversation(
+      id: convId,
+      name: template.name,
+      avatarUrl: '',
+      members: [me, ai],
+    );
+
+    // Save welcome message.
+    await chatService.addAiMessage(conversationId: convId, text: welcomeMsg.text ?? '');
+
+    // Reset AI context with the template's system prompt.
+    sl<AiService>().reset(systemPrompt: filledPrompt);
+
+    // Store the system prompt in memory for this conversation.
+    _convSystemPrompts[convId] = filledPrompt;
+
+    if (mounted) {
+      // Find the newly created conversation and open it.
+      final conv = chatService.conversations.where((c) => c.id == convId).firstOrNull;
+      if (conv != null) {
+        _openChat(context, conv);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -326,7 +414,7 @@ class _ChatPageState extends State<ChatPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
-            onPressed: () {},
+            onPressed: _openTemplatePage,
           ),
         ],
       ),
