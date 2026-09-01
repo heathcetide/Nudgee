@@ -306,7 +306,13 @@ class LingMessageBubble extends StatelessWidget {
     final theme = Theme.of(context);
     final name = seg['name'] as String? ?? 'unknown';
     final status = seg['status'] as String? ?? 'running';
-    final args = seg['arguments'] as Map<String, dynamic>? ?? {};
+    // Safely handle arguments — may be Map<String,dynamic> or Map from JSON.
+    final argsRaw = seg['arguments'];
+    final args = argsRaw is Map<String, dynamic>
+        ? argsRaw
+        : argsRaw is Map
+            ? Map<String, dynamic>.from(argsRaw)
+            : <String, dynamic>{};
     final result = seg['result'] as String?;
     final isError = status == 'error';
     final isRunning = status == 'running';

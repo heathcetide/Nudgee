@@ -78,11 +78,17 @@ class _LingMessageListState extends State<LingMessageList> {
   /// Robustly scroll to bottom on init.
   /// Retries a few times because ListView may not have laid out all items
   /// on the first frame (especially with lazy-loaded messages).
+  int _scrollRetries = 0;
+  static const _maxScrollRetries = 10;
+
   void _scrollToBottomOnInit() {
+    if (_scrollRetries >= _maxScrollRetries) return;
+    _scrollRetries++;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       if (!_controller.hasClients) {
         // Controller not attached yet — retry next frame
-        if (mounted) _scrollToBottomOnInit();
+        _scrollToBottomOnInit();
         return;
       }
       final max = _controller.position.maxScrollExtent;
@@ -130,6 +136,7 @@ class _LingMessageListState extends State<LingMessageList> {
   }
 
   void _onScroll() {
+    if (!_controller.hasClients) return;
     // Load more when near top
     if (_controller.position.pixels < 100 && widget.onLoadMore != null && widget.hasMore && !widget.isLoadingMore) {
       widget.onLoadMore!();
@@ -154,7 +161,10 @@ class _LingMessageListState extends State<LingMessageList> {
 
   @override
   Widget build(BuildContext context) {
-    final itemCount = widget.messages.length + (widget.isTyping ? 1 : 0) + 1;
+    // itemCount = messages + typing indicator (if any) + load more (if hasMore)
+    final itemCount = widget.messages.length +
+        (widget.isTyping ? 1 : 0) +
+        (widget.hasMore ? 1 : 0);
     return Stack(
       children: [
         ListView.builder(
