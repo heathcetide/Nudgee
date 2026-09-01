@@ -92,7 +92,7 @@
   "@authRegisterException": {"placeholders": {"error": {"type": "String"}}},
 
   "navTimetable": "日程",
-  "navCampus": "信息圈",
+  "navCampus": "个人圈",
   "navChat": "聊天",
   "navComponents": "组件",
   "navProfile": "我的",

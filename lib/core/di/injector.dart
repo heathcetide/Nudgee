@@ -230,7 +230,7 @@ Future<void> initDependencies() async {
     sl<NotificationService>().init();
   });
 
-  // ── Post Service (信息圈帖子 — local + Qiniu cloud) ──────────────────
+  // ── Post Service (个人圈帖子 — local + Qiniu cloud) ──────────────────
   _safeRegister(() => sl.registerLazySingleton<PostService>(
         () => PostService(
           fileStorage: sl<FileStorageService>(),

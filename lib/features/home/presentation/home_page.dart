@@ -15,7 +15,7 @@ import 'package:nudgee/core/extensions/context_extensions.dart';
 
 /// Main home page — merged tab structure.
 ///
-/// Bottom nav tabs: 日程 / 信息圈 / [+发布] / 聊天 / 我的.
+/// Bottom nav tabs: 日程 / 个人圈 / [+发布] / 聊天 / 我的.
 /// The center "+" button opens the post creation page.
 /// Internal page switching via [PublicEventBus] `ChangePageEvent`
 /// (e.g. todaySchedule ↔ timetable).

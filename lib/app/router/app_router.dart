@@ -19,6 +19,7 @@ import 'package:nudgee/features/home/presentation/home_page.dart';
 import 'package:nudgee/features/splash/presentation/splash_page.dart';
 import 'package:nudgee/features/workspace/presentation/workspace_page.dart';
 import 'package:nudgee/core/models/schedule_model.dart';
+import 'package:nudgee/core/services/post_service.dart';
 import 'package:nudgee/features/campus_forum/presentation/create_post_page.dart';
 import 'package:nudgee/features/timetable/presentation/add_schedule_page.dart';
 
@@ -48,6 +49,7 @@ class AppRouter {
   static const String workspace = '/workspace';
   static const String addSchedule = '/addSchedule';
   static const String createPost = '/createPost';
+  static const String editPost = '/editPost';
 
   /// Build the [GoRouter] instance.
   ///
@@ -156,6 +158,14 @@ class AppRouter {
           path: createPost,
           name: 'createPost',
           builder: (context, state) => const CreatePostPage(),
+        ),
+        GoRoute(
+          path: editPost,
+          name: 'editPost',
+          builder: (context, state) {
+            final editItem = state.extra as PostItem?;
+            return CreatePostPage(editItem: editItem);
+          },
         ),
       ],
       errorBuilder: (context, state) => _ErrorPage(error: state.error),

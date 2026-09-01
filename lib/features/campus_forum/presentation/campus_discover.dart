@@ -1,12 +1,12 @@
 import 'dart:math';
 
+import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nudgee/core/di/injector.dart';
-import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/core/services/post_service.dart';
 import 'package:nudgee/features/common/utils/functions.dart';
 import 'package:nudgee/features/common/widgets/avatar.dart';
-import 'package:nudgee/features/common/widgets/image_box.dart';
 import 'package:nudgee/features/common/widgets/nine_slice_layout.dart';
 import 'package:nudgee/features/common/widgets/page_scaffold.dart';
 import 'package:flutter/gestures.dart';
@@ -232,8 +232,9 @@ class _CampusDiscoverState extends State<CampusDiscover> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final currentUser = sl<AuthService>().currentUser.value;
     return PageScaffold(
-      title: const Text("信息圈"),
+      title: const Text("个人圈"),
       leading: const SizedBox(),
       child: _posts.isEmpty
           ? Center(
@@ -267,6 +268,7 @@ class _CampusDiscoverState extends State<CampusDiscover> {
                   displayLikeUserList: p["displayLikeUserList"],
                   displayCommentList: p["displayCommentList"],
                   imageList: p["imageList"],
+                  currentUserId: currentUser?.id,
                   onCommentTap: () => _showCommentInput(context, index),
                   onReplyComment: (commentItem) => _showCommentInput(
                     context, index,
@@ -295,6 +297,7 @@ class SinglePosts extends StatefulWidget {
   final List<String>? imageList;
   final VoidCallback? onCommentTap;
   final void Function(Map<String, dynamic> commentItem)? onReplyComment;
+  final String? currentUserId;
 
   const SinglePosts({
     super.key,
@@ -312,6 +315,7 @@ class SinglePosts extends StatefulWidget {
     this.imageList,
     this.onCommentTap,
     this.onReplyComment,
+    this.currentUserId,
   });
 
   @override
@@ -327,6 +331,65 @@ class _SinglePostsState extends State<SinglePosts> {
     isLiked = widget.isLiked ?? false;
     likeCount = widget.likeCount ?? 0;
     super.initState();
+  }
+
+  bool get _isAuthor {
+    final currentUserId = widget.currentUserId;
+    if (currentUserId == null || widget.posterUid == null) return false;
+    return currentUserId == widget.posterUid.toString();
+  }
+
+  Widget _buildMoreButton() {
+    final theme = Theme.of(context);
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_horiz, size: 22, color: theme.hintColor),
+      padding: const EdgeInsets.all(4),
+      constraints: const BoxConstraints(),
+      onSelected: (value) async {
+        if (value == 'edit') {
+          _navigateToEdit();
+        } else if (value == 'delete') {
+          await _confirmDelete();
+        }
+      },
+      itemBuilder: (ctx) => [
+        const PopupMenuItem(value: 'edit', child: Text('编辑')),
+        const PopupMenuItem(value: 'delete', child: Text('删除')),
+      ],
+    );
+  }
+
+  void _navigateToEdit() {
+    final postService = sl<PostService>();
+    final post = postService.posts.where((e) => e.id == widget.postId).firstOrNull;
+    if (post == null) return;
+    GoRouter.of(context).pushNamed('editPost', extra: post);
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除帖子'),
+        content: const Text('确定要删除这条帖子吗？删除后无法恢复。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('删除', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && widget.postId != null) {
+      await sl<PostService>().removePost(widget.postId!);
+      if (mounted) {
+        SmartDialog.showNotify(msg: '已删除', notifyType: NotifyType.success);
+      }
+    }
   }
 
   @override
@@ -350,12 +413,19 @@ class _SinglePostsState extends State<SinglePosts> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.posterName!,
-                    style: TextStyle(
-                        fontSize: 17,
-                        height: 1.35,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary)),
+                Row(
+                  children: [
+                    Text(widget.posterName!,
+                        style: TextStyle(
+                            fontSize: 17,
+                            height: 1.35,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary)),
+                    const Spacer(),
+                    if (_isAuthor)
+                      _buildMoreButton(),
+                  ],
+                ),
                 Text(widget.content!,
                     style: const TextStyle(fontSize: 16, height: 1.28), maxLines: 30),
                 widget.imageList == null || widget.imageList!.isEmpty
@@ -425,8 +495,7 @@ class _SinglePostsState extends State<SinglePosts> {
                   padding: const EdgeInsetsDirectional.symmetric(vertical: 3),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(6),
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest?.withAlpha(100) ??
-                        Colors.grey[200]!,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(100),
                   ),
                   child: Column(
                     children: [

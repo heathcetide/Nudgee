@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:nudgee/core/services/shared_prefs_service.dart';
 
-import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/services/file_storage_service.dart';
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
 
@@ -104,7 +103,7 @@ class PostData {
       );
 }
 
-/// 帖子服务 — 管理信息圈帖子的本地持久化 + 七牛云同步。
+/// 帖子服务 — 管理个人圈帖子的本地持久化 + 七牛云同步。
 ///
 /// 数据存储:
 /// - 本地: FileStorageService → posts/posts_<userId>.json
@@ -237,6 +236,37 @@ class PostService extends ChangeNotifier {
   /// 删除帖子。
   Future<void> removePost(String postId) async {
     final posts = _data.posts.where((e) => e.id != postId).toList();
+    _data = PostData(posts: posts);
+    await _saveLocal();
+    notifyListeners();
+    syncToCloud();
+  }
+
+  /// 更新帖子（编辑文本和图片）。保留 id、time、点赞、评论等元数据。
+  Future<void> updatePost(
+    String postId, {
+    String? content,
+    List<String>? images,
+  }) async {
+    final posts = _data.posts.map((e) {
+      if (e.id == postId) {
+        return PostItem(
+          id: e.id,
+          posterUid: e.posterUid,
+          posterName: e.posterName,
+          posterAvatar: e.posterAvatar,
+          content: content ?? e.content,
+          images: images ?? e.images,
+          time: e.time,
+          likeCount: e.likeCount,
+          commentCount: e.commentCount,
+          isLiked: e.isLiked,
+          displayLikeUserList: e.displayLikeUserList,
+          displayCommentList: e.displayCommentList,
+        );
+      }
+      return e;
+    }).toList();
     _data = PostData(posts: posts);
     await _saveLocal();
     notifyListeners();
