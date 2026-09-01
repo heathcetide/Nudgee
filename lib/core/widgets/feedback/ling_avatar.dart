@@ -114,6 +114,13 @@ class LingAvatar extends StatelessWidget {
       return Image(image: image!, fit: BoxFit.cover);
     }
     if (imageUrl != null && imageUrl!.isNotEmpty) {
+      // Support asset:// prefix for local asset images.
+      if (imageUrl!.startsWith('asset://')) {
+        return Image.asset(
+          imageUrl!.substring(8),
+          fit: BoxFit.cover,
+        );
+      }
       return CachedNetworkImage(
         imageUrl: imageUrl!,
         fit: BoxFit.cover,

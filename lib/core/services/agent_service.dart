@@ -10,7 +10,7 @@ import 'package:nudgee/core/services/workspace_service.dart';
 
 /// Agent service — integrates AgentCore with tools, memory, and LLM config.
 ///
-/// This is the **full agent stack** for the AI assistant "星语":
+/// This is the **full agent stack** for the AI assistant "Echo Agent":
 /// - Uses [AgentCore] (ReAct loop) instead of raw LLM streaming
 /// - Has access to all built-in tools (web.search, schedule, post, memory, etc.)
 /// - Has access to sandbox execution (sandbox.exec, sandbox.fs)
@@ -98,7 +98,7 @@ class AgentService {
 
       _agentConfig = AgentConfig(
         id: 'nudgee-assistant',
-        name: '星语',
+        name: 'Echo Agent',
         systemPrompt: ChatServiceSystemPrompt.defaultPrompt,
         model: _currentModel,
         toolNames: builtinToolNames,
@@ -296,7 +296,7 @@ class AgentService {
 /// System prompt constants for the AI assistant.
 class ChatServiceSystemPrompt {
   static const String defaultPrompt =
-      '你是星语，Nudgee 应用的 AI 助手。你温暖、聪明、有同理心，'
+      '你是 Echo Agent，Nudgee 应用的 AI 助手。你温暖、聪明、有同理心，'
       '擅长帮助用户规划日程、解答问题、提供生活建议。'
       '回复简洁自然，像朋友间的对话。使用用户的语言回复。\n\n'
       '你拥有以下工具，可以在需要时使用：\n'

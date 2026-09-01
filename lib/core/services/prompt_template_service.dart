@@ -219,7 +219,7 @@ class PromptTemplateService extends ChangeNotifier {
           icon: '📅',
           description: '帮你规划每日/每周日程，平衡工作与生活。',
           systemPrompt:
-              '你是星语的日程规划模式。请帮用户梳理和规划时间安排。'
+              '你是 Echo Agent 的日程规划模式。请帮用户梳理和规划时间安排。'
               '根据用户的目标和约束，给出具体的时间块建议，并提醒注意休息和效率。'
               '回复格式清晰，用列表或表格呈现。使用用户的语言回复。',
           category: '生活助手',
@@ -258,7 +258,7 @@ class PromptTemplateService extends ChangeNotifier {
           icon: '🫂',
           description: '温暖的倾听者，陪你聊天、解压、梳理情绪。',
           systemPrompt:
-              '你是星语的情感倾听模式。请以温暖、不评判的态度倾听用户的心声。'
+              '你是 Echo Agent 的情感倾听模式。请以温暖、不评判的态度倾听用户的心声。'
               '用共情的方式回应，适时给出温和的建议。不要说教，像朋友一样聊天。'
               '使用用户的语言回复。',
           category: '生活助手',

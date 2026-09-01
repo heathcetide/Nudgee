@@ -20,7 +20,7 @@ import 'package:nudgee/core/models/prompt_template.dart';
 /// 聊天页面 — 会话列表 + 聊天详情。
 ///
 /// 使用 ChatService (SQLite + 七牛云同步) 管理真实聊天数据。
-/// 每个用户默认有一个 AI 助手"星语"会话。
+/// 每个用户默认有一个 AI 助手"Echo Agent"会话。
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
 
@@ -185,7 +185,7 @@ class _ChatPageState extends State<ChatPage> {
     if (controller == null) return;
 
     // Use custom system prompt for template-based conversations,
-    // or the default 星语 prompt for the main AI conversation.
+    // or the default Echo Agent prompt for the main AI conversation.
     final systemPrompt = _convSystemPrompts[conv.id] ??
         ChatService.aiAssistantSystemPrompt;
 

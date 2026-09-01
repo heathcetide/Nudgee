@@ -32,10 +32,10 @@ class ChatService extends ChangeNotifier {
 
   /// 默认 AI 助手 ID 和名称。
   static const String aiAssistantId = 'ai_assistant';
-  static const String aiAssistantName = '星语';
-  static const String aiAssistantAvatar = '';
+  static const String aiAssistantName = 'Echo Agent';
+  static const String aiAssistantAvatar = 'asset://assets/images/sprite-logo.png';
   static const String aiAssistantSystemPrompt =
-      '你是星语，Nudgee 应用的 AI 助手。你温暖、聪明、有同理心，'
+      '你是 Echo Agent，Nudgee 应用的 AI 助手。你温暖、聪明、有同理心，'
       '擅长帮助用户规划日程、解答问题、提供生活建议。'
       '回复简洁自然，像朋友间的对话。使用用户的语言回复。';
 
@@ -200,7 +200,7 @@ class ChatService extends ChangeNotifier {
       conversationId: aiAssistantId,
       authorId: aiAssistantId,
       type: LingMessageType.text,
-      text: '你好呀！我是星语 ✨ 你的专属 AI 助手。有什么想聊的随时找我～',
+      text: '你好呀！我是 Echo Agent ✨ 你的专属 AI 助手。有什么想聊的随时找我～',
       createdAt: DateTime.now(),
       status: LingMessageStatus.read,
     );
