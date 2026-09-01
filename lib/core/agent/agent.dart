@@ -41,3 +41,6 @@ export 'package:nudgee/core/agent/trace/agent_trace.dart';
 
 // Memory system (Phase 3)
 export 'package:nudgee/core/agent/memory/memory.dart';
+
+// Skill system (Phase 4)
+export 'package:nudgee/core/agent/skills/skills.dart';
