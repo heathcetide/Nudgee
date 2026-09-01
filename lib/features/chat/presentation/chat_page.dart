@@ -94,13 +94,24 @@ class _ChatPageState extends State<ChatPage> {
     final activeConvIds = <String>{};
     for (final conv in chatService.conversations) {
       activeConvIds.add(conv.id);
-      final msgs = chatService.getMessages(conv.id);
       if (_chatControllers[conv.id] == null) {
-        _chatControllers[conv.id] = LingChatController(
+        // Lazy load: only load the most recent messages (max 30)
+        final allMsgs = chatService.getMessages(conv.id);
+        final initialMsgs = allMsgs.length > 30
+            ? allMsgs.sublist(allMsgs.length - 30)
+            : allMsgs;
+        final controller = LingChatController(
           conversationId: conv.id,
           currentUserId: _currentUserId,
-          initialMessages: msgs,
+          initialMessages: initialMsgs,
         );
+        // If we truncated, there are more messages to load
+        if (allMsgs.length > 30) {
+          controller.endLoadMore(hasMore: true);
+        } else {
+          controller.endLoadMore(hasMore: false);
+        }
+        _chatControllers[conv.id] = controller;
       }
     }
     // Dispose controllers for deleted conversations.
@@ -272,6 +283,11 @@ class _ChatPageState extends State<ChatPage> {
             updateBubble();
 
           case ToolCallEvent():
+            // Mark previous content segment as "intermediate" (small/gray)
+            // since it's just the AI narrating before a tool call, not the final answer
+            if (segments.isNotEmpty && segments.last['type'] == 'content') {
+              segments.last['intermediate'] = true;
+            }
             // Always create a new tool call segment (preserves order)
             segments.add({
               'type': 'toolCall',
@@ -436,6 +452,32 @@ class _ChatPageState extends State<ChatPage> {
     sl<ChatService>().markAsRead(conv.id);
   }
 
+  /// Load more historical messages when user scrolls to top.
+  Future<void> _onLoadMore(LingConversation conv) async {
+    final controller = _chatControllers[conv.id];
+    if (controller == null || !controller.hasMore || controller.isLoadingMore) {
+      return;
+    }
+    controller.beginLoadMore();
+    // Simulate async load (ChatService is in-memory)
+    final allMsgs = sl<ChatService>().getMessages(conv.id);
+    final currentCount = controller.messages.length;
+    if (allMsgs.length <= currentCount) {
+      controller.endLoadMore(hasMore: false);
+      return;
+    }
+    // Load 20 more older messages
+    const pageSize = 20;
+    final remaining = allMsgs.length - currentCount;
+    final take = remaining < pageSize ? remaining : pageSize;
+    final older = allMsgs.sublist(
+      allMsgs.length - currentCount - take,
+      allMsgs.length - currentCount,
+    );
+    controller.prependMessages(older);
+    controller.endLoadMore(hasMore: allMsgs.length > currentCount + take);
+  }
+
   void _openChat(BuildContext context, LingConversation conv) {
     final controller = _chatControllers[conv.id];
     if (controller == null) return;
@@ -454,6 +496,7 @@ class _ChatPageState extends State<ChatPage> {
           userMap: _userMap,
           currentUserId: _currentUserId,
           onSend: (text) => _onSend(conv, text),
+          onLoadMore: () => _onLoadMore(conv),
           forwardConversations: _convController.conversations,
           onForward: (msg, targetIds) => _onForward(msg, targetIds),
           onDraftChanged: (text) => _onDraftChanged(conv, text),

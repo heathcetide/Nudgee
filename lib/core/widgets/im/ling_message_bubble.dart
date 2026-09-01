@@ -255,14 +255,30 @@ class LingMessageBubble extends StatelessWidget {
 
         case 'content':
           final text = seg['text'] as String? ?? '';
+          final isIntermediate = seg['intermediate'] == true;
           if (text.isNotEmpty) {
-            widgets.add(Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: SelectableText(
-                text,
-                style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
-              ),
-            ));
+            if (isIntermediate) {
+              // Intermediate content (AI narrating before tool call) — small, muted
+              widgets.add(Padding(
+                padding: const EdgeInsets.only(bottom: 4, left: 4),
+                child: SelectableText(
+                  text,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: textColor.withAlpha(140),
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ));
+            } else {
+              // Final content — normal style
+              widgets.add(Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: SelectableText(
+                  text,
+                  style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
+                ),
+              ));
+            }
           }
           break;
 
@@ -283,16 +299,37 @@ class LingMessageBubble extends StatelessWidget {
     final args = seg['arguments'] as Map<String, dynamic>? ?? {};
     final result = seg['result'] as String?;
     final isError = status == 'error';
+    final isRunning = status == 'running';
 
-    final (icon, color, label) = switch (status) {
-      'running' => (Icons.hourglass_top, theme.colorScheme.primary, '执行中'),
-      'success' => (Icons.check_circle, Colors.green, '成功'),
-      'error' => (Icons.error, theme.colorScheme.error, '失败'),
-      _ => (Icons.help, theme.colorScheme.onSurfaceVariant, status),
-    };
+    // Status icon & color
+    final color = isError
+        ? theme.colorScheme.error
+        : isRunning
+            ? theme.colorScheme.primary
+            : Colors.green;
+    final statusIcon = isError
+        ? Icons.close
+        : isRunning
+            ? Icons.autorenew
+            : Icons.check;
 
     // Build summary
-    String summary = '';
+    String summary = _buildToolSummary(name, args);
+
+    return _DevinToolCallCard(
+      name: name,
+      summary: summary,
+      status: status,
+      color: color,
+      statusIcon: statusIcon,
+      isRunning: isRunning,
+      isError: isError,
+      args: args,
+      result: result,
+    );
+  }
+
+  String _buildToolSummary(String name, Map<String, dynamic> args) {
     switch (name) {
       case 'workspace.fs':
         final action = args['action'] as String? ?? '';
@@ -300,165 +337,32 @@ class LingMessageBubble extends StatelessWidget {
         if (action == 'write' || action == 'read') {
           final content = args['content'] as String? ?? '';
           final lines = content.split('\n').length;
-          summary = '$action → $path ($lines 行)';
-        } else {
-          summary = '$action → $path';
+          return '$action → $path ($lines 行)';
         }
+        return '$action → $path';
       case 'workspace.js.exec':
         final code = args['code'] as String? ?? '';
-        summary = '执行 ${code.split('\n').length} 行 JS';
+        return '执行 ${code.split('\n').length} 行 JS';
       case 'cloud.exec':
         final lang = args['language'] as String? ?? '';
         final code = args['code'] as String? ?? '';
-        summary = '$lang · ${code.split('\n').length} 行';
+        return '$lang · ${code.split('\n').length} 行';
       case 'web.search':
         final query = args['query'] as String? ?? '';
-        summary = query.length > 30 ? '${query.substring(0, 30)}...' : query;
+        return query.length > 40 ? '${query.substring(0, 40)}…' : query;
       case 'github.search':
         final query = args['query'] as String? ?? '';
         final type = args['type'] as String? ?? 'repositories';
-        summary = '$type: $query';
+        return '$type: $query';
       default:
         for (final entry in args.entries) {
           if (entry.value is String && entry.value.toString().isNotEmpty) {
             final val = entry.value.toString();
-            summary = val.length > 40 ? '${val.substring(0, 40)}...' : val;
-            break;
+            return val.length > 50 ? '${val.substring(0, 50)}…' : val;
           }
         }
+        return '';
     }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      decoration: BoxDecoration(
-        color: color.withAlpha(20),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withAlpha(80), width: 1),
-      ),
-      child: ExpansionTile(
-        tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-        leading: Icon(icon, color: color, size: 18),
-        title: Text(
-          name,
-          style: theme.textTheme.labelMedium?.copyWith(
-            fontFamily: 'monospace',
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: Text(
-          summary.isNotEmpty ? '$label · $summary' : label,
-          style: theme.textTheme.bodySmall?.copyWith(color: color),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        initiallyExpanded: false,
-        children: [
-          if (args.isNotEmpty)
-            _buildSegmentArgs(context, args),
-          if (result != null)
-            _buildSegmentResult(context, result, isError),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSegmentArgs(BuildContext context, Map<String, dynamic> args) {
-    final theme = Theme.of(context);
-    final hasLargeContent = args.values.any(
-      (v) => v is String && v.length > 200,
-    );
-
-    if (!hasLargeContent) {
-      try {
-        final formatted = const JsonEncoder.withIndent('  ').convert(args);
-        return _buildSegmentSection(context, '参数', formatted);
-      } catch (_) {
-        return const SizedBox.shrink();
-      }
-    }
-
-    // Large args — show per field with truncation
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('参数',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurface.withAlpha(120),
-                fontWeight: FontWeight.w600,
-              )),
-          const SizedBox(height: 4),
-          for (final entry in args.entries)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('${entry.key}:',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      )),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(8),
-                    margin: const EdgeInsets.only(top: 2),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest.withAlpha(60),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: entry.value is String && (entry.value as String).length > 200
-                        ? _SegmentTruncatedText(text: entry.value.toString(), maxLines: 5)
-                        : SelectableText(
-                            entry.value?.toString() ?? 'null',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontFamily: 'monospace', fontSize: 12),
-                          ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSegmentResult(BuildContext context, String result, bool isError) {
-    return _buildSegmentSection(context, isError ? '错误' : '结果', result, isError: isError);
-  }
-
-  Widget _buildSegmentSection(BuildContext context, String title, String content,
-      {bool isError = false}) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurface.withAlpha(120),
-                fontWeight: FontWeight.w600,
-              )),
-          const SizedBox(height: 4),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: isError
-                  ? theme.colorScheme.errorContainer.withAlpha(40)
-                  : theme.colorScheme.surfaceContainerHighest.withAlpha(60),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: content.length > 500
-                ? _SegmentTruncatedText(text: content, maxLines: 10)
-                : SelectableText(content,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontFamily: 'monospace', fontSize: 12)),
-          ),
-        ],
-      ),
-    );
   }
 
   /// Build a collapsible thinking/reasoning block for AI messages.
@@ -1427,6 +1331,228 @@ class _SegmentTruncatedTextState extends State<_SegmentTruncatedText> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Devin-style compact tool call card.
+/// Single line when collapsed: [icon] tool_name  summary  [status]
+/// Click to expand args + result.
+class _DevinToolCallCard extends StatefulWidget {
+  final String name;
+  final String summary;
+  final String status;
+  final Color color;
+  final IconData statusIcon;
+  final bool isRunning;
+  final bool isError;
+  final Map<String, dynamic> args;
+  final String? result;
+
+  const _DevinToolCallCard({
+    required this.name,
+    required this.summary,
+    required this.status,
+    required this.color,
+    required this.statusIcon,
+    required this.isRunning,
+    required this.isError,
+    required this.args,
+    this.result,
+  });
+
+  @override
+  State<_DevinToolCallCard> createState() => _DevinToolCallCardState();
+}
+
+class _DevinToolCallCardState extends State<_DevinToolCallCard>
+    with SingleTickerProviderStateMixin {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      decoration: BoxDecoration(
+        color: widget.color.withAlpha(isDark ? 25 : 15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: widget.color.withAlpha(50), width: 0.5),
+      ),
+      child: Column(
+        children: [
+          // Header row — always visible, compact
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              child: Row(
+                children: [
+                  // Status icon (with spin if running)
+                  if (widget.isRunning)
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(widget.color),
+                      ),
+                    )
+                  else
+                    Icon(widget.statusIcon, size: 14, color: widget.color),
+                  const SizedBox(width: 8),
+                  // Tool name — monospace, bold
+                  Text(
+                    widget.name,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface.withAlpha(200),
+                    ),
+                  ),
+                  // Summary
+                  if (widget.summary.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        widget.summary,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withAlpha(140),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                  const Spacer(),
+                  // Expand/collapse chevron
+                  Icon(
+                    _expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    size: 16,
+                    color: theme.colorScheme.onSurface.withAlpha(100),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Expanded content
+          if (_expanded) ...[
+            Divider(
+              height: 1,
+              color: widget.color.withAlpha(30),
+            ),
+            if (widget.args.isNotEmpty)
+              _buildArgsView(theme),
+            if (widget.result != null)
+              _buildResultView(theme),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildArgsView(ThemeData theme) {
+    final hasLargeContent = widget.args.values.any(
+      (v) => v is String && v.length > 200,
+    );
+
+    if (!hasLargeContent) {
+      try {
+        final formatted = const JsonEncoder.withIndent('  ').convert(widget.args);
+        return _buildSection(theme, '参数', formatted);
+      } catch (_) {
+        return const SizedBox.shrink();
+      }
+    }
+
+    // Large args — show per field
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('参数',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurface.withAlpha(120),
+                fontWeight: FontWeight.w600,
+              )),
+          const SizedBox(height: 4),
+          for (final entry in widget.args.entries)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${entry.key}:',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      )),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(6),
+                    margin: const EdgeInsets.only(top: 2),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest.withAlpha(60),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: entry.value is String && (entry.value as String).length > 200
+                        ? _SegmentTruncatedText(text: entry.value.toString(), maxLines: 5)
+                        : SelectableText(
+                            entry.value?.toString() ?? 'null',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontFamily: 'monospace', fontSize: 11),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultView(ThemeData theme) {
+    return _buildSection(
+      theme,
+      widget.isError ? '错误' : '结果',
+      widget.result!,
+      isError: widget.isError,
+    );
+  }
+
+  Widget _buildSection(ThemeData theme, String title, String content,
+      {bool isError = false}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurface.withAlpha(120),
+                fontWeight: FontWeight.w600,
+              )),
+          const SizedBox(height: 4),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: isError
+                  ? theme.colorScheme.errorContainer.withAlpha(40)
+                  : theme.colorScheme.surfaceContainerHighest.withAlpha(60),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: content.length > 500
+                ? _SegmentTruncatedText(text: content, maxLines: 10)
+                : SelectableText(content,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontFamily: 'monospace', fontSize: 11)),
+          ),
+        ],
+      ),
     );
   }
 }

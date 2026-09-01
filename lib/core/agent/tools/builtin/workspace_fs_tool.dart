@@ -51,6 +51,11 @@ class WorkspaceFsTool extends AgentTool {
             'type': 'string',
             'description': 'File content (only for "write" action)',
           },
+          'offset': {
+            'type': 'integer',
+            'description': 'Read offset for large files (only for "read" action). '
+                'Files >8000 chars are chunked. Use offset to read subsequent chunks.',
+          },
         },
         'required': ['action', 'path'],
       };
@@ -102,7 +107,26 @@ class WorkspaceFsTool extends AgentTool {
           if (content == null) {
             return ToolResult.error('File not found: $path');
           }
-          return ToolResult.success(content);
+          // Chunked reading for large files — return first chunk + metadata
+          final maxChars = 8000; // ~8000 chars per chunk
+          if (content.length <= maxChars) {
+            return ToolResult.success(content);
+          }
+          final offset = (args['offset'] as int?) ?? 0;
+          final end = (offset + maxChars).clamp(0, content.length);
+          final chunk = content.substring(offset, end);
+          final hasMore = end < content.length;
+          final totalLines = content.split('\n').length;
+          final chunkLines = chunk.split('\n').length;
+          return ToolResult.success(
+            'File: $path (${content.length} bytes, $totalLines lines)\n'
+            'Showing lines ${offset ~/ 1}–${end ~/ 1} (chunk $chunkLines lines)\n'
+            '─── content ───\n'
+            '$chunk\n'
+            '─── end of chunk ───\n'
+            '${hasMore ? 'NOTE: File has more content. '
+                'Use offset=$end to read the next chunk.' : 'End of file.'}',
+          );
 
         case 'list':
           final entries = await workspace.listDir(path);
