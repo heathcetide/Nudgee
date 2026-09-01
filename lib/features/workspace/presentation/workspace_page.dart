@@ -1,8 +1,17 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
+import 'package:flutter_code_editor/flutter_code_editor.dart';
+import 'package:flutter_highlight/themes/monokai-sublime.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
+import 'package:highlight/languages/javascript.dart';
+import 'package:highlight/languages/json.dart';
+import 'package:highlight/languages/python.dart';
+import 'package:highlight/languages/dart.dart';
+import 'package:highlight/languages/xml.dart';
+import 'package:highlight/languages/yaml.dart';
+import 'package:highlight/languages/markdown.dart';
+import 'package:highlight/highlight.dart' show Mode;
 
+import 'package:nudgee/core/agent/tools/builtin/js_executor_tool.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/workspace_service.dart';
@@ -12,12 +21,11 @@ import 'package:nudgee/core/services/workspace_service.dart';
 /// 功能:
 /// - 文件/文件夹浏览 (面包屑导航)
 /// - 创建文件/文件夹
-/// - 查看文件内容 (代码/文本预览)
-/// - 编辑文件内容
+/// - 查看文件内容 (代码高亮预览)
+/// - 编辑文件内容 (代码编辑器 + 行号 + 语法高亮)
+/// - 运行 JS 代码 (运行按钮 + 输出面板)
 /// - 删除文件/文件夹
 /// - 重命名文件
-///
-/// 数据来源: [WorkspaceService] (本地 /workspace/ 目录)
 class WorkspacePage extends StatefulWidget {
   const WorkspacePage({super.key});
 
@@ -42,14 +50,12 @@ class _WorkspacePageState extends State<WorkspacePage> {
   Future<void> _loadEntries() async {
     setState(() => _isLoading = true);
     try {
-      // Ensure workspace is initialized (DI init() is async, may not be done yet)
       if (!_workspace.isInitialized) {
         await _workspace.init();
       }
       final path = _currentPath.join('/');
       _entries = await _workspace.listDir(path.isEmpty ? '.' : path);
 
-      // Calculate total stats
       final all = await _workspace.listDir('.');
       _totalFiles = all.where((e) => !e.isDirectory).length;
       _totalSize = all.where((e) => e.size != null).fold(0, (s, e) => s + e.size!);
@@ -58,9 +64,6 @@ class _WorkspacePageState extends State<WorkspacePage> {
     }
     setState(() => _isLoading = false);
   }
-
-  String get _currentPathStr =>
-      _currentPath.isEmpty ? '/' : '/${_currentPath.join('/')}';
 
   void _enterDir(WorkspaceEntry entry) {
     _currentPath.add(entry.name);
@@ -127,8 +130,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
                 Icon(Icons.folder_outlined,
                     size: 16, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
-                Text('$_totalFiles 个文件',
-                    style: theme.textTheme.bodySmall),
+                Text('$_totalFiles 个文件', style: theme.textTheme.bodySmall),
                 const SizedBox(width: 16),
                 Icon(Icons.storage_outlined,
                     size: 16, color: theme.colorScheme.primary),
@@ -220,6 +222,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
 
   Widget _buildEntryTile(ThemeData theme, WorkspaceEntry entry) {
     final isCode = _isCodeFile(entry.name);
+    final isJs = entry.name.toLowerCase().endsWith('.js');
     return ListTile(
       leading: Icon(
         entry.isDirectory ? Icons.folder : (isCode ? Icons.code : Icons.description),
@@ -228,11 +231,16 @@ class _WorkspacePageState extends State<WorkspacePage> {
       title: Text(entry.name),
       subtitle: entry.isDirectory
           ? null
-          : Text(_formatSize(entry.size ?? 0),
-              style: theme.textTheme.bodySmall),
+          : Text(_formatSize(entry.size ?? 0), style: theme.textTheme.bodySmall),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (isJs && !entry.isDirectory)
+            IconButton(
+              icon: const Icon(Icons.play_arrow, size: 22),
+              tooltip: '运行',
+              onPressed: () => _runJsFile(entry),
+            ),
           if (!entry.isDirectory)
             IconButton(
               icon: const Icon(Icons.visibility_outlined, size: 20),
@@ -248,6 +256,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
                 case 'edit':
                   _showFileEditor(entry);
                   break;
+                case 'run':
+                  _runJsFile(entry);
+                  break;
                 case 'rename':
                   _showRenameDialog(entry);
                   break;
@@ -261,17 +272,36 @@ class _WorkspacePageState extends State<WorkspacePage> {
                 const PopupMenuItem(value: 'view', child: Text('查看')),
               if (!entry.isDirectory)
                 const PopupMenuItem(value: 'edit', child: Text('编辑')),
+              if (isJs && !entry.isDirectory)
+                const PopupMenuItem(value: 'run', child: Text('运行')),
               const PopupMenuItem(value: 'rename', child: Text('重命名')),
               PopupMenuItem(
                 value: 'delete',
-                child: Text('删除',
-                    style: TextStyle(color: theme.colorScheme.error)),
+                child: Text('删除', style: TextStyle(color: theme.colorScheme.error)),
               ),
             ],
           ),
         ],
       ),
-      onTap: entry.isDirectory ? () => _enterDir(entry) : () => _showFileViewer(entry),
+      onTap: entry.isDirectory
+          ? () => _enterDir(entry)
+          : () => _showFileViewer(entry),
+    );
+  }
+
+  // ── Run JS ─────────────────────────────────────────────────────────
+
+  void _runJsFile(WorkspaceEntry entry) async {
+    final content = await _workspace.readFile(entry.relativePath);
+    if (!mounted || content == null) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _JsRunPage(
+          name: entry.name,
+          code: content,
+        ),
+      ),
     );
   }
 
@@ -300,7 +330,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
             onPressed: () async {
               final name = controller.text.trim();
               if (name.isEmpty) return;
-              final path = _currentPath.isEmpty ? name : '${_currentPath.join('/')}/$name';
+              final path = _currentPath.isEmpty
+                  ? name
+                  : '${_currentPath.join('/')}/$name';
               try {
                 if (isDir) {
                   await _workspace.createDir(path);
@@ -375,8 +407,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
                 return;
               }
               final parentPath = _currentPath.join('/');
-              final oldPath = parentPath.isEmpty ? entry.name : '$parentPath/${entry.name}';
-              final newPath = parentPath.isEmpty ? newName : '$parentPath/$newName';
+              final newPath =
+                  parentPath.isEmpty ? newName : '$parentPath/$newName';
               try {
                 final content = await _workspace.readFile(entry.relativePath);
                 await _workspace.delete(entry.relativePath);
@@ -472,8 +504,41 @@ class _WorkspacePageState extends State<WorkspacePage> {
   }
 }
 
-/// 文件查看器页面 — 只读预览。
-class _FileViewerPage extends StatelessWidget {
+// ── Language helper ─────────────────────────────────────────────────────
+
+/// Returns the highlight.js language mode for a file extension.
+Mode? _languageForFile(String name) {
+  final ext = name.split('.').last.toLowerCase();
+  switch (ext) {
+    case 'js':
+    case 'ts':
+    case 'jsx':
+      return javascript;
+    case 'json':
+      return json;
+    case 'py':
+      return python;
+    case 'dart':
+      return dart;
+    case 'html':
+    case 'htm':
+    case 'xml':
+    case 'svg':
+      return xml;
+    case 'yaml':
+    case 'yml':
+      return yaml;
+    case 'md':
+    case 'markdown':
+      return markdown;
+    default:
+      return null;
+  }
+}
+
+// ── File Viewer (read-only with syntax highlighting) ────────────────────
+
+class _FileViewerPage extends StatefulWidget {
   final String name;
   final String content;
   final bool isCode;
@@ -485,20 +550,46 @@ class _FileViewerPage extends StatelessWidget {
   });
 
   @override
+  State<_FileViewerPage> createState() => _FileViewerPageState();
+}
+
+class _FileViewerPageState extends State<_FileViewerPage> {
+  late final CodeController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = CodeController(
+      text: widget.content,
+      language: _languageForFile(widget.name),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
-      appBar: AppBar(title: Text(name)),
-      body: Container(
-        color: theme.colorScheme.surfaceContainerHighest.withAlpha(40),
+      appBar: AppBar(title: Text(widget.name)),
+      body: CodeTheme(
+        data: CodeThemeData(
+          styles: isDark ? monokaiSublimeTheme : monokaiSublimeTheme,
+        ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(12),
-          child: SelectableText(
-            content,
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontFamily: isCode ? 'monospace' : null,
-              fontSize: isCode ? 13 : 14,
-              height: 1.5,
+          child: CodeField(
+            controller: _controller,
+            readOnly: true,
+            textStyle: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+            gutterStyle: GutterStyle(
+              showErrors: false,
+              showFoldingHandles: false,
+              showLineNumbers: widget.isCode,
             ),
           ),
         ),
@@ -507,7 +598,8 @@ class _FileViewerPage extends StatelessWidget {
   }
 }
 
-/// 文件编辑器页面 — 可编辑并保存。
+// ── File Editor (editable with syntax highlighting + run button) ────────
+
 class _FileEditorPage extends StatefulWidget {
   final String name;
   final String initialContent;
@@ -522,18 +614,54 @@ class _FileEditorPage extends StatefulWidget {
 }
 
 class _FileEditorPageState extends State<_FileEditorPage> {
-  late final TextEditingController _controller;
+  late final CodeController _controller;
+  bool _isRunning = false;
+  String _output = '';
+  bool _outputIsError = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialContent);
+    _controller = CodeController(
+      text: widget.initialContent,
+      language: _languageForFile(widget.name),
+    );
   }
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  bool get _isJs => widget.name.toLowerCase().endsWith('.js');
+
+  Future<void> _runCode() async {
+    setState(() {
+      _isRunning = true;
+      _output = '';
+      _outputIsError = false;
+    });
+
+    try {
+      final tool = JsExecutorTool();
+      final result = await tool.execute({'code': _controller.fullText});
+      tool.dispose();
+
+      setState(() {
+        _output = result.success
+            ? result.output
+            : (result.error ?? 'Unknown error');
+        _outputIsError = !result.success;
+      });
+    } catch (e) {
+      setState(() {
+        _output = '运行失败: $e';
+        _outputIsError = true;
+      });
+    }
+
+    setState(() => _isRunning = false);
   }
 
   @override
@@ -543,33 +671,253 @@ class _FileEditorPageState extends State<_FileEditorPage> {
       appBar: AppBar(
         title: Text('编辑: ${widget.name}'),
         actions: [
+          if (_isJs)
+            IconButton(
+              icon: _isRunning
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.play_arrow),
+              onPressed: _isRunning ? null : _runCode,
+              tooltip: '运行',
+            ),
           IconButton(
             icon: const Icon(Icons.save),
-            onPressed: () => Navigator.of(context).pop(_controller.text),
+            onPressed: () => Navigator.of(context).pop(_controller.fullText),
             tooltip: '保存',
           ),
         ],
       ),
-      body: Container(
-        color: theme.colorScheme.surfaceContainerHighest.withAlpha(40),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(12),
-          child: TextField(
-            controller: _controller,
-            maxLines: null,
-            expands: true,
-            minLines: 1,
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontFamily: 'monospace',
-              fontSize: 13,
-              height: 1.5,
-            ),
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.zero,
+      body: Column(
+        children: [
+          // Code editor
+          Expanded(
+            flex: _output.isNotEmpty ? 3 : 1,
+            child: CodeTheme(
+              data: CodeThemeData(styles: monokaiSublimeTheme),
+              child: SingleChildScrollView(
+                child: CodeField(
+                  controller: _controller,
+                  textStyle: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                  gutterStyle: const GutterStyle(
+                    showErrors: false,
+                    showFoldingHandles: false,
+                    showLineNumbers: true,
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
+          // Output panel
+          if (_output.isNotEmpty || _isRunning)
+            Container(
+              height: 200,
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: theme.colorScheme.outlineVariant,
+                    width: 1,
+                  ),
+                ),
+                color: _outputIsError
+                    ? theme.colorScheme.errorContainer.withAlpha(40)
+                    : theme.colorScheme.surfaceContainerHighest.withAlpha(60),
+              ),
+              child: Column(
+                children: [
+                  // Output header
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: theme.colorScheme.outlineVariant,
+                          width: 0.5,
+                        ),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _outputIsError ? Icons.error_outline : Icons.terminal,
+                          size: 16,
+                          color: _outputIsError
+                              ? theme.colorScheme.error
+                              : theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _outputIsError ? '错误输出' : '运行结果',
+                          style: theme.textTheme.labelMedium,
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 16),
+                          onPressed: () => setState(() {
+                            _output = '';
+                            _outputIsError = false;
+                          }),
+                          tooltip: '关闭',
+                          constraints: const BoxConstraints(
+                            minWidth: 28,
+                            minHeight: 28,
+                          ),
+                          padding: EdgeInsets.zero,
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Output content
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(12),
+                      child: SelectableText(
+                        _isRunning ? '运行中...' : _output,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                          height: 1.4,
+                          color: _outputIsError
+                              ? theme.colorScheme.onErrorContainer
+                              : theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── JS Run Page (run a .js file with output) ────────────────────────────
+
+class _JsRunPage extends StatefulWidget {
+  final String name;
+  final String code;
+
+  const _JsRunPage({required this.name, required this.code});
+
+  @override
+  State<_JsRunPage> createState() => _JsRunPageState();
+}
+
+class _JsRunPageState extends State<_JsRunPage> {
+  bool _isRunning = true;
+  String _output = '';
+  bool _outputIsError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _runCode();
+  }
+
+  Future<void> _runCode() async {
+    setState(() {
+      _isRunning = true;
+      _output = '';
+      _outputIsError = false;
+    });
+
+    try {
+      final tool = JsExecutorTool();
+      final result = await tool.execute({'code': widget.code});
+      tool.dispose();
+
+      setState(() {
+        _output =
+            result.success ? result.output : (result.error ?? 'Unknown error');
+        _outputIsError = !result.success;
+      });
+    } catch (e) {
+      setState(() {
+        _output = '运行失败: $e';
+        _outputIsError = true;
+      });
+    }
+
+    setState(() => _isRunning = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('运行: ${widget.name}'),
+        actions: [
+          IconButton(
+            icon: _isRunning
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+            onPressed: _isRunning ? null : _runCode,
+            tooltip: '重新运行',
+          ),
+        ],
+      ),
+      body: Container(
+        color: _outputIsError
+            ? theme.colorScheme.errorContainer.withAlpha(30)
+            : theme.colorScheme.surfaceContainerHighest.withAlpha(40),
+        child: _isRunning
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          _outputIsError ? Icons.error_outline : Icons.check_circle,
+                          color: _outputIsError
+                              ? theme.colorScheme.error
+                              : Colors.green,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _outputIsError ? '执行出错' : '执行完成',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: _outputIsError
+                                ? theme.colorScheme.error
+                                : Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant,
+                        ),
+                      ),
+                      child: SelectableText(
+                        _output,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontFamily: 'monospace',
+                          fontSize: 13,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
       ),
     );
   }
