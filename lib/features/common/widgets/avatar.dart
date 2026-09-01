@@ -73,16 +73,8 @@ class Avatar extends StatelessWidget {
         );
       } else {
         final urlStr = url!;
-        // Preserve cache-busting query param for original image URL.
-        // e.g. avatar.jpg?t=123 → avatar_original.jpg?t=123
-        final queryPart = urlStr.contains('?') ? '?${urlStr.split('?').last}' : '';
-        final cleanUrl = urlStr.split('?').first;
-        final originalUrl = cleanUrl.replaceAll(
-          RegExp(r'avatar(\.jpg)'),
-          'avatar_original\$1',
-        );
-        final originalUrlWithCache = '$originalUrl$queryPart';
         if (onTap != null) {
+          // With onTap — used as tappable avatar (e.g. in profile), no detail view.
           content = Container(
               child: ExtendedImage.network(
                 urlStr,
@@ -95,9 +87,13 @@ class Avatar extends StatelessWidget {
                     BorderRadius.circular(min(constraints.maxHeight, constraints.maxWidth) * 0.16),
               ));
         } else {
+          // Tappable avatar with detail view — use the same URL for detail.
+          // The URL already has a cache-busting ?t=timestamp param,
+          // so it will load the latest image. No need to derive an "original" URL
+          // (which may not exist or may hit stale cache).
           content = ImageBox(urlStr,
               images: [
-                {'url': originalUrlWithCache, 'tag': urlStr}
+                {'url': urlStr, 'tag': urlStr}
               ],
               decoration: BoxDecoration(
                 borderRadius:

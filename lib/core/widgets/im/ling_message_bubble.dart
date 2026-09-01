@@ -232,10 +232,19 @@ class LingMessageBubble extends StatelessWidget {
   /// ```
   List<Widget> _buildOrderedSegments(BuildContext context, Color textColor) {
     final theme = Theme.of(context);
-    final segmentsRaw = message.metadata!['segments'];
+    final segmentsRaw = message.metadata?['segments'];
     if (segmentsRaw is! List || segmentsRaw.isEmpty) return [];
 
-    final segments = segmentsRaw.cast<Map<String, dynamic>>();
+    // Safely cast — segments from JSON may have dynamic element types.
+    final segments = <Map<String, dynamic>>[];
+    for (final s in segmentsRaw) {
+      if (s is Map<String, dynamic>) {
+        segments.add(s);
+      } else if (s is Map) {
+        segments.add(Map<String, dynamic>.from(s));
+      }
+    }
+    if (segments.isEmpty) return [];
     final widgets = <Widget>[];
 
     for (final seg in segments) {
@@ -369,7 +378,7 @@ class LingMessageBubble extends StatelessWidget {
   /// Build a collapsible thinking/reasoning block for AI messages.
   Widget _buildThinkingBlock(BuildContext context, Color textColor) {
     final theme = Theme.of(context);
-    final thinking = message.metadata!['thinking'] as String;
+    final thinking = message.metadata?['thinking'] as String? ?? '';
     if (thinking.isEmpty) return const SizedBox.shrink();
     final isStreaming = message.metadata?['thinkingStreaming'] == true;
 
@@ -387,12 +396,21 @@ class LingMessageBubble extends StatelessWidget {
   /// and expandable arguments + results.
   Widget _buildToolCallsBlock(BuildContext context, Color textColor) {
     final theme = Theme.of(context);
-    final toolCallsRaw = message.metadata!['toolCalls'];
+    final toolCallsRaw = message.metadata?['toolCalls'];
     if (toolCallsRaw is! List || toolCallsRaw.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    final toolCalls = toolCallsRaw.cast<Map<String, dynamic>>();
+    // Safely cast — toolCalls from JSON may have dynamic element types.
+    final toolCalls = <Map<String, dynamic>>[];
+    for (final t in toolCallsRaw) {
+      if (t is Map<String, dynamic>) {
+        toolCalls.add(t);
+      } else if (t is Map) {
+        toolCalls.add(Map<String, dynamic>.from(t));
+      }
+    }
+    if (toolCalls.isEmpty) return const SizedBox.shrink();
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(

@@ -51,8 +51,22 @@ class _CampusDiscoverState extends State<CampusDiscover> {
 
   void _loadPosts() {
     final postService = sl<PostService>();
+    final auth = sl<AuthService>();
+    final currentUser = auth.currentUser.value;
     setState(() {
       _posts = postService.getPostsAsUIMap();
+      // Update current user's posts with their latest name/avatar.
+      // This ensures name/avatar changes reflect immediately in the feed.
+      if (currentUser != null) {
+        for (final post in _posts) {
+          if (post['posterUid'] == currentUser.id) {
+            post['posterName'] = currentUser.name;
+            if (currentUser.avatar != null && currentUser.avatar!.isNotEmpty) {
+              post['posterAvatar'] = currentUser.avatar;
+            }
+          }
+        }
+      }
     });
   }
 
