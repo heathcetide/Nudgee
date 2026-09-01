@@ -120,8 +120,11 @@ class _AvatarUploadState extends State<AvatarUpload> {
               await qiniu.uploadBytes(avatarOriginalKey, originalFileData);
               debugPrint('[AvatarUpload] cloud upload done: $compressedUrl');
 
-              // Cache-busting: append timestamp so ExtendedImage reloads the new image.
-              final cacheBustUrl = '$compressedUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+              // Cache-busting: append timestamp so CachedNetworkImage reloads.
+              // The upload key is always the same (nudgee/{uid}/avatar.jpg),
+              // so without a changing URL the image cache shows the old image.
+              final cacheBustUrl =
+                  '$compressedUrl?t=${DateTime.now().millisecondsSinceEpoch}';
 
               // ── 2. 保存到本地文件系统 ──────────────────────────────────
               debugPrint('[AvatarUpload] saving to local...');
@@ -138,12 +141,18 @@ class _AvatarUploadState extends State<AvatarUpload> {
               debugPrint('[AvatarUpload] local saved: $localAvatarPath');
 
               // ── 3. 更新云端 profile 的 avatar 字段 ─────────────────────
-              debugPrint('[AvatarUpload] updating profile...');
+              // Use cacheBustUrl (with timestamp) so image widgets refetch.
+              debugPrint('[AvatarUpload] updating profile with: $cacheBustUrl');
               final (profileOk, profileErr) =
-                  await auth.updateProfile({'avatar': compressedUrl});
+                  await auth.updateProfile({'avatar': cacheBustUrl});
               if (!profileOk) {
                 debugPrint('[AvatarUpload] profile update failed: $profileErr');
               }
+
+              // ── 4. 清除本地图片缓存 ────────────────────────────────────
+              debugPrint('[AvatarUpload] clearing image cache...');
+              PaintingBinding.instance.imageCache.clear();
+              PaintingBinding.instance.imageCache.clearLiveImages();
 
               debugPrint('[AvatarUpload] all done!');
               SmartDialog.dismiss();

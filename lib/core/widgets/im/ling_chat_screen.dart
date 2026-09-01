@@ -9,7 +9,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'package:nudgee/core/controllers/im/ling_chat_controller.dart';
+import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/models/im/im.dart';
+import 'package:nudgee/core/services/chat_service.dart';
 import 'package:nudgee/core/widgets/feedback/ling_avatar.dart';
 import 'package:nudgee/core/widgets/im/ling_chat_input.dart';
 import 'package:nudgee/core/widgets/im/ling_contact_profile.dart';
@@ -847,12 +849,15 @@ class _LingChatScreenState extends State<LingChatScreen> {
 
   void _deleteMessage(LingMessage msg) {
     widget.controller.removeMessage(msg.id);
+    sl<ChatService>().deleteMessage(widget.conversation.id, msg.id);
   }
 
   void _deleteSelected() {
-    for (final id in _selectedIds.toList()) {
+    final ids = _selectedIds.toList();
+    for (final id in ids) {
       widget.controller.removeMessage(id);
     }
+    sl<ChatService>().deleteMessages(widget.conversation.id, ids);
     _exitMultiSelect();
   }
 

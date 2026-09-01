@@ -50,9 +50,16 @@ class _ChatPageState extends State<ChatPage> {
     if (!_isListening) {
       _isListening = true;
       chatService.addListener(_onChatChanged);
+      // Also listen to auth changes so avatar updates reflect immediately.
+      sl<AuthService>().currentUser.addListener(_onAuthChanged);
     }
     // Build initial state from ChatService.
     _rebuildFromService();
+  }
+
+  void _onAuthChanged() {
+    // User profile (e.g. avatar) changed — rebuild user map.
+    if (mounted) _rebuildFromService();
   }
 
   void _onChatChanged() {
@@ -131,6 +138,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void dispose() {
     sl<ChatService>().removeListener(_onChatChanged);
+    sl<AuthService>().currentUser.removeListener(_onAuthChanged);
     _chatControllers.values.forEach((c) => c.dispose());
     _convController.dispose();
     super.dispose();

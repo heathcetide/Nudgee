@@ -65,16 +65,35 @@ class _LingMessageListState extends State<LingMessageList> {
   bool _showScrollToBottom = false;
   int _lastMessageCount = 0;
   int _unreadSinceBottom = 0;
+  bool _initialScrollDone = false;
 
   @override
   void initState() {
     super.initState();
     _controller.addListener(_onScroll);
     _lastMessageCount = widget.messages.length;
-    // 初始滚动到底部
+    _scrollToBottomOnInit();
+  }
+
+  /// Robustly scroll to bottom on init.
+  /// Retries a few times because ListView may not have laid out all items
+  /// on the first frame (especially with lazy-loaded messages).
+  void _scrollToBottomOnInit() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_controller.hasClients && _controller.position.maxScrollExtent > 0) {
-        _controller.jumpTo(_controller.position.maxScrollExtent);
+      if (!_controller.hasClients) {
+        // Controller not attached yet — retry next frame
+        if (mounted) _scrollToBottomOnInit();
+        return;
+      }
+      final max = _controller.position.maxScrollExtent;
+      if (max > 0) {
+        _controller.jumpTo(max);
+        _initialScrollDone = true;
+      } else if (!_initialScrollDone) {
+        // maxScrollExtent is 0 — list might not be laid out yet, retry
+        Future.delayed(const Duration(milliseconds: 50), () {
+          if (mounted && !_initialScrollDone) _scrollToBottomOnInit();
+        });
       }
     });
   }

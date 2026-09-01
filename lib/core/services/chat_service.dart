@@ -279,6 +279,32 @@ class ChatService extends ChangeNotifier {
   List<LingMessage> getMessages(String conversationId) =>
       _messages[conversationId] ?? [];
 
+  /// 删除单条消息（同步内存 + 数据库）。
+  Future<void> deleteMessage(String conversationId, String messageId) async {
+    final msgs = _messages[conversationId];
+    if (msgs == null) return;
+    _messages[conversationId] = msgs.where((m) => m.id != messageId).toList();
+    await _db?.delete('messages',
+        where: 'id = ?', whereArgs: [messageId]);
+    notifyListeners();
+    _syncToCloud();
+  }
+
+  /// 批量删除消息。
+  Future<void> deleteMessages(String conversationId, List<String> messageIds) async {
+    final msgs = _messages[conversationId];
+    if (msgs == null) return;
+    final idSet = messageIds.toSet();
+    _messages[conversationId] = msgs.where((m) => !idSet.contains(m.id)).toList();
+    if (_db != null) {
+      for (final id in messageIds) {
+        await _db!.delete('messages', where: 'id = ?', whereArgs: [id]);
+      }
+    }
+    notifyListeners();
+    _syncToCloud();
+  }
+
   /// 标记会话已读。
   Future<void> markAsRead(String conversationId) async {
     final conv = _conversations.where((c) => c.id == conversationId).firstOrNull;
