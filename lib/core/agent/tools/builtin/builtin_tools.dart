@@ -1,4 +1,5 @@
 import 'package:nudgee/core/agent/tools/tool_registry.dart';
+import 'package:nudgee/core/services/workspace_service.dart';
 
 // Schedule tools
 export 'package:nudgee/core/agent/tools/builtin/schedule_tools.dart';
@@ -18,6 +19,10 @@ export 'package:nudgee/core/agent/tools/builtin/web_search_tool.dart';
 // GitHub search tool
 export 'package:nudgee/core/agent/tools/builtin/github_search_tool.dart';
 
+// Workspace tools
+export 'package:nudgee/core/agent/tools/builtin/js_executor_tool.dart';
+export 'package:nudgee/core/agent/tools/builtin/workspace_fs_tool.dart';
+
 // Meta tools
 export 'package:nudgee/core/agent/tools/builtin/tool_search_tool.dart';
 export 'package:nudgee/core/agent/tools/builtin/ask_user_tool.dart';
@@ -29,6 +34,8 @@ import 'package:nudgee/core/agent/tools/builtin/notification_tools.dart';
 import 'package:nudgee/core/agent/tools/builtin/memory_tools.dart';
 import 'package:nudgee/core/agent/tools/builtin/web_search_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/github_search_tool.dart';
+import 'package:nudgee/core/agent/tools/builtin/js_executor_tool.dart';
+import 'package:nudgee/core/agent/tools/builtin/workspace_fs_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/tool_search_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/ask_user_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/todo_write_tool.dart';
@@ -43,6 +50,7 @@ import 'package:nudgee/core/agent/tools/builtin/todo_write_tool.dart';
 /// - user.profile
 /// - web.search
 /// - github.search
+/// - workspace.fs / workspace.js.exec
 /// - tool.search
 /// - ask_user
 /// - todo.write
@@ -52,7 +60,7 @@ import 'package:nudgee/core/agent/tools/builtin/todo_write_tool.dart';
 /// final registry = ToolRegistry();
 /// registerBuiltinTools(registry);
 /// ```
-void registerBuiltinTools(ToolRegistry registry) {
+void registerBuiltinTools(ToolRegistry registry, {WorkspaceService? workspace}) {
   // Schedule
   registry.registerAll([
     ScheduleAddTool(),
@@ -83,6 +91,12 @@ void registerBuiltinTools(ToolRegistry registry) {
   // GitHub search
   registry.register(GitHubSearchTool());
 
+  // Workspace (file system + JS execution)
+  if (workspace != null) {
+    registry.register(WorkspaceFsTool(workspace));
+  }
+  registry.register(JsExecutorTool());
+
   // Meta tools
   registry.register(ToolSearchTool(registry));
   registry.register(AskUserTool());
@@ -108,6 +122,9 @@ const List<String> builtinToolNames = [
   // Web
   'web.search',
   'github.search',
+  // Workspace
+  'workspace.fs',
+  'workspace.js.exec',
   // Meta
   'tool.search',
   'ask_user',

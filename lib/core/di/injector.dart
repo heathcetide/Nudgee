@@ -17,6 +17,7 @@ import 'package:nudgee/core/services/app_lifecycle_service.dart';
 import 'package:nudgee/core/services/app_update_service.dart';
 import 'package:nudgee/core/services/ai_service.dart';
 import 'package:nudgee/core/services/agent_service.dart';
+import 'package:nudgee/core/services/workspace_service.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/core/services/social_login_service.dart';
 import 'package:nudgee/core/services/background_task_service.dart';
@@ -170,6 +171,13 @@ Future<void> initDependencies() async {
     sl<AgentService>().init();
   });
   debugPrint('[Init] AgentService registered');
+
+  // ── Workspace Service (local user workspace for AI code execution) ───
+  _safeRegister(() {
+    sl.registerLazySingleton<WorkspaceService>(() => WorkspaceService());
+    sl<WorkspaceService>().init();
+  });
+  debugPrint('[Init] WorkspaceService registered');
 
   // ── Auth Service (Qiniu-backed, no backend) ──────────────────────────
   _safeRegister(() => sl.registerLazySingleton<AuthService>(

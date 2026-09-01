@@ -6,6 +6,7 @@ import 'package:nudgee/core/agent/agent.dart';
 import 'package:nudgee/core/agent/providers/providers.dart';
 import 'package:nudgee/core/config/app_config.dart';
 import 'package:nudgee/core/di/injector.dart' as di;
+import 'package:nudgee/core/services/workspace_service.dart';
 
 /// Agent service — integrates AgentCore with tools, memory, and LLM config.
 ///
@@ -72,7 +73,16 @@ class AgentService {
       _currentModel = cfg.model;
       _llmClient = _createLlmClient(cfg);
       _toolRegistry = ToolRegistry();
-      registerBuiltinTools(_toolRegistry!);
+
+      // Try to get WorkspaceService from DI (may not be registered yet)
+      WorkspaceService? workspace;
+      try {
+        workspace = di.sl<WorkspaceService>();
+      } catch (_) {
+        // WorkspaceService not registered — workspace.fs tool will be skipped
+      }
+
+      registerBuiltinTools(_toolRegistry!, workspace: workspace);
 
       _agentConfig = AgentConfig(
         id: 'nudgee-assistant',
@@ -280,12 +290,15 @@ class ChatServiceSystemPrompt {
       '你拥有以下工具，可以在需要时使用：\n'
       '- web.search: 搜索网络获取最新信息 (Wikipedia + DuckDuckGo)\n'
       '- github.search: 搜索 GitHub 仓库/代码/Issues/用户\n'
+      '- workspace.fs: 在用户本地工作区读写文件 (write/read/list/delete/mkdir)\n'
+      '- workspace.js.exec: 在本地执行 JavaScript 代码 (计算/数据处理/算法)\n'
       '- schedule.add/query/remove: 管理用户日程\n'
       '- post.create/query/like: 管理动态\n'
       '- memory.save/query: 保存和查询用户记忆\n'
-      '- sandbox.exec: 执行 Dart 代码进行计算\n'
       '- tool.search: 搜索可用工具\n\n'
       '当用户问到你不确定的事实、最新事件、或需要计算时，主动使用工具。'
       '当用户问关于开源项目、GitHub 仓库、代码搜索时，使用 github.search。'
+      '当用户需要写代码、运行代码、处理数据时，用 workspace.js.exec 执行 JavaScript，'
+      '用 workspace.fs 保存代码文件到用户工作区。'
       '使用工具时，先用简短的语言说明你要做什么。';
 }
