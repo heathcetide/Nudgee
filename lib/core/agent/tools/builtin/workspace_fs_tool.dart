@@ -67,13 +67,13 @@ class WorkspaceFsTool extends AgentTool {
   bool get isMutation => true;
 
   /// Gets the workspace service, from constructor or DI.
-  WorkspaceService _getWorkspace() {
-    if (_workspace != null) return _workspace!;
-    try {
-      return di.sl<WorkspaceService>();
-    } catch (e) {
-      throw StateError('WorkspaceService not available: $e');
+  /// Ensures it is initialized before returning.
+  Future<WorkspaceService> _getWorkspace() async {
+    final ws = _workspace ?? di.sl<WorkspaceService>();
+    if (!ws.isInitialized) {
+      await ws.init();
     }
+    return ws;
   }
 
   @override
@@ -88,7 +88,7 @@ class WorkspaceFsTool extends AgentTool {
       return const ToolResult.error('Missing required field: path');
     }
 
-    final workspace = _getWorkspace();
+    final workspace = await _getWorkspace();
 
     try {
       switch (action) {

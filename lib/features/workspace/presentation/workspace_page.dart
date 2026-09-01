@@ -42,6 +42,10 @@ class _WorkspacePageState extends State<WorkspacePage> {
   Future<void> _loadEntries() async {
     setState(() => _isLoading = true);
     try {
+      // Ensure workspace is initialized (DI init() is async, may not be done yet)
+      if (!_workspace.isInitialized) {
+        await _workspace.init();
+      }
       final path = _currentPath.join('/');
       _entries = await _workspace.listDir(path.isEmpty ? '.' : path);
 
