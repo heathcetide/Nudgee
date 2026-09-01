@@ -17,6 +17,7 @@ import 'package:nudgee/features/profile/presentation/privacy_policy_page.dart';
 import 'package:nudgee/features/profile/presentation/user_agreement_page.dart';
 import 'package:nudgee/features/home/presentation/home_page.dart';
 import 'package:nudgee/features/splash/presentation/splash_page.dart';
+import 'package:nudgee/core/models/schedule_model.dart';
 import 'package:nudgee/features/campus_forum/presentation/create_post_page.dart';
 import 'package:nudgee/features/timetable/presentation/add_schedule_page.dart';
 
@@ -139,7 +140,10 @@ class AppRouter {
         GoRoute(
           path: addSchedule,
           name: 'addSchedule',
-          builder: (context, state) => const AddSchedulePage(),
+          builder: (context, state) {
+            final editItem = state.extra as ScheduleItem?;
+            return AddSchedulePage(editItem: editItem);
+          },
         ),
         GoRoute(
           path: createPost,

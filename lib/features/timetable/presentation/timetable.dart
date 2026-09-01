@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:go_router/go_router.dart';
+import 'package:nudgee/app/router/app_router.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/models/schedule_model.dart';
@@ -713,6 +715,30 @@ class ClassRectItem extends StatefulWidget {
 }
 
 class _ClassRectItemState extends State<ClassRectItem> {
+  /// Extract note from the 'others' detail list.
+  String _extractNote(List? detail) {
+    if (detail == null) return '无';
+    for (final item in detail) {
+      if (item['key'] == '备注') return item['value']?.toString() ?? '无';
+    }
+    return '无';
+  }
+
+  /// Extract start/end time from the 'others' detail list.
+  /// partIndex 0 = start, 1 = end.
+  String _extractTime(List? detail, String key, int partIndex) {
+    if (detail == null) return '08:00';
+    for (final item in detail) {
+      if (item['key'] == key) {
+        final timeStr = item['value']?.toString() ?? '08:00 - 09:00';
+        final parts = timeStr.split(' - ');
+        if (parts.length >= 2) return parts[partIndex].trim();
+        return parts[0].trim();
+      }
+    }
+    return '08:00';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(children: [
@@ -738,6 +764,27 @@ class _ClassRectItemState extends State<ClassRectItem> {
                   detail: widget.detail,
                 ),
                 actions: [
+                  if (widget.itemId != null)
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        // Build ScheduleItem from the class data and navigate to edit.
+                        final item = ScheduleItem(
+                          id: widget.itemId!,
+                          name: widget.name ?? '',
+                          location: widget.location ?? '未指定',
+                          note: _extractNote(widget.detail),
+                          date: widget.date,
+                          startTime: _extractTime(widget.detail, '时间', 0),
+                          endTime: _extractTime(widget.detail, '时间', 1),
+                          startIndex: 0,
+                          length: widget.length ?? 1,
+                          isExtra: false,
+                        );
+                        GoRouter.of(context).push(AppRouter.addSchedule, extra: item);
+                      },
+                      child: const Text("编辑"),
+                    ),
                   if (widget.itemId != null)
                     TextButton(
                       onPressed: () async {

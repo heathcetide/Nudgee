@@ -13,7 +13,10 @@ import 'package:nudgee/features/common/widgets/page_scaffold.dart';
 /// 用户可以填写任务名称、地点、备注，选择日期和自定义起止时间，
 /// 保存后写入 SharedPreferences，今日日程页面会读取并显示。
 class AddSchedulePage extends StatefulWidget {
-  const AddSchedulePage({super.key});
+  /// 编辑模式时传入的日程项；null 表示新增模式。
+  final ScheduleItem? editItem;
+
+  const AddSchedulePage({super.key, this.editItem});
 
   @override
   State<AddSchedulePage> createState() => _AddSchedulePageState();
@@ -28,6 +31,27 @@ class _AddSchedulePageState extends State<AddSchedulePage> {
   TimeOfDay _startTime = const TimeOfDay(hour: 8, minute: 30);
   TimeOfDay _endTime = const TimeOfDay(hour: 9, minute: 15);
   bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 编辑模式：预填充已有数据。
+    if (widget.editItem != null) {
+      final item = widget.editItem!;
+      _nameController.text = item.name;
+      _locationController.text = item.location == '未指定' ? '' : item.location;
+      _noteController.text = item.note == '无' ? '' : item.note;
+      _selectedDate = DateTime.parse(item.date);
+      _startTime = _parseTime(item.startTime);
+      _endTime = _parseTime(item.endTime);
+    }
+  }
+
+  TimeOfDay _parseTime(String timeStr) {
+    final parts = timeStr.split(':');
+    return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -116,8 +140,11 @@ class _AddSchedulePageState extends State<AddSchedulePage> {
       // length: 占用的时段数（向上取整）
       final length = ((endMin - startMin) / 60).ceil().clamp(1, 18 - startIndex);
 
+      final isEditing = widget.editItem != null;
       final item = ScheduleItem(
-        id: '${_dateStr}_${startTime}_${_nameController.text.trim()}',
+        id: isEditing
+            ? widget.editItem!.id
+            : '${_dateStr}_${startTime}_${_nameController.text.trim()}',
         name: _nameController.text.trim(),
         location: _locationController.text.trim().isEmpty
             ? '未指定'
@@ -133,7 +160,11 @@ class _AddSchedulePageState extends State<AddSchedulePage> {
         isExtra: false,
       );
 
-      await sl<ScheduleService>().addSchedule(item);
+      if (isEditing) {
+        await sl<ScheduleService>().updateSchedule(item);
+      } else {
+        await sl<ScheduleService>().addSchedule(item);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

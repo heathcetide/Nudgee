@@ -75,9 +75,10 @@ class Avatar extends StatelessWidget {
         );
       } else {
         final urlStr = url!;
-        // Strip cache-busting query param for the original image lookup.
+        // Build original image URL with same cache-busting params.
         final cleanUrl = urlStr.split('?').first;
-        final originalUrl = cleanUrl.replaceAll('avatar.jpg', 'avatar_original.jpg');
+        final queryPart = urlStr.contains('?') ? urlStr.substring(urlStr.indexOf('?')) : '';
+        final originalUrl = cleanUrl.replaceAll('avatar.jpg', 'avatar_original.jpg') + queryPart;
         if (onTap != null) {
           content = Container(
               child: ExtendedImage.network(
