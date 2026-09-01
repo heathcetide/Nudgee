@@ -26,6 +26,7 @@ import 'package:nudgee/core/services/file_picker_service.dart';
 import 'package:nudgee/core/services/file_storage_service.dart';
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
 import 'package:nudgee/core/services/notification_service.dart';
+import 'package:nudgee/core/services/post_service.dart';
 import 'package:nudgee/core/services/schedule_service.dart';
 import 'package:nudgee/core/services/frame_timing_monitor_service.dart';
 import 'package:nudgee/core/services/local_database_service.dart';
@@ -200,6 +201,15 @@ Future<void> initDependencies() async {
     sl.registerLazySingleton<NotificationService>(() => NotificationService());
     sl<NotificationService>().init();
   });
+
+  // ── Post Service (信息圈帖子 — local + Qiniu cloud) ──────────────────
+  _safeRegister(() => sl.registerLazySingleton<PostService>(
+        () => PostService(
+          fileStorage: sl<FileStorageService>(),
+          qiniu: sl<QiniuStorageService>(),
+          prefs: sl<SharedPrefsService>(),
+        ),
+      ));
 
   // ── Upload Service ───────────────────────────────────────────────────
   _safeRegister(() => sl.registerLazySingleton<UploadService>(

@@ -9,6 +9,7 @@ import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/auth_service.dart';
+import 'package:nudgee/core/services/post_service.dart';
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
 import 'package:nudgee/features/common/utils/crop_image.dart';
 import 'package:nudgee/features/common/utils/functions.dart';
@@ -104,31 +105,25 @@ class _CreatePostPageState extends State<CreatePostPage> {
         }
       }
 
-      // Build post data.
-      final post = {
-        'id': '${user.id}_${DateTime.now().millisecondsSinceEpoch}',
-        'posterUid': user.id,
-        'posterName': user.name,
-        'posterAvatar': user.avatar ?? '',
-        'content': _contentController.text.trim(),
-        'images': imageUrls,
-        'time': DateTime.now().toIso8601String(),
-        'likeCount': 0,
-        'commentCount': 0,
-        'isLiked': false,
-        'displayLikeUserList': [],
-        'displayCommentList': [],
-      };
+      // Build post item and save via PostService.
+      final postItem = PostItem(
+        id: '${user.id}_${DateTime.now().millisecondsSinceEpoch}',
+        posterUid: user.id,
+        posterName: user.name,
+        posterAvatar: user.avatar ?? '',
+        content: _contentController.text.trim(),
+        images: imageUrls,
+        time: DateTime.now(),
+      );
 
-      // TODO: Save post to PostService (local + cloud) when implemented.
-      // For now, send via event bus to update the feed.
-      debugPrint('[CreatePost] post created: ${post['id']}');
+      await sl<PostService>().addPost(postItem);
+      debugPrint('[CreatePost] post saved: ${postItem.id}');
 
       SmartDialog.dismiss();
       SmartDialog.showNotify(msg: '发布成功', notifyType: NotifyType.success);
 
       if (mounted) {
-        GoRouter.of(context).pop(post);
+        GoRouter.of(context).pop();
       }
     } catch (e) {
       SmartDialog.dismiss();

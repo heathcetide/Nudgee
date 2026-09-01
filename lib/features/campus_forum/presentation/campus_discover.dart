@@ -1,5 +1,9 @@
 import 'dart:math';
 
+import 'package:nudgee/core/di/injector.dart';
+import 'package:nudgee/core/extensions/context_extensions.dart';
+import 'package:nudgee/core/services/auth_service.dart';
+import 'package:nudgee/core/services/post_service.dart';
 import 'package:nudgee/features/common/utils/functions.dart';
 import 'package:nudgee/features/common/widgets/avatar.dart';
 import 'package:nudgee/features/common/widgets/image_box.dart';
@@ -18,15 +22,47 @@ class CampusDiscover extends StatefulWidget {
 }
 
 class _CampusDiscoverState extends State<CampusDiscover> {
-  /// Mock 帖子列表
-  late final List<Map<String, dynamic>> _posts;
+  List<Map<String, dynamic>> _posts = [];
+  bool _isListening = false;
 
   @override
   void initState() {
     super.initState();
-    _posts = _generateMockPosts();
+    _initState();
   }
 
+  void _initState() async {
+    final postService = sl<PostService>();
+    if (!_isListening) {
+      _isListening = true;
+      postService.addListener(_onPostsChanged);
+    }
+    await postService.init();
+    if (mounted) _loadPosts();
+    // Cloud sync is best-effort.
+    postService.syncFromCloud().then((_) {
+      if (mounted) _loadPosts();
+    });
+  }
+
+  void _onPostsChanged() {
+    _loadPosts();
+  }
+
+  void _loadPosts() {
+    final postService = sl<PostService>();
+    setState(() {
+      _posts = postService.getPostsAsUIMap();
+    });
+  }
+
+  @override
+  void dispose() {
+    sl<PostService>().removeListener(_onPostsChanged);
+    super.dispose();
+  }
+
+  // ── Mock data fallback (used when no real posts) ──────────────────────
   List<Map<String, dynamic>> _generateMockPosts() {
     final images = [
       "https://cdn.lingecho.com/canvas/1/2026/08/e199bcb4-6419-40f2-9eea-46a56668fba1.png",
@@ -181,35 +217,50 @@ class _CampusDiscoverState extends State<CampusDiscover> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return PageScaffold(
       title: const Text("信息圈"),
       leading: const SizedBox(),
-      child: ListView.builder(
-        itemCount: _posts.length,
-        itemBuilder: (context, index) {
-          final p = _posts[index];
-          return SinglePosts(
-            key: ValueKey("post_$index"),
-            posterUid: p["posterUid"],
-            posterName: p["posterName"],
-            posterAvatar: p["posterAvatar"],
-            content: p["content"],
-            time: p["time"],
-            isLiked: p["isLiked"],
-            likeCount: p["likeCount"],
-            commentCount: p["commentCount"],
-            displayLikeUserList: p["displayLikeUserList"],
-            displayCommentList: p["displayCommentList"],
-            imageList: p["imageList"],
-            onCommentTap: () => _showCommentInput(context, index),
-            onReplyComment: (commentItem) => _showCommentInput(
-              context, index,
-              replyName: commentItem["name"],
-              replyUid: commentItem["uid"],
+      child: _posts.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.article_outlined, size: 64, color: theme.colorScheme.onSurfaceVariant.withAlpha(80)),
+                  const SizedBox(height: 16),
+                  Text(
+                    '还没有帖子，点击 + 发布第一条吧',
+                    style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              itemCount: _posts.length,
+              itemBuilder: (context, index) {
+                final p = _posts[index];
+                return SinglePosts(
+                  key: ValueKey("post_${p['posterUid']}_${p['time']}"),
+                  posterUid: p["posterUid"],
+                  posterName: p["posterName"],
+                  posterAvatar: p["posterAvatar"],
+                  content: p["content"],
+                  time: p["time"],
+                  isLiked: p["isLiked"],
+                  likeCount: p["likeCount"],
+                  commentCount: p["commentCount"],
+                  displayLikeUserList: p["displayLikeUserList"],
+                  displayCommentList: p["displayCommentList"],
+                  imageList: p["imageList"],
+                  onCommentTap: () => _showCommentInput(context, index),
+                  onReplyComment: (commentItem) => _showCommentInput(
+                    context, index,
+                    replyName: commentItem["name"],
+                    replyUid: commentItem["uid"],
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }

@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 
 import 'package:nudgee/core/config/app_config.dart';
 import 'package:nudgee/core/di/injector.dart' as di;
+import 'package:nudgee/core/services/post_service.dart';
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
 import 'package:nudgee/core/services/schedule_service.dart';
 import 'package:nudgee/core/services/user_cache_service.dart';
@@ -404,8 +405,9 @@ class AuthService {
     // Reset schedule service to default user.
     try {
       di.sl<ScheduleService>().setUserId('default');
+      di.sl<PostService>().setUserId('default');
     } catch (e) {
-      debugPrint('[Auth] Logout — reset schedule user failed: $e');
+      debugPrint('[Auth] Logout — reset services failed: $e');
     }
 
     debugPrint('[Auth] Logout — local session + cache cleared');
