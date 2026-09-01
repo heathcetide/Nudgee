@@ -268,6 +268,12 @@ class _ChatPageState extends State<ChatPage> {
     final controller = _chatControllers[conv.id];
     if (controller == null) return;
 
+    // Determine if this is an AI conversation (default assistant or template-based).
+    final isAiConv = conv.id == ChatService.aiAssistantId ||
+        _convSystemPrompts.containsKey(conv.id);
+
+    final ai = sl<AiService>();
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => LingChatScreen(
@@ -279,6 +285,17 @@ class _ChatPageState extends State<ChatPage> {
           forwardConversations: _convController.conversations,
           onForward: (msg, targetIds) => _onForward(msg, targetIds),
           onDraftChanged: (text) => _onDraftChanged(conv, text),
+          isAiConversation: isAiConv,
+          currentAiModel: ai.currentModel,
+          availableAiModels: ai.availableModels,
+          onSwitchModel: (model) async {
+            await ai.switchModel(model);
+            // Reset context with the appropriate system prompt.
+            final prompt = _convSystemPrompts[conv.id] ??
+                ChatService.aiAssistantSystemPrompt;
+            ai.reset(systemPrompt: prompt);
+            if (mounted) setState(() {});
+          },
           appBarLeading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop(),

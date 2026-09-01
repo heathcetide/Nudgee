@@ -104,14 +104,8 @@ class AiService {
 
   /// Default model list (used when API fetch fails).
   static const List<String> _defaultModels = [
-    'gpt-5.5',
-    'gpt-5.4',
-    'gpt-5.4-mini',
-    'gpt-5.6-luna',
-    'gpt-5.6-sol',
-    'gpt-5.6-terra',
-    'grok-4.5',
-    'grok-4.6',
+    'deepseek-chat',
+    'deepseek-reasoner',
   ];
 
   /// Switch to a different model. Recreates the [FlutterAI] instance.

@@ -45,6 +45,18 @@ class LingChatScreen extends StatefulWidget {
   final List<Widget>? appBarActions;
   final Widget? appBarLeading;
 
+  /// Whether this conversation is an AI session (shows model switcher in menu).
+  final bool isAiConversation;
+
+  /// Called when user selects a different AI model. Receives the model name.
+  final ValueChanged<String>? onSwitchModel;
+
+  /// Currently selected AI model name (for showing checkmark in menu).
+  final String? currentAiModel;
+
+  /// Available AI models to show in the switcher.
+  final List<String>? availableAiModels;
+
   /// Conversations available for forwarding.
   final List<LingConversation>? forwardConversations;
 
@@ -70,6 +82,10 @@ class LingChatScreen extends StatefulWidget {
     this.onReactionTapped,
     this.appBarActions,
     this.appBarLeading,
+    this.isAiConversation = false,
+    this.onSwitchModel,
+    this.currentAiModel,
+    this.availableAiModels,
     this.forwardConversations,
     this.onForward,
     this.onDraftChanged,
@@ -302,6 +318,23 @@ class _LingChatScreenState extends State<LingChatScreen> {
               title: Text(widget.conversation.isMuted ? '取消免打扰' : '消息免打扰'),
               onTap: () => Navigator.pop(ctx),
             ),
+            if (widget.isAiConversation && widget.onSwitchModel != null) ...[
+              ListTile(
+                leading: const Icon(Icons.psychology_outlined),
+                title: const Text('切换模型'),
+                trailing: Text(
+                  widget.currentAiModel ?? '',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: theme(ctx).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showModelSwitcher(context);
+                },
+              ),
+            ],
             ListTile(
               leading: const Icon(Icons.wallpaper_outlined),
               title: const Text('设置聊天背景'),
@@ -316,6 +349,46 @@ class _LingChatScreenState extends State<LingChatScreen> {
                 widget.controller.clear();
               },
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Show AI model switcher bottom sheet.
+  void _showModelSwitcher(BuildContext context) {
+    final models = widget.availableAiModels ?? const <String>[];
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('选择 AI 模型',
+                  style: theme(ctx).textTheme.titleMedium),
+            ),
+            const Divider(height: 1),
+            if (models.isEmpty)
+              const ListTile(title: Text('暂无可用模型')),
+            for (final model in models)
+              ListTile(
+                leading: Icon(
+                  model == widget.currentAiModel
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
+                  color: model == widget.currentAiModel
+                      ? theme(ctx).colorScheme.primary
+                      : null,
+                ),
+                title: Text(model),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  widget.onSwitchModel?.call(model);
+                },
+              ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
