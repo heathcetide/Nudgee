@@ -170,8 +170,11 @@ class _ChatPageState extends State<ChatPage> {
     final systemPrompt = _convSystemPrompts[conv.id] ??
         ChatService.aiAssistantSystemPrompt;
 
-    // Reset agent context for this conversation
-    agentService.reset(systemPrompt: systemPrompt);
+    // Only reset if the system prompt changed (e.g. switching conversations).
+    // Don't reset on every message — that would wipe multi-turn history.
+    if (agentService.currentSystemPrompt != systemPrompt) {
+      agentService.reset(systemPrompt: systemPrompt);
+    }
 
     controller.isTyping = true;
 

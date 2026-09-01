@@ -49,6 +49,9 @@ class AgentService {
   /// The currently selected model.
   String get currentModel => _currentModel;
 
+  /// The current system prompt.
+  String get currentSystemPrompt => _agentConfig?.systemPrompt ?? '';
+
   /// The tool registry (for registering additional tools).
   ToolRegistry get toolRegistry => _toolRegistry!;
 
