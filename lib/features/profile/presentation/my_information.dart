@@ -184,7 +184,7 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
     return PageScaffold(
       title: Text(context.l10n.profileMyInfo),
       leading: getPopLeading(context),
-      child: ListView(
+      child: Column(
         children: [
           // ── 资料区 ──────────────────────────────────────────────────────
           ...ListTile.divideTiles(
@@ -246,7 +246,8 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
             ],
           ),
 
-          const SizedBox(height: 32),
+          // 弹性空间 — 把账号操作区推到最底部
+          const Spacer(),
 
           // ── 账号操作区（底部） ──────────────────────────────────────────
           Padding(
@@ -315,7 +316,7 @@ class _MyInformationState extends State<MyInformation> with RouteAware {
             ),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
 
           Center(
             child: Text(

@@ -499,42 +499,44 @@ class _SinglePostsState extends State<SinglePosts> {
                   ),
                   child: Column(
                     children: [
-                      // 点赞列表
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 3),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Padding(
-                              padding: EdgeInsets.all(1.0),
-                              child: Icon(AntDesign.heart_outline, size: 17),
-                            ),
-                            Expanded(
-                              child: Text.rich(TextSpan(children: [
-                                for (int i = 0; i < widget.displayLikeUserList!.length; i++)
-                                  TextSpan(
-                                    text:
-                                        "${widget.displayLikeUserList![i]['name']}${i == widget.displayLikeUserList!.length - 1 ? '' : '，'}",
-                                    recognizer: TapGestureRecognizer()
-                                      ..onTap = () {
-                                        // 点击点赞用户
-                                      },
-                                    style: TextStyle(
-                                        fontSize: 15,
-                                        color: Theme.of(context).colorScheme.primary,
-                                        fontWeight: FontWeight.bold,
-                                        height: 1.3),
-                                  ),
-                                if (widget.displayLikeUserList!.length < widget.likeCount!)
-                                  TextSpan(
-                                      text: " 等${widget.likeCount}人点赞",
-                                      style: const TextStyle(fontSize: 15, height: 1.3)),
-                              ])),
-                            ),
-                          ],
+                      // 点赞列表 (仅有人点赞时显示)
+                      if (widget.displayLikeUserList != null &&
+                          widget.displayLikeUserList!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.all(1.0),
+                                child: Icon(AntDesign.heart_outline, size: 17),
+                              ),
+                              Expanded(
+                                child: Text.rich(TextSpan(children: [
+                                  for (int i = 0; i < widget.displayLikeUserList!.length; i++)
+                                    TextSpan(
+                                      text:
+                                          "${widget.displayLikeUserList![i]['name']}${i == widget.displayLikeUserList!.length - 1 ? '' : '，'}",
+                                      recognizer: TapGestureRecognizer()
+                                        ..onTap = () {
+                                          // 点击点赞用户
+                                        },
+                                      style: TextStyle(
+                                          fontSize: 15,
+                                          color: Theme.of(context).colorScheme.primary,
+                                          fontWeight: FontWeight.bold,
+                                          height: 1.3),
+                                    ),
+                                  if (widget.displayLikeUserList!.length < widget.likeCount!)
+                                    TextSpan(
+                                        text: " 等${widget.likeCount}人点赞",
+                                        style: const TextStyle(fontSize: 15, height: 1.3)),
+                                ])),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
                       // 评论列表
                       Container(
                         padding: const EdgeInsets.only(left: 6, right: 6, top: 4),

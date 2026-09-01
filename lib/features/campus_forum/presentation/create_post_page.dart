@@ -74,9 +74,9 @@ class _CreatePostPageState extends State<CreatePostPage> {
       if (bytes != null) {
         final compressed = await getCompressedImage(
           bytes,
-          minHeight: 1080,
-          minWidth: 1080,
-          quality: 30,
+          minHeight: 1920,
+          minWidth: 1920,
+          quality: 85,
         );
         if (mounted) {
           setState(() => _selectedImages.add(compressed));
