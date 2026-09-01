@@ -17,6 +17,7 @@ import 'package:nudgee/features/profile/presentation/privacy_policy_page.dart';
 import 'package:nudgee/features/profile/presentation/user_agreement_page.dart';
 import 'package:nudgee/features/home/presentation/home_page.dart';
 import 'package:nudgee/features/splash/presentation/splash_page.dart';
+import 'package:nudgee/features/workspace/presentation/workspace_page.dart';
 import 'package:nudgee/core/models/schedule_model.dart';
 import 'package:nudgee/features/campus_forum/presentation/create_post_page.dart';
 import 'package:nudgee/features/timetable/presentation/add_schedule_page.dart';
@@ -44,6 +45,7 @@ class AppRouter {
   static const String changeNickName = '/profile/changeNickName';
   static const String avatarUpload = '/profile/avatarUpload';
   static const String personalHome = '/profile/personalHome';
+  static const String workspace = '/workspace';
   static const String addSchedule = '/addSchedule';
   static const String createPost = '/createPost';
 
@@ -106,6 +108,11 @@ class AppRouter {
           path: personalHome,
           name: 'personalHome',
           builder: (context, state) => const PersonalHomePage(),
+        ),
+        GoRoute(
+          path: workspace,
+          name: 'workspace',
+          builder: (context, state) => const WorkspacePage(),
         ),
         GoRoute(
           path: settings,
