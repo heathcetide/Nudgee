@@ -34,10 +34,10 @@ import 'package:nudgee/core/di/injector.dart' as di;
 /// }
 /// ```
 class AgentService {
-  late final ToolRegistry _toolRegistry;
-  late final LLMClient _llmClient;
-  late final AgentConfig _agentConfig;
-  late final ContextGovernor _contextGovernor;
+  ToolRegistry? _toolRegistry;
+  LLMClient? _llmClient;
+  AgentConfig? _agentConfig;
+  ContextGovernor? _contextGovernor;
 
   bool _initialized = false;
   String _currentModel = '';
@@ -50,7 +50,7 @@ class AgentService {
   String get currentModel => _currentModel;
 
   /// The tool registry (for registering additional tools).
-  ToolRegistry get toolRegistry => _toolRegistry;
+  ToolRegistry get toolRegistry => _toolRegistry!;
 
   /// The conversation history.
   List<LlmMessage> get history => List.unmodifiable(_history);
@@ -59,33 +59,38 @@ class AgentService {
   void init() {
     if (_initialized) return;
 
-    final cfg = AppConfig.ai;
-    if (cfg == null || cfg.apiKey.isEmpty) {
-      debugPrint('[AgentService] No valid AI config found, service disabled');
-      return;
+    try {
+      final cfg = AppConfig.ai;
+      if (cfg == null || cfg.apiKey.isEmpty) {
+        debugPrint('[AgentService] No valid AI config found, service disabled');
+        return;
+      }
+
+      _currentModel = cfg.model;
+      _llmClient = _createLlmClient(cfg);
+      _toolRegistry = ToolRegistry();
+      registerBuiltinTools(_toolRegistry!);
+
+      _agentConfig = AgentConfig(
+        id: 'nudgee-assistant',
+        name: '星语',
+        systemPrompt: ChatServiceSystemPrompt.defaultPrompt,
+        model: _currentModel,
+        toolNames: builtinToolNames,
+        maxSteps: 10,
+      );
+
+      _contextGovernor = ContextGovernor(
+        systemPrompt: _agentConfig!.systemPrompt,
+      );
+
+      _initialized = true;
+      debugPrint('[AgentService] Initialized with model=$_currentModel, '
+          'tools=${_toolRegistry!.names.length}');
+    } catch (e, stack) {
+      debugPrint('[AgentService] init() FAILED: $e');
+      debugPrint('[AgentService] stack: $stack');
     }
-
-    _currentModel = cfg.model;
-    _llmClient = _createLlmClient(cfg);
-    _toolRegistry = ToolRegistry();
-    registerBuiltinTools(_toolRegistry);
-
-    _agentConfig = AgentConfig(
-      id: 'nudgee-assistant',
-      name: '星语',
-      systemPrompt: ChatServiceSystemPrompt.defaultPrompt,
-      model: _currentModel,
-      toolNames: builtinToolNames,
-      maxSteps: 10,
-    );
-
-    _contextGovernor = ContextGovernor(
-      systemPrompt: _agentConfig.systemPrompt,
-    );
-
-    _initialized = true;
-    debugPrint('[AgentService] Initialized with model=$_currentModel, '
-        'tools=${_toolRegistry.names.length}');
   }
 
   /// Creates the appropriate LLM client based on config.
@@ -171,38 +176,46 @@ class AgentService {
     String? extraSystemContext,
   }) {
     if (!_initialized) {
+      debugPrint('[AgentService] run() called but not initialized');
       return Stream.error(StateError('AgentService not configured'));
     }
 
+    debugPrint('[AgentService] run() userInput="${userInput.substring(0, userInput.length.clamp(0, 50))}", '
+        'model=$_currentModel, history=${_history.length} msgs');
+
     // Update system prompt if provided
-    final effectivePrompt = systemPrompt ?? _agentConfig.systemPrompt;
-    if (effectivePrompt != _agentConfig.systemPrompt) {
+    final effectivePrompt = systemPrompt ?? _agentConfig!.systemPrompt;
+    if (effectivePrompt != _agentConfig!.systemPrompt) {
       _agentConfig = AgentConfig(
-        id: _agentConfig.id,
-        name: _agentConfig.name,
+        id: _agentConfig!.id,
+        name: _agentConfig!.name,
         systemPrompt: effectivePrompt,
         model: _currentModel,
-        toolNames: _agentConfig.toolNames,
-        maxSteps: _agentConfig.maxSteps,
+        toolNames: _agentConfig!.toolNames,
+        maxSteps: _agentConfig!.maxSteps,
       );
       _contextGovernor = ContextGovernor(systemPrompt: effectivePrompt);
     }
 
     final core = AgentCore(
-      config: _agentConfig,
-      llmClient: _llmClient,
-      toolRegistry: _toolRegistry,
-      contextGovernor: _contextGovernor,
+      config: _agentConfig!,
+      llmClient: _llmClient!,
+      toolRegistry: _toolRegistry!,
+      contextGovernor: _contextGovernor!,
       permissionContext:
           PermissionContext.fixed(PermissionMode.bypassPermissions),
     );
 
-    // Track history for multi-turn conversations
+    // Pass history WITHOUT the current input — AgentCore adds it internally
+    // (core.run builds: [...history, LlmMessage.user(userInput)])
+    final historyCopy = List<LlmMessage>.from(_history);
+
+    // Track the current input in history for future turns
     _history.add(LlmMessage.user(userInput));
 
     return core.run(
       userInput: userInput,
-      history: _history,
+      history: historyCopy,
       extraSystemContext: extraSystemContext,
     );
   }
@@ -212,15 +225,22 @@ class AgentService {
     _history.clear();
     if (systemPrompt != null) {
       _agentConfig = AgentConfig(
-        id: _agentConfig.id,
-        name: _agentConfig.name,
+        id: _agentConfig!.id,
+        name: _agentConfig!.name,
         systemPrompt: systemPrompt,
         model: _currentModel,
-        toolNames: _agentConfig.toolNames,
-        maxSteps: _agentConfig.maxSteps,
+        toolNames: _agentConfig!.toolNames,
+        maxSteps: _agentConfig!.maxSteps,
       );
       _contextGovernor = ContextGovernor(systemPrompt: systemPrompt);
     }
+  }
+
+  /// Adds an assistant reply to the conversation history.
+  ///
+  /// Called by the UI after a [DoneEvent] to enable multi-turn context.
+  void addAssistantHistory(String reply) {
+    _history.add(LlmMessage.assistant(text: reply));
   }
 
   /// Clears conversation context (keeps system prompt).
@@ -232,19 +252,19 @@ class AgentService {
   void switchModel(String model) {
     _currentModel = model;
     _agentConfig = AgentConfig(
-      id: _agentConfig.id,
-      name: _agentConfig.name,
-      systemPrompt: _agentConfig.systemPrompt,
+      id: _agentConfig!.id,
+      name: _agentConfig!.name,
+      systemPrompt: _agentConfig!.systemPrompt,
       model: model,
-      toolNames: _agentConfig.toolNames,
-      maxSteps: _agentConfig.maxSteps,
+      toolNames: _agentConfig!.toolNames,
+      maxSteps: _agentConfig!.maxSteps,
     );
     debugPrint('[AgentService] Switched to model: $model');
   }
 
   /// Releases resources.
   void dispose() {
-    _llmClient.dispose();
+    _llmClient?.dispose();
   }
 }
 

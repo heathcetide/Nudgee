@@ -296,8 +296,11 @@ class _ChatPageState extends State<ChatPage> {
               conversationId: conv.id,
               text: finalText,
             );
+            // Add AI reply to agent history for multi-turn context.
+            sl<AgentService>().addAssistantHistory(finalText);
 
           case ErrorEvent():
+            debugPrint('[ChatPage] Agent error: ${event.message}');
             controller.isTyping = false;
             final errText = context.l10n.aiError(event.message);
             if (aiMsgId != null) {
@@ -331,6 +334,7 @@ class _ChatPageState extends State<ChatPage> {
         }
       },
       onError: (e) {
+        debugPrint('[ChatPage] Stream error: $e');
         controller.isTyping = false;
         final errText = context.l10n.aiError(e.toString());
         if (aiMsgId != null) {
