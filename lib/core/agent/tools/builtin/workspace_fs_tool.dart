@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:nudgee/core/agent/tools/agent_tool.dart';
 import 'package:nudgee/core/agent/tools/tool_result.dart';
+import 'package:nudgee/core/di/injector.dart' as di;
 import 'package:nudgee/core/services/workspace_service.dart';
 
 /// Tool: workspace.fs
@@ -54,12 +55,26 @@ class WorkspaceFsTool extends AgentTool {
         'required': ['action', 'path'],
       };
 
-  final WorkspaceService _workspace;
+  final WorkspaceService? _workspace;
 
-  WorkspaceFsTool(this._workspace);
+  /// Creates a [WorkspaceFsTool].
+  ///
+  /// If [workspace] is not provided, it will be lazily fetched from DI
+  /// on first [execute] call.
+  WorkspaceFsTool([this._workspace]);
 
   @override
   bool get isMutation => true;
+
+  /// Gets the workspace service, from constructor or DI.
+  WorkspaceService _getWorkspace() {
+    if (_workspace != null) return _workspace!;
+    try {
+      return di.sl<WorkspaceService>();
+    } catch (e) {
+      throw StateError('WorkspaceService not available: $e');
+    }
+  }
 
   @override
   Future<ToolResult> execute(Map<String, dynamic> args) async {
@@ -73,22 +88,24 @@ class WorkspaceFsTool extends AgentTool {
       return const ToolResult.error('Missing required field: path');
     }
 
+    final workspace = _getWorkspace();
+
     try {
       switch (action) {
         case 'write':
           final content = args['content'] as String? ?? '';
-          await _workspace.writeFile(path, content);
+          await workspace.writeFile(path, content);
           return ToolResult.success('File written: $path (${content.length} bytes)');
 
         case 'read':
-          final content = await _workspace.readFile(path);
+          final content = await workspace.readFile(path);
           if (content == null) {
             return ToolResult.error('File not found: $path');
           }
           return ToolResult.success(content);
 
         case 'list':
-          final entries = await _workspace.listDir(path);
+          final entries = await workspace.listDir(path);
           if (entries.isEmpty) {
             return ToolResult.success('Directory is empty or does not exist: $path');
           }
@@ -101,22 +118,22 @@ class WorkspaceFsTool extends AgentTool {
               'Listing $path (${entries.length} entries):\n$formatted');
 
         case 'delete':
-          if (!await _workspace.exists(path)) {
+          if (!await workspace.exists(path)) {
             return ToolResult.error('Not found: $path');
           }
-          await _workspace.delete(path);
+          await workspace.delete(path);
           return ToolResult.success('Deleted: $path');
 
         case 'exists':
-          final exists = await _workspace.exists(path);
+          final exists = await workspace.exists(path);
           return ToolResult.success(exists ? 'exists' : 'not found');
 
         case 'mkdir':
-          await _workspace.createDir(path);
+          await workspace.createDir(path);
           return ToolResult.success('Directory created: $path');
 
         case 'info':
-          final info = await _workspace.info(path);
+          final info = await workspace.info(path);
           if (info == null) {
             return ToolResult.error('Not found: $path');
           }

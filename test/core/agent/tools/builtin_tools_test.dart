@@ -4,7 +4,7 @@ import 'package:nudgee/core/agent/tools/builtin/builtin_tools.dart';
 
 void main() {
   group('BuiltinTools registration', () {
-    test('registerBuiltinTools registers all 14 tools', () {
+    test('registerBuiltinTools registers all 17 tools', () {
       final registry = ToolRegistry();
       registerBuiltinTools(registry);
 
@@ -14,8 +14,8 @@ void main() {
       }
     });
 
-    test('builtinToolNames has 14 entries', () {
-      expect(builtinToolNames, hasLength(14));
+    test('builtinToolNames has 17 entries', () {
+      expect(builtinToolNames, hasLength(17));
     });
 
     test('definitionsFor returns all definitions', () {
@@ -23,7 +23,7 @@ void main() {
       registerBuiltinTools(registry);
 
       final defs = registry.definitionsFor(builtinToolNames);
-      expect(defs, hasLength(14));
+      expect(defs, hasLength(17));
     });
 
     test('mutation tools are marked correctly', () {
@@ -38,12 +38,15 @@ void main() {
       expect(registry.isMutation('notification.schedule'), true);
       expect(registry.isMutation('memory.save'), true);
       expect(registry.isMutation('todo.write'), true);
+      expect(registry.isMutation('workspace.fs'), true);
 
       // These should NOT be mutations
       expect(registry.isMutation('schedule.query'), false);
       expect(registry.isMutation('post.query'), false);
       expect(registry.isMutation('user.profile'), false);
       expect(registry.isMutation('web.search'), false);
+      expect(registry.isMutation('github.search'), false);
+      expect(registry.isMutation('workspace.js.exec'), false);
       expect(registry.isMutation('tool.search'), false);
     });
 

@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nudgee/core/agent/tools/builtin/js_executor_tool.dart';
-import 'package:nudgee/core/agent/tools/tool_result.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

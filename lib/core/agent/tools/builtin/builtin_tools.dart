@@ -92,9 +92,8 @@ void registerBuiltinTools(ToolRegistry registry, {WorkspaceService? workspace}) 
   registry.register(GitHubSearchTool());
 
   // Workspace (file system + JS execution)
-  if (workspace != null) {
-    registry.register(WorkspaceFsTool(workspace));
-  }
+  // WorkspaceFsTool lazily fetches WorkspaceService from DI if not provided.
+  registry.register(WorkspaceFsTool(workspace));
   registry.register(JsExecutorTool());
 
   // Meta tools
