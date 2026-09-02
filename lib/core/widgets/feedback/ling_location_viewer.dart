@@ -11,10 +11,6 @@ class LingLocationViewer extends StatelessWidget {
   final double longitude;
   final String locationName;
 
-  /// AMap Web API key for static map. Replace with your own key.
-  /// Get one at https://lbs.amap.com/
-  static const String _amapKey = 'your_amap_web_key';
-
   const LingLocationViewer({
     super.key,
     required this.latitude,
@@ -23,14 +19,12 @@ class LingLocationViewer extends StatelessWidget {
   });
 
   String get _staticMapUrl {
-    // AMap static map API (free)
-    // https://lbs.amap.com/api/webservice/guide/api/staticmap
-    return 'https://restapi.amap.com/v3/staticmap'
-        '?key=$_amapKey'
-        '&location=$longitude,$latitude'
+    // OSM static map (free, no API key needed)
+    return 'https://staticmap.openstreetmap.de/staticmap.php'
+        '?center=$latitude,$longitude'
         '&zoom=16'
         '&size=600*400'
-        '&markers=mid,0xFF0000,A:$longitude,$latitude';
+        '&markers=$latitude,$longitude,red-pushpin';
   }
 
   String get _amapWebUrl {

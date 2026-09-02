@@ -796,6 +796,12 @@ class LingMessageBubble extends StatelessWidget {
     final name = meta['locationName'] as String? ?? '位置';
     final lat = (meta['latitude'] as num?)?.toDouble() ?? 0.0;
     final lng = (meta['longitude'] as num?)?.toDouble() ?? 0.0;
+
+    // OSM static map (free, no API key needed).
+    // Uses staticmap.eu which renders OSM tiles.
+    final staticMapUrl =
+        'https://staticmap.openstreetmap.de/staticmap.php?center=$lat,$lng&zoom=16&size=220x120&markers=$lat,$lng,red-pushpin';
+
     return GestureDetector(
       onTap: () {
         Navigator.of(context).push(
@@ -818,13 +824,40 @@ class LingMessageBubble extends StatelessWidget {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
               child: Container(
                 width: double.infinity,
-                height: 100,
+                height: 120,
                 color: theme.colorScheme.surfaceContainerHighest,
                 child: Stack(
-                  alignment: Alignment.center,
+                  fit: StackFit.expand,
                   children: [
-                    Icon(Icons.map, size: 40, color: textColor.withOpacity(0.3)),
-                    const Icon(Icons.location_on, size: 28, color: Colors.red),
+                    // Inline static map preview
+                    CachedNetworkImage(
+                      imageUrl: staticMapUrl,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 220,
+                      memCacheHeight: 120,
+                      placeholder: (_, __) => Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: textColor.withOpacity(0.4),
+                          ),
+                        ),
+                      ),
+                      errorWidget: (_, __, ___) => Center(
+                        child: Icon(Icons.map_outlined,
+                            size: 40, color: textColor.withOpacity(0.3)),
+                      ),
+                    ),
+                    // Pin overlay
+                    const Center(
+                      child: Icon(
+                        Icons.location_on,
+                        color: Colors.red,
+                        size: 28,
+                      ),
+                    ),
                   ],
                 ),
               ),

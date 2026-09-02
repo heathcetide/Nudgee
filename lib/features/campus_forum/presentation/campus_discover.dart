@@ -9,7 +9,6 @@ import 'package:nudgee/features/common/utils/functions.dart';
 import 'package:nudgee/features/common/widgets/avatar.dart';
 import 'package:nudgee/features/common/widgets/nine_slice_layout.dart';
 import 'package:nudgee/features/common/widgets/page_scaffold.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:icons_plus/icons_plus.dart';
 import 'package:like_button/like_button.dart';
@@ -392,6 +391,79 @@ class _SinglePostsState extends State<SinglePosts> {
     }
   }
 
+  void _showLikeList(BuildContext context) {
+    final theme = Theme.of(context);
+    final likeList = widget.displayLikeUserList ?? [];
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.6,
+      ),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 4),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: theme.dividerColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                '${widget.likeCount ?? likeList.length} 人点赞',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Divider(height: 1, color: theme.dividerColor),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: likeList.length,
+                separatorBuilder: (_, __) => Divider(
+                  height: 1,
+                  indent: 56,
+                  color: theme.dividerColor,
+                ),
+                itemBuilder: (ctx, index) {
+                  final user = likeList[index];
+                  final name = user['name']?.toString() ?? '未知用户';
+                  final uid = user['uid']?.toString();
+                  return ListTile(
+                    leading: SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: Avatar(null, name: name),
+                    ),
+                    title: Text(name),
+                    trailing: uid == widget.currentUserId
+                        ? Text('我',
+                            style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontSize: 13,
+                            ))
+                        : null,
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -502,39 +574,39 @@ class _SinglePostsState extends State<SinglePosts> {
                       // 点赞列表 (仅有人点赞时显示)
                       if (widget.displayLikeUserList != null &&
                           widget.displayLikeUserList!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 3),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Padding(
-                                padding: EdgeInsets.all(1.0),
-                                child: Icon(AntDesign.heart_outline, size: 17),
-                              ),
-                              Expanded(
-                                child: Text.rich(TextSpan(children: [
-                                  for (int i = 0; i < widget.displayLikeUserList!.length; i++)
-                                    TextSpan(
-                                      text:
-                                          "${widget.displayLikeUserList![i]['name']}${i == widget.displayLikeUserList!.length - 1 ? '' : '，'}",
-                                      recognizer: TapGestureRecognizer()
-                                        ..onTap = () {
-                                          // 点击点赞用户
-                                        },
-                                      style: TextStyle(
-                                          fontSize: 15,
-                                          color: Theme.of(context).colorScheme.primary,
-                                          fontWeight: FontWeight.bold,
-                                          height: 1.3),
-                                    ),
-                                  if (widget.displayLikeUserList!.length < widget.likeCount!)
-                                    TextSpan(
-                                        text: " 等${widget.likeCount}人点赞",
-                                        style: const TextStyle(fontSize: 15, height: 1.3)),
-                                ])),
-                              ),
-                            ],
+                        GestureDetector(
+                          onTap: () => _showLikeList(context),
+                          behavior: HitTestBehavior.opaque,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 3),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Padding(
+                                  padding: EdgeInsets.all(1.0),
+                                  child: Icon(AntDesign.heart_outline, size: 17),
+                                ),
+                                Expanded(
+                                  child: Text.rich(TextSpan(children: [
+                                    for (int i = 0; i < widget.displayLikeUserList!.length; i++)
+                                      TextSpan(
+                                        text:
+                                            "${widget.displayLikeUserList![i]['name']}${i == widget.displayLikeUserList!.length - 1 ? '' : '，'}",
+                                        style: TextStyle(
+                                            fontSize: 15,
+                                            color: Theme.of(context).colorScheme.primary,
+                                            fontWeight: FontWeight.bold,
+                                            height: 1.3),
+                                      ),
+                                    if (widget.displayLikeUserList!.length < widget.likeCount!)
+                                      TextSpan(
+                                          text: " 等${widget.likeCount}人点赞",
+                                          style: const TextStyle(fontSize: 15, height: 1.3)),
+                                  ])),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       // 评论列表
