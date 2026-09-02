@@ -205,6 +205,7 @@ class _ChatPageState extends State<ChatPage> {
     // Throttle UI updates during streaming to avoid jank.
     DateTime? _lastUiUpdate;
     bool _uiUpdatePending = false;
+    bool _done = false; // Set to true on DoneEvent/ErrorEvent
 
     /// Gets or creates the last content segment for appending text.
     Map<String, dynamic>? _lastContentSegment() {
@@ -222,10 +223,12 @@ class _ChatPageState extends State<ChatPage> {
       return null;
     }
 
-    /// Builds the full content text from all content segments (for persistence).
+    /// Builds the full content text from content segments (for persistence).
+    /// Excludes intermediate segments (content before tool calls that is
+    /// just the AI narrating, not the final answer).
     String _fullContentText() {
       return segments
-          .where((s) => s['type'] == 'content')
+          .where((s) => s['type'] == 'content' && s['intermediate'] != true)
           .map((s) => s['text'] as String)
           .join('');
     }
@@ -239,7 +242,8 @@ class _ChatPageState extends State<ChatPage> {
         'streaming': true,
       };
 
-      // Also keep legacy fields for backward compatibility
+      // Also keep legacy fields for backward compatibility.
+      // Use only non-intermediate content for the final text.
       final fullText = _fullContentText();
       final thinkingText = segments
           .where((s) => s['type'] == 'thinking')
@@ -277,7 +281,7 @@ class _ChatPageState extends State<ChatPage> {
     /// Throttled to max ~20fps during streaming to avoid jank from
     /// rebuilding MarkdownBody/ListView on every tiny delta.
     void updateBubble() {
-      if (segments.isEmpty) return;
+      if (segments.isEmpty || _done) return;
 
       final now = DateTime.now();
       final elapsed = _lastUiUpdate == null
@@ -289,6 +293,10 @@ class _ChatPageState extends State<ChatPage> {
         if (!_uiUpdatePending) {
           _uiUpdatePending = true;
           Future.delayed(const Duration(milliseconds: 50), () {
+            if (_done) {
+              _uiUpdatePending = false;
+              return;
+            }
             _uiUpdatePending = false;
             _lastUiUpdate = DateTime.now();
             _doUpdateBubble();
@@ -360,6 +368,7 @@ class _ChatPageState extends State<ChatPage> {
             updateBubble();
 
           case DoneEvent():
+            _done = true;
             controller.isTyping = false;
             final finalText = _fullContentText().isEmpty
                 ? '...'
@@ -423,6 +432,7 @@ class _ChatPageState extends State<ChatPage> {
             sl<AgentService>().addAssistantHistory(finalText);
 
           case ErrorEvent():
+            _done = true;
             debugPrint('[ChatPage] Agent error: ${event.message}');
             controller.isTyping = false;
             final errText = context.l10n.aiError(event.message);
