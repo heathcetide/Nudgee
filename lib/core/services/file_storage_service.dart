@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 /// Manages categorized local file storage under the app's documents directory:
 /// - `avatars/`  — locally cached avatar images
 /// - `cache/`    — generic cached files (images, media previews)
+/// - `chat_bg/`  — user-uploaded chat background images
 /// - `downloads/ — user-downloaded files
 /// - `logs/`     — log files
 class FileStorageService {
@@ -14,12 +15,14 @@ class FileStorageService {
 
   static const String dirAvatars = 'avatars';
   static const String dirCache = 'cache';
+  static const String dirChatBg = 'chat_bg';
   static const String dirDownloads = 'downloads';
   static const String dirLogs = 'logs';
 
   static const List<String> categories = [
     dirAvatars,
     dirCache,
+    dirChatBg,
     dirDownloads,
     dirLogs,
   ];

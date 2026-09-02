@@ -82,7 +82,7 @@ const List<LingWallpaperPreset> lingWallpaperPresets = [
 /// Displays preset wallpapers in a grid. Each preset is either a solid
 /// color or a linear gradient. The currently selected preset is
 /// highlighted with a check mark. A "恢复默认" button is shown at the
-/// bottom.
+/// bottom. A custom image upload button is shown at the top.
 class LingWallpaperPicker extends StatelessWidget {
   /// The currently selected background type.
   final LingChatBackgroundType selectedType;
@@ -96,6 +96,14 @@ class LingWallpaperPicker extends StatelessWidget {
   /// Called when the "恢复默认" button is tapped.
   final VoidCallback onReset;
 
+  /// Called when the user picks a custom image. The caller is responsible
+  /// for compressing, uploading to object storage, saving locally, and
+  /// persisting the result.
+  final Future<void> Function()? onPickCustomImage;
+
+  /// Whether a custom image is currently selected.
+  final bool hasCustomImage;
+
   /// Title shown in the app bar. Defaults to "聊天壁纸".
   final String title;
 
@@ -105,6 +113,8 @@ class LingWallpaperPicker extends StatelessWidget {
     required this.selectedIndex,
     required this.onSelected,
     required this.onReset,
+    this.onPickCustomImage,
+    this.hasCustomImage = false,
     this.title = '聊天壁纸',
   });
 
@@ -119,6 +129,34 @@ class LingWallpaperPicker extends StatelessWidget {
       ),
       body: Column(
         children: [
+          // Custom image upload button
+          if (onPickCustomImage != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppConstants.spacingMd,
+                AppConstants.spacingMd,
+                AppConstants.spacingMd,
+                AppConstants.spacingSm,
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: onPickCustomImage,
+                  icon: const Icon(Icons.upload_outlined, size: 18),
+                  label: const Text('自定义上传背景'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppConstants.spacingSm + 2,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(
+                        AppConstants.radiusLg,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           Expanded(
             child: GridView.builder(
               padding: const EdgeInsets.all(AppConstants.spacingMd),
@@ -131,7 +169,8 @@ class LingWallpaperPicker extends StatelessWidget {
               itemCount: lingWallpaperPresets.length,
               itemBuilder: (context, index) {
                 final preset = lingWallpaperPresets[index];
-                final isSelected = index == selectedIndex &&
+                final isSelected = !hasCustomImage &&
+                    index == selectedIndex &&
                     preset.type == selectedType;
                 return _WallpaperTile(
                   preset: preset,

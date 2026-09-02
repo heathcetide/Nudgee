@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -9,7 +11,7 @@ enum LingChatBackgroundType {
   /// Linear gradient background.
   gradient,
 
-  /// Network image background with an opacity overlay.
+  /// Image background (local file or network) with an opacity overlay.
   image,
 }
 
@@ -33,7 +35,8 @@ class LingChatBackground extends StatelessWidget {
   /// Gradient for [LingChatBackgroundType.gradient].
   final LinearGradient? gradient;
 
-  /// Network image URL for [LingChatBackgroundType.image].
+  /// Image source for [LingChatBackgroundType.image].
+  /// Supports network URLs (http/https) and local file paths.
   final String? imageUrl;
 
   /// The content displayed on top of the background.
@@ -128,6 +131,30 @@ class LingChatBackground extends StatelessWidget {
             child: const SizedBox.expand(),
           );
         }
+        // Local file path (no scheme) → use Image.file
+        if (!imageUrl!.startsWith('http')) {
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.file(
+                File(imageUrl!),
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+                errorBuilder: (_, __, ___) => ColoredBox(
+                  color: theme.colorScheme.surface,
+                  child: const SizedBox.expand(),
+                ),
+              ),
+              if (opacity < 1.0)
+                ColoredBox(
+                  color: theme.colorScheme.surface.withOpacity(1.0 - opacity),
+                  child: const SizedBox.expand(),
+                ),
+            ],
+          );
+        }
+        // Network URL → use CachedNetworkImage
         return Stack(
           fit: StackFit.expand,
           children: [
