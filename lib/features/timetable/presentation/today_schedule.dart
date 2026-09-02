@@ -339,11 +339,16 @@ class _HeaderIslandState extends State<HeaderIsland> {
     if (widget.todayClass.length == 0 && retryCount > 0) {
       Timer.periodic(Duration(milliseconds: 6 * (10 - retryCount) * (10 - retryCount)),
           (Timer _timer) {
+        if (!mounted) {
+          _timer.cancel();
+          return;
+        }
         refresh(retryCount: retryCount - 1);
         _timer.cancel();
       });
       return;
     }
+    if (!mounted) return;
     String state = widget.todayClassState['nowState'];
     if (state == 'finished' || state == "hereafter") {
       setState(() {

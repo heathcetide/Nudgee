@@ -311,7 +311,8 @@ class _LingChatScreenState extends State<LingChatScreen> {
             .firstOrNull;
 
         // Build background from selected preset.
-        final bgPreset = _bgIndex < lingWallpaperPresets.length
+        // For custom image backgrounds (_bgIndex < 0), use a dummy preset.
+        final bgPreset = (_bgIndex >= 0 && _bgIndex < lingWallpaperPresets.length)
             ? lingWallpaperPresets[_bgIndex]
             : lingWallpaperPresets[0];
 
