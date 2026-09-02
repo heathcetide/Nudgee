@@ -4,25 +4,25 @@ import 'package:flutter/foundation.dart';
 
 import 'package:nudgee/core/agent/agent.dart';
 import 'package:nudgee/core/agent/providers/providers.dart';
+import 'package:nudgee/core/agent/skills/skills.dart';
+import 'package:nudgee/core/agent/memory/memory.dart';
+import 'package:nudgee/core/agent/trace/agent_trace.dart';
 import 'package:nudgee/core/config/app_config.dart';
 import 'package:nudgee/core/di/injector.dart' as di;
+import 'package:nudgee/core/services/local_database_service.dart';
 import 'package:nudgee/core/services/workspace_service.dart';
 
-/// Agent service — integrates AgentCore with tools, memory, and LLM config.
+/// Agent service — integrates AgentHarness with tools, skills, memory, and LLM config.
 ///
 /// This is the **full agent stack** for the AI assistant "Echo Agent":
-/// - Uses [AgentCore] (ReAct loop) instead of raw LLM streaming
+/// - Uses [AgentHarness] (wraps [AgentCore] ReAct loop + [Orchestrator])
 /// - Has access to all built-in tools (web.search, schedule, post, memory, etc.)
 /// - Has access to sandbox execution (sandbox.exec, sandbox.fs)
+/// - Uses [SkillRegistry] for multi-step workflow matching (weekly planner, etc.)
+/// - Uses [MemoryManager] for long-term user memory injection into system prompt
+/// - Uses [AgentTrace] for full execution observability
 /// - Emits [AgentEvent]s (thinking, content, tool calls, tool results)
 ///   so the UI can visualize the full agent process
-///
-/// Compared to [AiService] (which is a thin wrapper around FlutterAI SDK),
-/// AgentService provides:
-/// - Tool calling (web.search, schedule.add, memory.save, etc.)
-/// - Multi-step reasoning (ReAct loop)
-/// - Memory integration
-/// - Full trace/observability
 ///
 /// Usage:
 /// ```dart
@@ -38,7 +38,12 @@ class AgentService {
   ToolRegistry? _toolRegistry;
   LLMClient? _llmClient;
   AgentConfig? _agentConfig;
-  ContextGovernor? _contextGovernor;
+  AgentHarness? _harness;
+  SkillRegistry? _skillRegistry;
+  MemoryManager? _memoryManager;
+
+  /// Last run's trace (for debugging/observability).
+  AgentTrace? _lastTrace;
 
   bool _initialized = false;
   String _currentModel = '';
@@ -68,6 +73,15 @@ class AgentService {
   /// The tool registry (for registering additional tools).
   ToolRegistry get toolRegistry => _toolRegistry!;
 
+  /// The skill registry.
+  SkillRegistry? get skillRegistry => _skillRegistry;
+
+  /// The memory manager.
+  MemoryManager? get memoryManager => _memoryManager;
+
+  /// The last execution trace.
+  AgentTrace? get lastTrace => _lastTrace;
+
   /// The conversation history.
   List<LlmMessage> get history => List.unmodifiable(_history);
 
@@ -96,6 +110,29 @@ class AgentService {
 
       registerBuiltinTools(_toolRegistry!, workspace: workspace);
 
+      // ── Skill Registry ──
+      _skillRegistry = SkillRegistry();
+      registerBuiltinSkills(_skillRegistry!);
+
+      // ── Memory Manager ──
+      // Try to get LocalDatabaseService from DI for persistent storage.
+      try {
+        final db = di.sl<LocalDatabaseService>();
+        final storage = MemoryStorage(db);
+        _memoryManager = MemoryManager(
+          storage: storage,
+          llmClient: _llmClient!,
+          llmModel: _currentModel,
+          userId: 'default',
+        );
+        // Load cache asynchronously (non-blocking).
+        _memoryManager!.loadCache().catchError((e) {
+          debugPrint('[AgentService] MemoryManager loadCache error: $e');
+        });
+      } catch (e) {
+        debugPrint('[AgentService] MemoryManager init skipped: $e');
+      }
+
       _agentConfig = AgentConfig(
         id: 'nudgee-assistant',
         name: 'Echo Agent',
@@ -105,13 +142,25 @@ class AgentService {
         maxSteps: 10,
       );
 
-      _contextGovernor = ContextGovernor(
-        systemPrompt: _agentConfig!.systemPrompt,
+      // ── Build AgentHarness ──
+      _harness = AgentHarness(
+        llmClient: _llmClient!,
+        toolRegistry: _toolRegistry!,
+        skillRegistry: _skillRegistry,
+        memoryManager: _memoryManager,
+        permissionContext:
+            PermissionContext.fixed(PermissionMode.bypassPermissions),
+        traceFactory: () => AgentTrace(),
+        llmModel: _currentModel,
       );
+      _harness!.registerAgent(_agentConfig!);
 
       _initialized = true;
       debugPrint('[AgentService] Initialized with model=$_currentModel, '
-          'tools=${_toolRegistry!.names.length}');
+          'tools=${_toolRegistry!.names.length}, '
+          'skills=${_skillRegistry!.length}, '
+          'memory=${_memoryManager != null ? "on" : "off"}, '
+          'trace=on');
     } catch (e, stack) {
       debugPrint('[AgentService] init() FAILED: $e');
       debugPrint('[AgentService] stack: $stack');
@@ -188,6 +237,11 @@ class AgentService {
 
   /// Runs the agent with [userInput] and yields [AgentEvent]s.
   ///
+  /// Uses [AgentHarness.runWithSkills] which:
+  /// 1. Matches a skill (if skillRegistry is set)
+  /// 2. Executes the skill if matched
+  /// 3. Runs the ReAct loop with skill output + memory context
+  ///
   /// Events include:
   /// - [ThinkingEvent]: reasoning deltas
   /// - [ContentEvent]: reply text deltas
@@ -200,7 +254,7 @@ class AgentService {
     String? systemPrompt,
     String? extraSystemContext,
   }) {
-    if (!_initialized) {
+    if (!_initialized || _harness == null) {
       debugPrint('[AgentService] run() called but not initialized');
       return Stream.error(StateError('AgentService not configured'));
     }
@@ -219,29 +273,27 @@ class AgentService {
         toolNames: _agentConfig!.toolNames,
         maxSteps: _agentConfig!.maxSteps,
       );
-      _contextGovernor = ContextGovernor(systemPrompt: effectivePrompt);
+      // Re-register the updated config.
+      _harness!.registerAgent(_agentConfig!);
     }
 
-    final core = AgentCore(
-      config: _agentConfig!,
-      llmClient: _llmClient!,
-      toolRegistry: _toolRegistry!,
-      contextGovernor: _contextGovernor!,
-      permissionContext:
-          PermissionContext.fixed(PermissionMode.bypassPermissions),
-    );
-
     // Pass history WITHOUT the current input — AgentCore adds it internally
-    // (core.run builds: [...history, LlmMessage.user(userInput)])
     final historyCopy = List<LlmMessage>.from(_history);
 
     // Track the current input in history for future turns
     _history.add(LlmMessage.user(userInput));
 
-    return core.run(
+    // Build memory context callback for skill personalization.
+    String memoryContext() {
+      return _memoryManager?.buildMemoryContext() ?? '';
+    }
+
+    // Use runWithSkills for the full flow (skill matching + memory + ReAct).
+    return _harness!.runWithSkills(
       userInput: userInput,
       history: historyCopy,
-      extraSystemContext: extraSystemContext,
+      memoryContext: memoryContext,
+      userId: _memoryManager?.userId ?? 'default',
     );
   }
 
@@ -257,7 +309,7 @@ class AgentService {
         toolNames: _agentConfig!.toolNames,
         maxSteps: _agentConfig!.maxSteps,
       );
-      _contextGovernor = ContextGovernor(systemPrompt: systemPrompt);
+      _harness?.registerAgent(_agentConfig!);
     }
   }
 
@@ -284,7 +336,53 @@ class AgentService {
       toolNames: _agentConfig!.toolNames,
       maxSteps: _agentConfig!.maxSteps,
     );
+    _harness?.registerAgent(_agentConfig!);
     debugPrint('[AgentService] Switched to model: $model');
+  }
+
+  /// Sets the current user ID for memory personalization.
+  /// Reloads the memory cache for the new user.
+  void setUserId(String userId) {
+    if (_memoryManager != null) {
+      _memoryManager!.userId = userId;
+      _memoryManager!.loadCache().catchError((e) {
+        debugPrint('[AgentService] setUserId memory reload error: $e');
+      });
+    }
+  }
+
+  /// Summarizes the current session and extracts long-term memory.
+  ///
+  /// Call this after a conversation session ends (e.g. on DoneEvent
+  /// or when the user leaves the chat) to persist episodic + semantic memory.
+  Future<void> persistSessionMemory({
+    required DateTime sessionStart,
+    required int stepCount,
+    List<String> toolsUsed = const [],
+  }) async {
+    if (_memoryManager == null || _history.isEmpty) return;
+
+    try {
+      // 1. Summarize the episode
+      final episode = await _memoryManager!.summarizeEpisode(
+        messages: _history,
+        sessionStart: sessionStart,
+        stepCount: stepCount,
+        toolsUsed: toolsUsed,
+      );
+      await _memoryManager!.saveEpisode(episode);
+
+      // 2. Extract long-term memory
+      await _memoryManager!.extractLongTerm(
+        messages: _history,
+        episode: episode,
+      );
+
+      debugPrint('[AgentService] Session memory persisted: '
+          '${episode.summary.substring(0, 50)}...');
+    } catch (e) {
+      debugPrint('[AgentService] persistSessionMemory error: $e');
+    }
   }
 
   /// Releases resources.

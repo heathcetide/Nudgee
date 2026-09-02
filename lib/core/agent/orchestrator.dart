@@ -4,9 +4,11 @@ import 'package:nudgee/core/agent/agent_config.dart';
 import 'package:nudgee/core/agent/agent_core.dart';
 import 'package:nudgee/core/agent/agent_event.dart';
 import 'package:nudgee/core/agent/context/context_governor.dart';
+import 'package:nudgee/core/agent/memory/memory_manager.dart';
 import 'package:nudgee/core/agent/permission/permission.dart';
 import 'package:nudgee/core/agent/providers/llm_client.dart';
 import 'package:nudgee/core/agent/tools/tool_registry.dart';
+import 'package:nudgee/core/agent/trace/agent_trace.dart';
 
 /// Orchestrator — manages the Agent execution lifecycle.
 ///
@@ -15,6 +17,8 @@ import 'package:nudgee/core/agent/tools/tool_registry.dart';
 /// - Session management
 /// - Stats aggregation
 /// - Error recovery
+/// - Memory injection (via [MemoryManager])
+/// - Execution tracing (via [AgentTrace])
 class Orchestrator {
   /// LLM client shared across all Agents.
   final LLMClient llmClient;
@@ -25,6 +29,13 @@ class Orchestrator {
   /// Permission context.
   final PermissionContext permissionContext;
 
+  /// Optional memory manager for long-term memory injection.
+  final MemoryManager? memoryManager;
+
+  /// Optional trace recorder. A fresh [AgentTrace] is created per run
+  /// if this factory is set, so each run gets its own trace.
+  final AgentTrace Function()? traceFactory;
+
   /// Registered Agent configurations, keyed by ID.
   final Map<String, AgentConfig> _agents = {};
 
@@ -33,6 +44,8 @@ class Orchestrator {
     required this.llmClient,
     required this.toolRegistry,
     required this.permissionContext,
+    this.memoryManager,
+    this.traceFactory,
   });
 
   /// Registers an Agent configuration.
@@ -69,12 +82,18 @@ class Orchestrator {
       return;
     }
 
+    final trace = traceFactory?.call();
+
     final core = AgentCore(
       config: config,
       llmClient: llmClient,
       toolRegistry: toolRegistry,
-      contextGovernor: ContextGovernor.fromConfig(config),
+      contextGovernor: ContextGovernor.fromConfig(
+        config,
+        memoryManager: memoryManager,
+      ),
       permissionContext: permissionContext,
+      trace: trace,
     );
 
     yield* core.run(

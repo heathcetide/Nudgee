@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:nudgee/core/agent/agent_config.dart';
 import 'package:nudgee/core/agent/agent_event.dart';
+import 'package:nudgee/core/agent/memory/memory_manager.dart';
 import 'package:nudgee/core/agent/orchestrator.dart';
 import 'package:nudgee/core/agent/permission/permission.dart';
 import 'package:nudgee/core/agent/providers/llm_client.dart';
@@ -12,6 +13,7 @@ import 'package:nudgee/core/agent/skills/skill_executor.dart';
 import 'package:nudgee/core/agent/skills/skill_models.dart';
 import 'package:nudgee/core/agent/skills/skill_registry.dart';
 import 'package:nudgee/core/agent/tools/tool_registry.dart';
+import 'package:nudgee/core/agent/trace/agent_trace.dart';
 
 /// Agent harness — the top-level entry point for running Agents.
 ///
@@ -20,6 +22,8 @@ import 'package:nudgee/core/agent/tools/tool_registry.dart';
 /// - [ToolRegistry] for tool execution
 /// - [SkillRegistry] for skill matching and execution
 /// - [PermissionContext] for authorization
+/// - [MemoryManager] for long-term memory injection
+/// - [AgentTrace] for execution observability
 /// - [Orchestrator] for Agent lifecycle
 ///
 /// When a skill is matched, the harness first executes the skill workflow,
@@ -31,6 +35,7 @@ import 'package:nudgee/core/agent/tools/tool_registry.dart';
 ///   llmClient: DeepSeekClient(apiKey: '...'),
 ///   toolRegistry: registry,
 ///   skillRegistry: skillRegistry,
+///   memoryManager: memoryManager,
 ///   permissionContext: PermissionContext.fixed(PermissionMode.normal),
 /// );
 /// harness.registerAgent(defaultAgentConfig);
@@ -57,6 +62,12 @@ class AgentHarness {
   /// Permission context.
   final PermissionContext permissionContext;
 
+  /// Optional memory manager for long-term memory injection.
+  final MemoryManager? memoryManager;
+
+  /// Optional trace factory — called per run to create a fresh trace.
+  final AgentTrace Function()? traceFactory;
+
   /// Underlying orchestrator.
   late final Orchestrator orchestrator;
 
@@ -75,12 +86,16 @@ class AgentHarness {
     required this.toolRegistry,
     required this.permissionContext,
     this.skillRegistry,
+    this.memoryManager,
+    this.traceFactory,
     this.llmModel = 'gpt-5.4-mini',
   }) {
     orchestrator = Orchestrator(
       llmClient: llmClient,
       toolRegistry: toolRegistry,
       permissionContext: permissionContext,
+      memoryManager: memoryManager,
+      traceFactory: traceFactory,
     );
 
     if (skillRegistry != null) {

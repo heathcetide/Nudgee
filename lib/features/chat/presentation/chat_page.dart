@@ -73,6 +73,11 @@ class _ChatPageState extends State<ChatPage> {
     final myName = user?.name ?? '我';
     final myAvatar = user?.avatar;
 
+    // Sync user ID to AgentService for memory personalization.
+    if (user != null) {
+      sl<AgentService>().setUserId(user.id);
+    }
+
     // Build user map.
     _userMap.clear();
     _userMap[_currentUserId] = LingChatUser(
@@ -430,6 +435,21 @@ class _ChatPageState extends State<ChatPage> {
             }
             // Add AI reply to agent history for multi-turn context.
             sl<AgentService>().addAssistantHistory(finalText);
+
+            // Persist session memory (episodic summary + long-term extraction).
+            // Runs asynchronously — does not block the UI.
+            if (event.stats.steps > 0) {
+              sl<AgentService>().persistSessionMemory(
+                sessionStart: DateTime.now(),
+                stepCount: event.stats.steps,
+                toolsUsed: segments
+                    .where((s) => s['type'] == 'toolCall')
+                    .map((s) => s['name'] as String)
+                    .toList(),
+              ).catchError((e) {
+                debugPrint('[ChatPage] persistSessionMemory error: $e');
+              });
+            }
 
           case ErrorEvent():
             _done = true;
