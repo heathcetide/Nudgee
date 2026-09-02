@@ -178,6 +178,9 @@ class _ChatPageState extends State<ChatPage> {
   /// - Final reply (streaming markdown)
   void _streamAgentReply(LingConversation conv, String userText) {
     final agentService = sl<AgentService>();
+    // Retry init in case the first attempt failed (e.g. dependency
+    // not yet registered at DI time).
+    agentService.ensureInitialized();
     if (!agentService.isConfigured) {
       SmartDialog.showNotify(
         msg: context.l10n.aiNotConfigured,

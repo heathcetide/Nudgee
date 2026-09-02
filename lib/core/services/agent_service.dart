@@ -123,6 +123,7 @@ class AgentService {
 
       // ── Memory Manager ──
       // Try to get LocalDatabaseService from DI for persistent storage.
+      // Non-fatal: if it fails, the agent runs without long-term memory.
       try {
         final db = di.sl<LocalDatabaseService>();
         final storage = MemoryStorage(db);
@@ -183,6 +184,14 @@ class AgentService {
       debugPrint('[AgentService] init() FAILED: $e');
       debugPrint('[AgentService] stack: $stack');
     }
+  }
+
+  /// Ensures the service is initialized, retrying if the first attempt
+  /// failed (e.g. because a dependency wasn't registered yet).
+  /// Safe to call multiple times.
+  void ensureInitialized() {
+    if (_initialized) return;
+    init();
   }
 
   /// Creates the appropriate LLM client based on config.
