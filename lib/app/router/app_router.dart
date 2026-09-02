@@ -109,7 +109,11 @@ class AppRouter {
         GoRoute(
           path: personalHome,
           name: 'personalHome',
-          builder: (context, state) => const PersonalHomePage(),
+          builder: (context, state) {
+            // Support optional userId query param to view other users.
+            final userId = state.uri.queryParameters['userId'];
+            return PersonalHomePage(userId: userId);
+          },
         ),
         GoRoute(
           path: workspace,

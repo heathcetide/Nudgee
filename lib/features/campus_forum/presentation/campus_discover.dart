@@ -440,11 +440,12 @@ class _SinglePostsState extends State<SinglePosts> {
                   final user = likeList[index];
                   final name = user['name']?.toString() ?? '未知用户';
                   final uid = user['uid']?.toString();
+                  final avatar = user['avatar']?.toString();
                   return ListTile(
                     leading: SizedBox(
                       width: 36,
                       height: 36,
-                      child: Avatar(null, name: name),
+                      child: Avatar(avatar, name: name),
                     ),
                     title: Text(name),
                     trailing: uid == widget.currentUserId
@@ -454,6 +455,15 @@ class _SinglePostsState extends State<SinglePosts> {
                               fontSize: 13,
                             ))
                         : null,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      if (uid != null && uid.isNotEmpty) {
+                        GoRouter.of(context).pushNamed(
+                          'personalHome',
+                          queryParameters: {'userId': uid},
+                        );
+                      }
+                    },
                   );
                 },
               ),
