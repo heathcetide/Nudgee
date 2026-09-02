@@ -67,6 +67,13 @@ class _ProfilePortalState extends State<ProfilePortal> with RouteAware {
         }
       },
       {
+        'icon': Icons.smart_toy_outlined,
+        'text': 'Agent 好友',
+        'onclick': (context) {
+          GoRouter.of(context).push(AppRouter.agentFriends);
+        }
+      },
+      {
         'icon': AntDesign.heart_fill,
         'text': l10n.profileLikes,
         'onclick': (context) {

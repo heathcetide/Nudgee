@@ -9,6 +9,7 @@ import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/models/im/im.dart';
 import 'package:nudgee/core/services/agent_service.dart';
+import 'package:nudgee/core/services/agent_friend_service.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/core/services/chat_service.dart';
 import 'package:nudgee/core/widgets/im/ling_chat_screen.dart';
@@ -160,9 +161,13 @@ class _ChatPageState extends State<ChatPage> {
       text: text,
     );
 
-    // Route to AI if this is the AI assistant or a template-based AI conversation.
+    // Route to AI if this is the AI assistant, a template-based AI conversation,
+    // or an Agent Friend conversation.
+    final friendService = sl<AgentFriendService>();
+    final isAgentFriend = friendService.isAgentFriendConversation(conv.id);
     final isAiConv = conv.id == ChatService.aiAssistantId ||
-        _convSystemPrompts.containsKey(conv.id);
+        _convSystemPrompts.containsKey(conv.id) ||
+        isAgentFriend;
     if (isAiConv) {
       _streamAgentReply(conv, text);
     }
@@ -201,8 +206,11 @@ class _ChatPageState extends State<ChatPage> {
     };
 
     // Use custom system prompt for template-based conversations,
-    // or the default Echo Agent prompt for the main AI conversation.
+    // Agent Friend conversations, or the default Echo Agent prompt.
+    final friendService = sl<AgentFriendService>();
+    final friend = friendService.getFriendByConversation(conv.id);
     final systemPrompt = _convSystemPrompts[conv.id] ??
+        friend?.systemPrompt ??
         ChatService.aiAssistantSystemPrompt;
 
     // Only reset if the system prompt changed (e.g. switching conversations).
@@ -648,9 +656,12 @@ class _ChatPageState extends State<ChatPage> {
     final controller = _chatControllers[conv.id];
     if (controller == null) return;
 
-    // Determine if this is an AI conversation (default assistant or template-based).
+    // Determine if this is an AI conversation (default assistant,
+    // template-based, or Agent Friend).
+    final friendService = sl<AgentFriendService>();
     final isAiConv = conv.id == ChatService.aiAssistantId ||
-        _convSystemPrompts.containsKey(conv.id);
+        _convSystemPrompts.containsKey(conv.id) ||
+        friendService.isAgentFriendConversation(conv.id);
 
     final ai = sl<AgentService>();
 
