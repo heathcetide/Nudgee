@@ -215,6 +215,9 @@ class AgentFriendService extends ChangeNotifier {
     try {
       final chatService = di.sl<ChatService>();
 
+      // 如果会话已存在，跳过
+      if (chatService.conversations.any((c) => c.id == friend.id)) return;
+
       // 创建会话
       final conv = await chatService.createConversation(
         id: friend.id,
@@ -240,6 +243,14 @@ class AgentFriendService extends ChangeNotifier {
     } catch (e) {
       debugPrint('[AgentFriendService] create conversation error: $e');
     }
+  }
+
+  /// 为已有的 AgentFriend 创建会话（如果不存在）。
+  /// 用于从聊天列表添加内置 Agent 好友。
+  Future<void> ensureConversationForFriend(String friendId) async {
+    final friend = getFriend(friendId);
+    if (friend == null) return;
+    await _createConversationForFriend(friend);
   }
 
   /// 更新 Agent 好友配置。

@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
+import 'package:go_router/go_router.dart';
 
+import 'package:nudgee/app/router/app_router.dart';
 import 'package:nudgee/core/agent/agent.dart';
 import 'package:nudgee/core/controllers/im/im.dart';
 import 'package:nudgee/core/di/injector.dart';
@@ -10,6 +12,7 @@ import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/models/im/im.dart';
 import 'package:nudgee/core/services/agent_service.dart';
 import 'package:nudgee/core/services/agent_friend_service.dart';
+import 'package:nudgee/core/models/agent_friend.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/core/services/chat_service.dart';
 import 'package:nudgee/core/widgets/im/ling_chat_screen.dart';
@@ -753,6 +756,171 @@ class _ChatPageState extends State<ChatPage> {
     setState(() {});
   }
 
+  /// 弹出添加 Agent 好友的 bottom sheet。
+  ///
+  /// 显示内置 Agent 列表 + 自定义创建入口。
+  /// 选中后创建对应的 IM 会话，直接出现在聊天列表中。
+  void _showAddAgentFriendSheet(BuildContext context) {
+    final theme = Theme.of(context);
+    final friendService = sl<AgentFriendService>();
+    final chatService = sl<ChatService>();
+    final friends = friendService.friends;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.7,
+      ),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 4),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: theme.dividerColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                '添加 Agent 好友',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Divider(height: 1, color: theme.dividerColor),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: friends.length + 1, // +1 for custom
+                itemBuilder: (ctx, index) {
+                  // Last item: custom Agent
+                  if (index == friends.length) {
+                    return ListTile(
+                      leading: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(Icons.add,
+                            color: theme.colorScheme.onPrimaryContainer),
+                      ),
+                      title: const Text('自定义 Agent'),
+                      subtitle: const Text('创建你专属的 AI 好友'),
+                      trailing: const Icon(Icons.chevron_right,
+                          size: 20, color: Colors.grey),
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        // Ensure AgentFriendService is initialized
+                        await friendService.init();
+                        if (!mounted) return;
+                        final result = await GoRouter.of(context).push<bool>(
+                          AppRouter.addAgentFriend,
+                        );
+                        if (result == true && mounted) {
+                          // Find the newest conversation and open it
+                          final newest = chatService.conversations.firstOrNull;
+                          if (newest != null) {
+                            _openChat(context, newest);
+                          }
+                        }
+                      },
+                    );
+                  }
+
+                  final friend = friends[index];
+                  final hasConv = chatService.conversations
+                      .any((c) => c.id == friend.id);
+                  return ListTile(
+                    leading: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer
+                            .withAlpha(100),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Text(friend.icon,
+                            style: const TextStyle(fontSize: 22)),
+                      ),
+                    ),
+                    title: Row(
+                      children: [
+                        Text(friend.name),
+                        if (hasConv) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '已添加',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: theme.hintColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    subtitle: Text(
+                      friend.description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: hasConv
+                        ? const Icon(Icons.check_circle,
+                            size: 20, color: Colors.grey)
+                        : const Icon(Icons.add_circle_outline,
+                            size: 20, color: Colors.grey),
+                    onTap: hasConv
+                        ? () {
+                            Navigator.pop(ctx);
+                            final conv = chatService.conversations
+                                .where((c) => c.id == friend.id)
+                                .firstOrNull;
+                            if (conv != null) _openChat(context, conv);
+                          }
+                        : () async {
+                            Navigator.pop(ctx);
+                            await friendService
+                                .ensureConversationForFriend(friend.id);
+                            if (!mounted) return;
+                            final conv = chatService.conversations
+                                .where((c) => c.id == friend.id)
+                                .firstOrNull;
+                            if (conv != null) {
+                              _openChat(context, conv);
+                            }
+                          },
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        );
+      },
+    );
+  }
+
   /// 打开模板选择页面，选择模板后创建新的 AI 会话。
   Future<void> _openTemplatePage() async {
     final result = await Navigator.of(context).push<(PromptTemplate, String)>(
@@ -832,11 +1000,7 @@ class _ChatPageState extends State<ChatPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('提示词模板功能即将上线')),
-              );
-            },
+            onPressed: () => _showAddAgentFriendSheet(context),
           ),
         ],
       ),

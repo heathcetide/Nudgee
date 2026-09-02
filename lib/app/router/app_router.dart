@@ -23,7 +23,6 @@ import 'package:nudgee/core/models/schedule_model.dart';
 import 'package:nudgee/core/services/post_service.dart';
 import 'package:nudgee/features/campus_forum/presentation/create_post_page.dart';
 import 'package:nudgee/features/campus_forum/presentation/like_list_page.dart';
-import 'package:nudgee/features/agent_friends/presentation/agent_friends_page.dart';
 import 'package:nudgee/features/agent_friends/presentation/add_agent_friend_page.dart';
 import 'package:nudgee/features/timetable/presentation/add_schedule_page.dart';
 
@@ -56,7 +55,6 @@ class AppRouter {
   static const String createPost = '/createPost';
   static const String editPost = '/editPost';
   static const String likeList = '/likeList';
-  static const String agentFriends = '/agentFriends';
   static const String addAgentFriend = '/agentFriends/add';
 
   /// Build the [GoRouter] instance.
@@ -198,11 +196,6 @@ class AppRouter {
                       const [],
             );
           },
-        ),
-        GoRoute(
-          path: agentFriends,
-          name: 'agentFriends',
-          builder: (context, state) => const AgentFriendsPage(),
         ),
         GoRoute(
           path: addAgentFriend,
