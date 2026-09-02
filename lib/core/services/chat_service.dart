@@ -318,6 +318,20 @@ class ChatService extends ChangeNotifier {
     return msg;
   }
 
+  /// Persist an existing AI message (already created in the controller)
+  /// to the database and cloud, without creating a duplicate.
+  Future<void> persistAiMessage(LingMessage msg) async {
+    await _saveMessage(msg);
+    await _updateConversationLastMessage(msg.conversationId, msg);
+    // Only add to ChatService's in-memory list if not already present.
+    final msgs = _messages[msg.conversationId];
+    if (msgs == null || !msgs.any((m) => m.id == msg.id)) {
+      _messages[msg.conversationId] = [...?msgs, msg];
+      notifyListeners();
+    }
+    _syncToCloud();
+  }
+
   /// 获取某会话的消息列表。
   List<LingMessage> getMessages(String conversationId) =>
       _messages[conversationId] ?? [];

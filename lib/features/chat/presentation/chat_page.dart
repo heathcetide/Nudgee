@@ -390,8 +390,23 @@ class _ChatPageState extends State<ChatPage> {
                 status: LingMessageStatus.read,
                 metadata: metadata,
               ));
+              // Persist the existing AI message (no duplicate).
+              final updatedMsg = controller.messages.firstWhere(
+                (m) => m.id == aiMsgId,
+                orElse: () => LingMessage(
+                  id: aiMsgId!,
+                  conversationId: conv.id,
+                  authorId: ChatService.aiAssistantId,
+                  type: LingMessageType.text,
+                  text: finalText,
+                  createdAt: DateTime.now(),
+                  status: LingMessageStatus.read,
+                  metadata: metadata,
+                ),
+              );
+              sl<ChatService>().persistAiMessage(updatedMsg);
             } else {
-              controller.addMessage(LingMessage(
+              final newMsg = LingMessage(
                 id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
                 conversationId: conv.id,
                 authorId: ChatService.aiAssistantId,
@@ -400,13 +415,10 @@ class _ChatPageState extends State<ChatPage> {
                 createdAt: DateTime.now(),
                 status: LingMessageStatus.read,
                 metadata: metadata,
-              ));
+              );
+              controller.addMessage(newMsg);
+              sl<ChatService>().persistAiMessage(newMsg);
             }
-            // Persist the AI message to ChatService (SQLite + cloud).
-            sl<ChatService>().addAiMessage(
-              conversationId: conv.id,
-              text: finalText,
-            );
             // Add AI reply to agent history for multi-turn context.
             sl<AgentService>().addAssistantHistory(finalText);
 
