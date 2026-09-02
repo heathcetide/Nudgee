@@ -392,84 +392,14 @@ class _SinglePostsState extends State<SinglePosts> {
   }
 
   void _showLikeList(BuildContext context) {
-    final theme = Theme.of(context);
     final likeList = widget.displayLikeUserList ?? [];
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.6,
-      ),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.only(top: 8, bottom: 4),
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: theme.dividerColor,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                '${widget.likeCount ?? likeList.length} 人点赞',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            Divider(height: 1, color: theme.dividerColor),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: likeList.length,
-                separatorBuilder: (_, __) => Divider(
-                  height: 1,
-                  indent: 56,
-                  color: theme.dividerColor,
-                ),
-                itemBuilder: (ctx, index) {
-                  final user = likeList[index];
-                  final name = user['name']?.toString() ?? '未知用户';
-                  final uid = user['uid']?.toString();
-                  final avatar = user['avatar']?.toString();
-                  return ListTile(
-                    leading: SizedBox(
-                      width: 36,
-                      height: 36,
-                      child: Avatar(avatar, name: name),
-                    ),
-                    title: Text(name),
-                    trailing: uid == widget.currentUserId
-                        ? Text('我',
-                            style: TextStyle(
-                              color: theme.colorScheme.primary,
-                              fontSize: 13,
-                            ))
-                        : null,
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      if (uid != null && uid.isNotEmpty) {
-                        GoRouter.of(context).pushNamed(
-                          'personalHome',
-                          queryParameters: {'userId': uid},
-                        );
-                      }
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
-        );
+    GoRouter.of(context).pushNamed(
+      'likeList',
+      extra: {
+        'postId': widget.postId ?? '',
+        'likeCount': widget.likeCount ?? likeList.length,
+        'currentUserId': widget.currentUserId,
+        'likeList': likeList,
       },
     );
   }

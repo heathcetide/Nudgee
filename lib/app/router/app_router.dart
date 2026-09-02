@@ -21,6 +21,7 @@ import 'package:nudgee/features/workspace/presentation/workspace_page.dart';
 import 'package:nudgee/core/models/schedule_model.dart';
 import 'package:nudgee/core/services/post_service.dart';
 import 'package:nudgee/features/campus_forum/presentation/create_post_page.dart';
+import 'package:nudgee/features/campus_forum/presentation/like_list_page.dart';
 import 'package:nudgee/features/timetable/presentation/add_schedule_page.dart';
 
 /// Centralized route definitions.
@@ -50,6 +51,7 @@ class AppRouter {
   static const String addSchedule = '/addSchedule';
   static const String createPost = '/createPost';
   static const String editPost = '/editPost';
+  static const String likeList = '/likeList';
 
   /// Build the [GoRouter] instance.
   ///
@@ -169,6 +171,21 @@ class AppRouter {
           builder: (context, state) {
             final editItem = state.extra as PostItem?;
             return CreatePostPage(editItem: editItem);
+          },
+        ),
+        GoRoute(
+          path: likeList,
+          name: 'likeList',
+          builder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>?;
+            return LikeListPage(
+              postId: extra?['postId'] as String? ?? '',
+              likeCount: extra?['likeCount'] as int? ?? 0,
+              currentUserId: extra?['currentUserId'] as String?,
+              likeList:
+                  (extra?['likeList'] as List?)?.cast<Map<String, dynamic>>() ??
+                      const [],
+            );
           },
         ),
       ],
