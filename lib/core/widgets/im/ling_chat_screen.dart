@@ -17,7 +17,7 @@ import 'package:nudgee/core/services/agent_service.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/core/services/chat_service.dart';
 import 'package:nudgee/core/services/file_storage_service.dart';
-import 'package:nudgee/core/services/permission_service.dart';
+import 'package:nudgee/core/services/agent_permission_service.dart';
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
 import 'package:nudgee/core/services/shared_prefs_service.dart';
 import 'package:nudgee/features/common/utils/functions.dart';
@@ -506,7 +506,7 @@ class _LingChatScreenState extends State<LingChatScreen> {
 
   /// Show permission mode picker bottom sheet.
   void _showPermissionModePicker(BuildContext context) {
-    final permService = sl<PermissionService>();
+    final permService = sl<AgentPermissionService>();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -542,12 +542,12 @@ class _LingChatScreenState extends State<LingChatScreen> {
                     },
                     title: Row(
                       children: [
-                        Icon(PermissionService.modeIcon(mode), size: 20),
+                        Icon(AgentPermissionService.modeIcon(mode), size: 20),
                         const SizedBox(width: 8),
-                        Text(PermissionService.modeLabel(mode)),
+                        Text(AgentPermissionService.modeLabel(mode)),
                       ],
                     ),
-                    subtitle: Text(PermissionService.modeDescription(mode)),
+                    subtitle: Text(AgentPermissionService.modeDescription(mode)),
                     activeColor: Theme.of(ctx).colorScheme.primary,
                   );
                 }),

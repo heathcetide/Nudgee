@@ -10,7 +10,7 @@ import 'package:nudgee/core/agent/trace/agent_trace.dart';
 import 'package:nudgee/core/config/app_config.dart';
 import 'package:nudgee/core/di/injector.dart' as di;
 import 'package:nudgee/core/services/local_database_service.dart';
-import 'package:nudgee/core/services/permission_service.dart';
+import 'package:nudgee/core/services/agent_permission_service.dart';
 import 'package:nudgee/core/services/workspace_service.dart';
 
 /// Agent service — integrates AgentHarness with tools, skills, memory, and LLM config.
@@ -150,13 +150,13 @@ class AgentService {
       );
 
       // ── Build AgentHarness ──
-      // Use PermissionService for live permission mode management.
-      // Falls back to bypassPermissions if PermissionService is not registered.
+      // Use AgentPermissionService for live permission mode management.
+      // Falls back to bypassPermissions if AgentPermissionService is not registered.
       PermissionContext permContext;
       try {
-        permContext = di.sl<PermissionService>().context;
+        permContext = di.sl<AgentPermissionService>().context;
       } catch (_) {
-        debugPrint('[AgentService] PermissionService not available, using bypass');
+        debugPrint('[AgentService] AgentPermissionService not available, using bypass');
         permContext =
             PermissionContext.fixed(PermissionMode.bypassPermissions);
       }
