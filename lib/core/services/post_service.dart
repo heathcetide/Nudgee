@@ -342,4 +342,13 @@ class PostService extends ChangeNotifier {
       ..sort((a, b) => b.time.compareTo(a.time));
     return sorted.map((e) => e.toUIMap()).toList();
   }
+
+  /// 获取当前用户点赞的帖子（按时间降序）。
+  List<Map<String, dynamic>> getLikedPostsAsUIMap() {
+    final sorted = List<PostItem>.from(_data.posts)
+        .where((e) => e.isLiked)
+        .toList()
+      ..sort((a, b) => b.time.compareTo(a.time));
+    return sorted.map((e) => e.toUIMap()).toList();
+  }
 }

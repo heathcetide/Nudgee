@@ -36,7 +36,19 @@ class Avatar extends StatelessWidget {
   final String? url;
   final String? name;
   final Function? onTap;
-  const Avatar(this.url, {super.key, this.name, this.onTap});
+
+  /// Optional unique Hero tag.
+  ///
+  /// If `null` (default), the [url] is used as the Hero tag — fine when
+  /// only one avatar with that URL exists on screen. If multiple avatars
+  /// share the same URL (e.g. in a list), pass a unique [heroTag] per
+  /// instance to avoid "multiple heroes with same tag" errors.
+  ///
+  /// If set to an empty string `''`, Hero is disabled entirely.
+  final String? heroTag;
+
+  const Avatar(this.url,
+      {super.key, this.name, this.onTap, this.heroTag});
 
   @override
   Widget build(BuildContext context) {
@@ -98,9 +110,15 @@ class Avatar extends StatelessWidget {
               ));
         } else {
           // Tappable avatar with detail view — detail uses 512px original.
+          // Use heroTag if provided (for list contexts where URLs may
+          // collide). Empty string disables Hero entirely.
+          final effectiveTag = heroTag != null
+              ? (heroTag!.isEmpty ? null : heroTag)
+              : urlStr;
           content = ImageBox(urlStr,
+              tag: effectiveTag,
               images: [
-                {'url': originalUrlWithCache, 'tag': urlStr}
+                {'url': originalUrlWithCache, 'tag': effectiveTag ?? urlStr}
               ],
               decoration: BoxDecoration(
                 borderRadius:

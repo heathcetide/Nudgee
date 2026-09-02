@@ -419,7 +419,9 @@ class _SinglePostsState extends State<SinglePosts> {
             height: 39,
             margin: const EdgeInsets.only(right: 12.0),
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
-            child: Avatar(widget.posterAvatar, name: widget.posterName),
+            child: Avatar(widget.posterAvatar,
+                name: widget.posterName,
+                heroTag: 'post_${widget.postId}_avatar'),
           ),
           Expanded(
             child: Column(

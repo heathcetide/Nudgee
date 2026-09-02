@@ -81,7 +81,9 @@ class _LikeListPageState extends State<LikeListPage> {
                   leading: SizedBox(
                     width: 44,
                     height: 44,
-                    child: Avatar(avatar, name: name),
+                    child: Avatar(avatar,
+                        name: name,
+                        heroTag: 'like_${widget.postId}_$index'),
                   ),
                   title: Text(name,
                       style: theme.textTheme.bodyLarge?.copyWith(

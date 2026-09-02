@@ -12,6 +12,7 @@ import 'package:nudgee/features/profile/presentation/changelog_page.dart';
 import 'package:nudgee/features/profile/presentation/change_nick_name.dart';
 import 'package:nudgee/features/profile/presentation/feedback_page.dart';
 import 'package:nudgee/features/profile/presentation/my_information.dart';
+import 'package:nudgee/features/profile/presentation/my_likes_page.dart';
 import 'package:nudgee/features/profile/presentation/personal_home_page.dart';
 import 'package:nudgee/features/profile/presentation/privacy_policy_page.dart';
 import 'package:nudgee/features/profile/presentation/user_agreement_page.dart';
@@ -47,6 +48,7 @@ class AppRouter {
   static const String changeNickName = '/profile/changeNickName';
   static const String avatarUpload = '/profile/avatarUpload';
   static const String personalHome = '/profile/personalHome';
+  static const String myLikes = '/profile/myLikes';
   static const String workspace = '/workspace';
   static const String addSchedule = '/addSchedule';
   static const String createPost = '/createPost';
@@ -116,6 +118,11 @@ class AppRouter {
             final userId = state.uri.queryParameters['userId'];
             return PersonalHomePage(userId: userId);
           },
+        ),
+        GoRoute(
+          path: myLikes,
+          name: 'myLikes',
+          builder: (context, state) => const MyLikesPage(),
         ),
         GoRoute(
           path: workspace,

@@ -56,13 +56,18 @@ class ImageBox extends StatelessWidget {
           alignment: fit_alignmentMap[fit],
           fit: fit,
           clipBehavior: Clip.antiAlias,
-          child: Hero(
-            tag: tag ?? url,
-            child: ExtendedImage.network(
-              url,
-              cache: true,
-            ),
-          ),
+          child: (tag != null && tag!.isNotEmpty)
+              ? Hero(
+                  tag: tag!,
+                  child: ExtendedImage.network(
+                    url,
+                    cache: true,
+                  ),
+                )
+              : ExtendedImage.network(
+                  url,
+                  cache: true,
+                ),
         ),
       ),
     );
