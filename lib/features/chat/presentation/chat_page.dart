@@ -86,12 +86,12 @@ class _ChatPageState extends State<ChatPage> {
       for (final m in conv.members) {
         _userMap.putIfAbsent(m.id, () => m);
       }
-      // Ensure AI assistant user is in map.
+      // Ensure AI assistant user is in map with latest name/avatar.
       if (conv.id == ChatService.aiAssistantId) {
         _userMap[ChatService.aiAssistantId] = LingChatUser(
           id: ChatService.aiAssistantId,
           name: ChatService.aiAssistantName,
-          avatarUrl: conv.avatarUrl,
+          avatarUrl: ChatService.aiAssistantAvatar,
           status: LingUserStatus.online,
         );
       }

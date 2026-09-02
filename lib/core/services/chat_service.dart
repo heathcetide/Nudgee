@@ -179,9 +179,53 @@ class ChatService extends ChangeNotifier {
   }
 
   /// 确保每个用户都有一个默认 AI 助手会话。
+  /// 如果已存在但名称/头像过期，会自动更新。
   Future<void> _ensureAiAssistant() async {
     final existing = _conversations.where((c) => c.id == aiAssistantId).firstOrNull;
-    if (existing != null) return;
+
+    if (existing != null) {
+      // Migrate: update name and avatar if they're outdated.
+      bool needsUpdate = false;
+      if (existing.name != aiAssistantName) needsUpdate = true;
+      if (existing.avatarUrl != aiAssistantAvatar) needsUpdate = true;
+
+      // Also update member info.
+      final aiMember = existing.members.where((m) => m.id == aiAssistantId).firstOrNull;
+      if (aiMember != null) {
+        if (aiMember.name != aiAssistantName || aiMember.avatarUrl != aiAssistantAvatar) {
+          needsUpdate = true;
+        }
+      }
+
+      if (needsUpdate) {
+        final updatedMembers = existing.members.map((m) {
+          if (m.id == aiAssistantId) {
+            return LingChatUser(
+              id: aiAssistantId,
+              name: aiAssistantName,
+              avatarUrl: aiAssistantAvatar,
+              status: LingUserStatus.online,
+            );
+          }
+          return m;
+        }).toList();
+
+        final updated = existing.copyWith(
+          name: aiAssistantName,
+          avatarUrl: aiAssistantAvatar,
+          members: updatedMembers,
+        );
+
+        // Update in-memory list.
+        final idx = _conversations.indexWhere((c) => c.id == aiAssistantId);
+        if (idx >= 0) _conversations[idx] = updated;
+
+        // Persist to DB.
+        await _saveConversation(updated);
+        notifyListeners();
+      }
+      return;
+    }
 
     final me = LingChatUser(
       id: _userId ?? 'me',
