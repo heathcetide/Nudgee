@@ -99,7 +99,7 @@ class AgentCore {
     final messages = <LlmMessage>[...history, LlmMessage.user(userInput)];
 
     // Track seen tool call signatures for loop detection
-    final seenSignatures = <String>{};
+    final seenSignatures = <String, int>{}; // signature → repeat count
 
     // Record run start
     trace?.recordRunStart(
@@ -233,16 +233,20 @@ class AgentCore {
           return;
         }
 
-        // Loop detection
+        // Loop detection with recovery
         final signature = _toolCallSignature(toolCalls);
-        if (seenSignatures.contains(signature)) {
+        final repeatCount = seenSignatures[signature] ?? 0;
+        seenSignatures[signature] = repeatCount + 1;
+
+        if (repeatCount >= 1) {
           yield AgentEvent.loopWarning(step + 1);
-          // Allow one repeat, but if we see it again, stop
-          if (seenSignatures.where((s) => s == signature).length >= 2) {
+
+          if (repeatCount >= 2) {
+            // Third occurrence — hard stop
             stopwatch.stop();
             stats = stats.copyWith(duration: stopwatch.elapsed);
             yield AgentEvent.error(
-              'Loop detected: Agent is repeating the same tool calls',
+              'Loop detected: Agent is repeating the same tool calls after warnings',
               severity: ErrorSeverity.warning,
             );
             yield AgentEvent.done(
@@ -251,8 +255,21 @@ class AgentCore {
             );
             return;
           }
+
+          // Second occurrence — inject a warning into context and let
+          // the LLM try a different approach on the next iteration.
+          messages.add(LlmMessage.assistant(
+            text: 'I notice I am repeating the same action. '
+                'Let me try a different approach.',
+          ));
+          messages.add(LlmMessage.user(
+            '⚠️ Loop warning: You have already tried this exact tool call '
+            'and it did not resolve the problem. Please try a DIFFERENT '
+            'approach — use different arguments, a different tool, or '
+            'explain to the user why this approach is not working.',
+          ));
+          continue;
         }
-        seenSignatures.add(signature);
 
         // Execute tool calls
         for (final call in toolCalls) {
@@ -403,9 +420,16 @@ class AgentCore {
     return toolRegistry.definitionsFor(config.toolNames);
   }
 
-  /// Creates a signature for loop detection.
+  /// Creates a canonical signature for loop detection.
+  ///
+  /// Arguments are canonicalized (keys sorted) so that Map insertion
+  /// order doesn't produce false-negative mismatches.
   String _toolCallSignature(List<ToolCall> calls) {
     if (calls.isEmpty) return 'no-tools';
-    return calls.map((c) => '${c.name}:${c.arguments.toString()}').join('|');
+    return calls.map((c) {
+      final sortedArgs = Map.fromEntries(c.arguments.entries.toList()
+        ..sort((a, b) => a.key.compareTo(b.key)));
+      return '${c.name}:${sortedArgs.toString()}';
+    }).join('|');
   }
 }

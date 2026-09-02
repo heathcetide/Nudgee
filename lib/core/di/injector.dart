@@ -17,6 +17,7 @@ import 'package:nudgee/core/services/app_lifecycle_service.dart';
 import 'package:nudgee/core/services/app_update_service.dart';
 import 'package:nudgee/core/services/ai_service.dart';
 import 'package:nudgee/core/services/agent_service.dart';
+import 'package:nudgee/core/services/agent_autonomous_service.dart';
 import 'package:nudgee/core/services/agent_permission_service.dart';
 import 'package:nudgee/core/services/workspace_service.dart';
 import 'package:nudgee/core/services/cloud_sandbox_service.dart';
@@ -180,6 +181,14 @@ Future<void> initDependencies() async {
     sl<AgentService>().init();
   });
   debugPrint('[Init] AgentService registered');
+
+  // ── Agent Autonomous Service (AI-generated posts) ───────────────────
+  _safeRegister(() {
+    sl.registerLazySingleton<AgentAutonomousService>(
+      () => AgentAutonomousService(sl<AgentService>()),
+    );
+  });
+  debugPrint('[Init] AgentAutonomousService registered');
 
   // ── Workspace Service (local user workspace for AI code execution) ───
   _safeRegister(() {

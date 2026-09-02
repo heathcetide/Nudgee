@@ -228,6 +228,7 @@ class AgentHarness {
     List<LlmMessage> history = const [],
     String Function()? memoryContext,
     String userId = 'default',
+    String? extraSystemContext,
   }) async* {
     // Step 1: Try to match a skill
     AgentSkill? matchedSkill;
@@ -241,7 +242,11 @@ class AgentHarness {
 
     if (matchedSkill == null) {
       // No skill matched — run agent normally
-      yield* run(userInput: userInput, history: history);
+      yield* run(
+        userInput: userInput,
+        history: history,
+        extraSystemContext: extraSystemContext,
+      );
       return;
     }
 
@@ -278,11 +283,14 @@ class AgentHarness {
       skillContext.writeln('\nSkill result: ${skillResult.summary}');
     }
 
-    // Step 4: Run agent with skill context
+    // Step 4: Run agent with skill context + caller's extra context
+    final combinedContext = extraSystemContext != null
+        ? '${skillContext.toString()}\n\n$extraSystemContext'
+        : skillContext.toString();
     yield* run(
       userInput: userInput,
       history: history,
-      extraSystemContext: skillContext.toString(),
+      extraSystemContext: combinedContext,
     );
   }
 

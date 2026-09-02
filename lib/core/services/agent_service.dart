@@ -8,6 +8,7 @@ import 'package:nudgee/core/agent/skills/skills.dart';
 import 'package:nudgee/core/agent/memory/memory.dart';
 import 'package:nudgee/core/agent/trace/agent_trace.dart';
 import 'package:nudgee/core/config/app_config.dart';
+import 'package:nudgee/core/models/prompt_template.dart';
 import 'package:nudgee/core/di/injector.dart' as di;
 import 'package:nudgee/core/services/local_database_service.dart';
 import 'package:nudgee/core/services/agent_permission_service.dart';
@@ -174,6 +175,9 @@ class AgentService {
       );
       _harness!.registerAgent(_agentConfig!);
 
+      // ── Register additional built-in Agents ──
+      _registerBuiltinAgents();
+
       _initialized = true;
       debugPrint('[AgentService] Initialized with model=$_currentModel, '
           'tools=${_toolRegistry!.names.length}, '
@@ -192,6 +196,148 @@ class AgentService {
   void ensureInitialized() {
     if (_initialized) return;
     init();
+  }
+
+  /// Registers built-in multi-agents beyond the default Echo Agent.
+  ///
+  /// Each agent has a different persona, tool set, and system prompt.
+  /// The UI can let the user switch between agents via [switchAgent].
+  void _registerBuiltinAgents() {
+    // ── Code Assistant ──
+    _harness!.registerAgent(AgentConfig(
+      id: 'code-assistant',
+      name: '代码助手',
+      icon: '💻',
+      description: '专注编程问题：代码审查、调试、架构设计、算法实现。',
+      systemPrompt: '你是一位资深软件工程师，擅长多语言编程、代码审查、'
+          '调试和系统设计。请给出专业、准确、可操作的建议。'
+          '涉及代码时用 markdown 代码块格式化。使用用户的语言回复。\n\n'
+          '你可以使用以下工具：\n'
+          '- workspace.js.exec: 执行 JavaScript 验证逻辑\n'
+          '- workspace.fs: 读写代码文件\n'
+          '- cloud.exec: 在云端沙箱执行 Node.js/Python/Go\n'
+          '- github.search: 搜索 GitHub 仓库和代码\n'
+          '- git: Git 仓库操作\n'
+          '- web.search: 搜索技术文档\n'
+          '- datetime: 时间相关计算',
+      model: _currentModel,
+      toolNames: const [
+        'workspace.js.exec', 'workspace.fs', 'cloud.exec',
+        'github.search', 'git', 'web.search', 'datetime',
+        'tool.search', 'ask_user', 'todo.write',
+      ],
+      maxSteps: 15,
+      temperature: 0.3,
+      isBuiltin: true,
+    ));
+
+    // ── Life Coach ──
+    _harness!.registerAgent(AgentConfig(
+      id: 'life-coach',
+      name: '生活教练',
+      icon: '🌿',
+      description: '健康、习惯、情绪管理、生活规划。',
+      systemPrompt: '你是一位温暖的生活教练，擅长健康习惯养成、情绪管理、'
+          '时间管理和生活规划。用共情的方式倾听，给出温和但务实的建议。'
+          '不要说教，像朋友一样聊天。使用用户的语言回复。\n\n'
+          '你可以使用以下工具：\n'
+          '- schedule.add/query/remove: 管理日程\n'
+          '- memory.save/query: 记住用户的目标和偏好\n'
+          '- web.search: 搜索健康/生活相关信息\n'
+          '- datetime: 日期计算',
+      model: _currentModel,
+      toolNames: const [
+        'schedule.add', 'schedule.query', 'schedule.remove',
+        'memory.save', 'memory.query', 'user.profile',
+        'web.search', 'datetime',
+        'tool.search', 'ask_user', 'todo.write',
+      ],
+      maxSteps: 10,
+      temperature: 0.7,
+      isBuiltin: true,
+    ));
+
+    // ── Research Analyst ──
+    _harness!.registerAgent(AgentConfig(
+      id: 'research-analyst',
+      name: '研究分析师',
+      icon: '🔬',
+      description: '深度研究、数据分析、报告撰写。',
+      systemPrompt: '你是一位严谨的研究分析师，擅长搜集信息、分析数据、'
+          '撰写结构化报告。回复要客观、有数据支撑、逻辑清晰。'
+          '使用 markdown 格式化报告。使用用户的语言回复。\n\n'
+          '你可以使用以下工具：\n'
+          '- web.search: 搜索网络信息\n'
+          '- github.search: 搜索开源项目\n'
+          '- workspace.js.exec: 数据处理和计算\n'
+          '- workspace.fs: 保存报告文件\n'
+          '- memory.save/query: 保存研究结论\n'
+          '- datetime: 时间分析',
+      model: _currentModel,
+      toolNames: const [
+        'web.search', 'github.search',
+        'workspace.js.exec', 'workspace.fs',
+        'memory.save', 'memory.query',
+        'datetime', 'tool.search', 'ask_user', 'todo.write',
+      ],
+      maxSteps: 20,
+      temperature: 0.4,
+      isBuiltin: true,
+    ));
+  }
+
+  /// All registered agent configurations.
+  List<AgentConfig> get agents => _harness?.orchestrator.agents ?? [];
+
+  /// The currently active agent ID.
+  String get currentAgentId => _agentConfig?.id ?? 'nudgee-assistant';
+
+  /// The currently active agent config.
+  AgentConfig get currentAgent => _agentConfig!;
+
+  /// Switches to a different agent by ID.
+  /// Returns true if the switch was successful.
+  bool switchAgent(String agentId) {
+    final agent = _harness?.orchestrator.getAgent(agentId);
+    if (agent == null) {
+      debugPrint('[AgentService] Agent "$agentId" not found');
+      return false;
+    }
+    _agentConfig = agent;
+    // Clear history when switching agents (different persona).
+    _history.clear();
+    debugPrint('[AgentService] Switched to agent: ${agent.id} (${agent.name})');
+    return true;
+  }
+
+  /// Runs a specific agent by ID (instead of the current one).
+  Stream<AgentEvent> runAgent(
+    String agentId,
+    String userInput, {
+    String? extraSystemContext,
+  }) {
+    final agent = _harness?.orchestrator.getAgent(agentId);
+    if (agent == null) {
+      return Stream.error(StateError('Agent "$agentId" not found'));
+    }
+    // Temporarily set as current agent.
+    final prev = _agentConfig;
+    _agentConfig = agent;
+    final stream = run(userInput, extraSystemContext: extraSystemContext);
+    // Restore previous agent after stream completes.
+    // (The stream is lazy, so we restore in a wrapper.)
+    return stream.transform(
+      StreamTransformer<AgentEvent, AgentEvent>.fromHandlers(
+        handleDone: (sink) {
+          _agentConfig = prev;
+          sink.close();
+        },
+        handleError: (error, stackTrace, sink) {
+          _agentConfig = prev;
+          sink.addError(error, stackTrace);
+        },
+      ),
+    );
   }
 
   /// Creates the appropriate LLM client based on config.
@@ -280,6 +426,9 @@ class AgentService {
     String userInput, {
     String? systemPrompt,
     String? extraSystemContext,
+    String? toolPrompt,
+    List<FewShotExample>? fewShotExamples,
+    Map<String, String>? templateVariables,
   }) {
     if (!_initialized || _harness == null) {
       debugPrint('[AgentService] run() called but not initialized');
@@ -310,6 +459,37 @@ class AgentService {
     // Track the current input in history for future turns
     _history.add(LlmMessage.user(userInput));
 
+    // Build extra context from toolPrompt + fewShotExamples + caller's
+    // extraSystemContext. This enables per-request prompt templating.
+    final extraParts = <String>[];
+    if (toolPrompt != null && toolPrompt.isNotEmpty) {
+      var tp = toolPrompt;
+      if (templateVariables != null) {
+        for (final entry in templateVariables.entries) {
+          tp = tp.replaceAll('{{$entry.key}}', entry.value);
+        }
+      }
+      extraParts.add('--- Tool Guidance ---\n$tp');
+    }
+    if (fewShotExamples != null && fewShotExamples.isNotEmpty) {
+      final examples = fewShotExamples.map((ex) {
+        var u = ex.user, a = ex.assistant;
+        if (templateVariables != null) {
+          for (final entry in templateVariables.entries) {
+            u = u.replaceAll('{{$entry.key}}', entry.value);
+            a = a.replaceAll('{{$entry.key}}', entry.value);
+          }
+        }
+        return 'User: $u\nAssistant: $a';
+      }).join('\n\n');
+      extraParts.add('--- Examples ---\n$examples');
+    }
+    if (extraSystemContext != null && extraSystemContext.isNotEmpty) {
+      extraParts.add(extraSystemContext);
+    }
+    final combinedExtra =
+        extraParts.isNotEmpty ? extraParts.join('\n\n') : null;
+
     // Build memory context callback for skill personalization.
     String memoryContext() {
       return _memoryManager?.buildMemoryContext() ?? '';
@@ -321,6 +501,7 @@ class AgentService {
       history: historyCopy,
       memoryContext: memoryContext,
       userId: _memoryManager?.userId ?? 'default',
+      extraSystemContext: combinedExtra,
     );
   }
 
