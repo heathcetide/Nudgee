@@ -142,12 +142,14 @@ class AgentHarness {
     required String userInput,
     List<LlmMessage> history = const [],
     String? extraSystemContext,
+    List<String>? images,
   }) {
     return orchestrator.runAgent(
       agentId: agentId,
       userInput: userInput,
       history: history,
       extraSystemContext: extraSystemContext,
+      images: images,
     );
   }
 
@@ -156,11 +158,13 @@ class AgentHarness {
     required String userInput,
     List<LlmMessage> history = const [],
     String? extraSystemContext,
+    List<String>? images,
   }) {
     return orchestrator.run(
       userInput: userInput,
       history: history,
       extraSystemContext: extraSystemContext,
+      images: images,
     );
   }
 
@@ -229,6 +233,7 @@ class AgentHarness {
     String Function()? memoryContext,
     String userId = 'default',
     String? extraSystemContext,
+    List<String>? images,
   }) async* {
     // Step 1: Try to match a skill
     AgentSkill? matchedSkill;
@@ -246,6 +251,7 @@ class AgentHarness {
         userInput: userInput,
         history: history,
         extraSystemContext: extraSystemContext,
+        images: images,
       );
       return;
     }
@@ -291,6 +297,7 @@ class AgentHarness {
       userInput: userInput,
       history: history,
       extraSystemContext: combinedContext,
+      images: images,
     );
   }
 

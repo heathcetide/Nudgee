@@ -264,7 +264,21 @@ class OpenAICompatibleClient implements LLMClient {
     for (final msg in messages) {
       final m = <String, dynamic>{'role': msg.role};
 
-      if (msg.content != null) {
+      // Multimodal: if user message has images, send content as array
+      // of text + image_url parts (OpenAI vision format).
+      if (msg.images != null && msg.images!.isNotEmpty && msg.role == 'user') {
+        final contentParts = <Map<String, dynamic>>[];
+        if (msg.content != null && msg.content!.isNotEmpty) {
+          contentParts.add({'type': 'text', 'text': msg.content});
+        }
+        for (final img in msg.images!) {
+          contentParts.add({
+            'type': 'image_url',
+            'image_url': {'url': img},
+          });
+        }
+        m['content'] = contentParts;
+      } else if (msg.content != null) {
         m['content'] = msg.content;
       } else if (msg.role == 'assistant') {
         m['content'] = null;

@@ -74,6 +74,7 @@ class AgentCore {
     required String userInput,
     List<LlmMessage> history = const [],
     String? extraSystemContext,
+    List<String>? images,
   }) async* {
     final stopwatch = Stopwatch()..start();
     var stats = AgentRunStats(
@@ -96,7 +97,11 @@ class AgentCore {
         .toList();
 
     // Build conversation: history + new user input
-    final messages = <LlmMessage>[...history, LlmMessage.user(userInput)];
+    // If images are provided, use multimodal user message.
+    final userMsg = (images != null && images.isNotEmpty)
+        ? LlmMessage.userWithImages(userInput, images)
+        : LlmMessage.user(userInput);
+    final messages = <LlmMessage>[...history, userMsg];
 
     // Track seen tool call signatures for loop detection
     final seenSignatures = <String, int>{}; // signature → repeat count

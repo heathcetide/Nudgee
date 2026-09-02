@@ -176,7 +176,8 @@ class _ChatPageState extends State<ChatPage> {
   /// - Tool calls (name + arguments)
   /// - Tool results (output)
   /// - Final reply (streaming markdown)
-  void _streamAgentReply(LingConversation conv, String userText) {
+  void _streamAgentReply(LingConversation conv, String userText,
+      {List<String>? images}) {
     final agentService = sl<AgentService>();
     // Retry init in case the first attempt failed (e.g. dependency
     // not yet registered at DI time).
@@ -324,7 +325,7 @@ class _ChatPageState extends State<ChatPage> {
       _doUpdateBubble();
     }
 
-    sub = agentService.run(userText).listen(
+    sub = agentService.run(userText, images: images).listen(
       (event) {
         switch (event) {
           case ThinkingEvent():
@@ -661,7 +662,8 @@ class _ChatPageState extends State<ChatPage> {
           userMap: _userMap,
           currentUserId: _currentUserId,
           onSend: (text) => _onSend(conv, text),
-          onAiMessage: (c, aiText) => _streamAgentReply(c, aiText),
+          onAiMessage: (c, aiText, {images}) =>
+              _streamAgentReply(c, aiText, images: images),
           onLoadMore: () => _onLoadMore(conv),
           forwardConversations: _convController.conversations,
           onForward: (msg, targetIds) => _onForward(msg, targetIds),

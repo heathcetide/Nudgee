@@ -79,6 +79,7 @@ class Orchestrator {
     required String userInput,
     List<LlmMessage> history = const [],
     String? extraSystemContext,
+    List<String>? images,
   }) async* {
     final config = _agents[agentId];
     if (config == null) {
@@ -105,6 +106,7 @@ class Orchestrator {
       userInput: userInput,
       history: history,
       extraSystemContext: extraSystemContext,
+      images: images,
     );
   }
 
@@ -113,6 +115,7 @@ class Orchestrator {
     required String userInput,
     List<LlmMessage> history = const [],
     String? extraSystemContext,
+    List<String>? images,
   }) async* {
     if (_agents.isEmpty) {
       yield AgentEvent.error('No agents registered');
@@ -124,6 +127,7 @@ class Orchestrator {
       userInput: userInput,
       history: history,
       extraSystemContext: extraSystemContext,
+      images: images,
     );
   }
 }

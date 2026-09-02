@@ -429,6 +429,7 @@ class AgentService {
     String? toolPrompt,
     List<FewShotExample>? fewShotExamples,
     Map<String, String>? templateVariables,
+    List<String>? images,
   }) {
     if (!_initialized || _harness == null) {
       debugPrint('[AgentService] run() called but not initialized');
@@ -502,6 +503,7 @@ class AgentService {
       memoryContext: memoryContext,
       userId: _memoryManager?.userId ?? 'default',
       extraSystemContext: combinedExtra,
+      images: images,
     );
   }
 
@@ -607,6 +609,9 @@ class ChatServiceSystemPrompt {
       '回复简洁自然，像朋友间的对话。使用用户的语言回复。\n\n'
       '你拥有以下工具，可以在需要时使用：\n'
       '- web.search: 搜索网络获取最新信息 (Wikipedia + DuckDuckGo)\n'
+      '- web.news: 获取实时新闻 (科技/中国/世界, 免费 API)\n'
+      '- web.weather: 查询城市天气 (Open-Meteo, 免费 API)\n'
+      '- web.stock: 查询股票/加密货币价格 (Alpha Vantage + CoinGecko)\n'
       '- github.search: 搜索 GitHub 仓库/代码/Issues/用户\n'
       '- git: Git 仓库操作 (GitHub/Gitea/GitLab REST API)\n'
       '    读取文件(read)、列目录/分支/提交(list)、写入文件(write)、\n'

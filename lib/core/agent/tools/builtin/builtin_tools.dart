@@ -16,6 +16,9 @@ export 'package:nudgee/core/agent/tools/builtin/memory_tools.dart';
 // Web search tool
 export 'package:nudgee/core/agent/tools/builtin/web_search_tool.dart';
 
+// Real-time data tools (news, weather, stock)
+export 'package:nudgee/core/agent/tools/builtin/realtime_tools.dart';
+
 // GitHub search tool
 export 'package:nudgee/core/agent/tools/builtin/github_search_tool.dart';
 
@@ -40,6 +43,7 @@ import 'package:nudgee/core/agent/tools/builtin/post_tools.dart';
 import 'package:nudgee/core/agent/tools/builtin/notification_tools.dart';
 import 'package:nudgee/core/agent/tools/builtin/memory_tools.dart';
 import 'package:nudgee/core/agent/tools/builtin/web_search_tool.dart';
+import 'package:nudgee/core/agent/tools/builtin/realtime_tools.dart';
 import 'package:nudgee/core/agent/tools/builtin/github_search_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/git_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/js_executor_tool.dart';
@@ -98,6 +102,11 @@ void registerBuiltinTools(ToolRegistry registry, {WorkspaceService? workspace}) 
   // Web search
   registry.register(WebSearchTool());
 
+  // Real-time data (news, weather, stock)
+  registry.register(WebNewsTool());
+  registry.register(WebWeatherTool());
+  registry.register(WebStockTool());
+
   // GitHub search
   registry.register(GitHubSearchTool());
 
@@ -137,6 +146,9 @@ const List<String> builtinToolNames = [
   'user.profile',
   // Web
   'web.search',
+  'web.news',
+  'web.weather',
+  'web.stock',
   'github.search',
   'git',
   // Workspace

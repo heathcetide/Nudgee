@@ -69,6 +69,7 @@ class AgentAutonomousService extends ChangeNotifier {
 
     final now = DateTime.now();
     final hour = now.hour;
+    final weekday = now.weekday; // 1=Monday, 7=Sunday
 
     // 早安帖 (7-9 点)
     if (hour == 8) {
@@ -77,6 +78,22 @@ class AgentAutonomousService extends ChangeNotifier {
     // 晚安帖 (21-23 点)
     else if (hour == 22) {
       _maybeGenerateDaily('evening');
+    }
+    // 周一早上: 本周计划建议
+    else if (weekday == 1 && hour == 9) {
+      _maybeGenerateWeeklyPlan();
+    }
+    // 周日晚上: 本周总结
+    else if (weekday == 7 && hour == 20) {
+      _maybeGenerateWeeklySummary();
+    }
+    // 每天 14 点: 知识小贴士
+    else if (hour == 14) {
+      _maybeGenerateKnowledgeTip();
+    }
+    // 每天 17 点: 生活建议
+    else if (hour == 17) {
+      _maybeGenerateLifeAdvice();
     }
   }
 
@@ -103,6 +120,94 @@ class AgentAutonomousService extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('[AgentAutonomous] _maybeGenerateDaily error: $e');
+    }
+  }
+
+  /// 生成本周计划建议（周一早上）。
+  Future<void> _maybeGenerateWeeklyPlan() async {
+    final key = '${DateTime.now().toIso8601String().substring(0, 10)}_weekly_plan';
+    if (_generatedTopics.contains(key)) return;
+
+    try {
+      final prompt = '新的一周开始了！生成一条动态，分享一个本周自我提升的'
+          '小建议或本周计划思路。语气要轻松、有感染力，不要说教。'
+          '不要超过 150 字。直接输出动态内容。';
+      final content = await _generateContent(prompt);
+      if (content != null && content.isNotEmpty) {
+        await _publishPost(content, isAiGenerated: true);
+        _generatedTopics.add(key);
+      }
+    } catch (e) {
+      debugPrint('[AgentAutonomous] _maybeGenerateWeeklyPlan error: $e');
+    }
+  }
+
+  /// 生成本周总结（周日晚上）。
+  Future<void> _maybeGenerateWeeklySummary() async {
+    final key = '${DateTime.now().toIso8601String().substring(0, 10)}_weekly_summary';
+    if (_generatedTopics.contains(key)) return;
+
+    try {
+      final prompt = '这周即将结束。生成一条动态，回顾这一周的感悟，'
+          '可以聊聊坚持、成长、或者放松的重要性。语气温暖、真诚。'
+          '不要超过 150 字。直接输出动态内容。';
+      final content = await _generateContent(prompt);
+      if (content != null && content.isNotEmpty) {
+        await _publishPost(content, isAiGenerated: true);
+        _generatedTopics.add(key);
+      }
+    } catch (e) {
+      debugPrint('[AgentAutonomous] _maybeGenerateWeeklySummary error: $e');
+    }
+  }
+
+  /// 生成知识小贴士（每天下午）。
+  Future<void> _maybeGenerateKnowledgeTip() async {
+    final key = '${DateTime.now().toIso8601String().substring(0, 10)}_knowledge';
+    if (_generatedTopics.contains(key)) return;
+
+    // 随机选择主题
+    final topics = [
+      '一个有趣的心理学小知识',
+      '一个实用的效率技巧',
+      '一个关于健康的小常识',
+      '一个编程或科技小知识',
+      '一个关于读书或学习的方法',
+      '一个关于时间管理的技巧',
+      '一个关于沟通或人际关系的小建议',
+    ];
+    final topic = topics[DateTime.now().millisecond % topics.length];
+
+    try {
+      final prompt = '生成一条动态，分享$topic。内容要有价值、简洁有趣，'
+          '像朋友分享一样自然。不要超过 150 字。直接输出动态内容。';
+      final content = await _generateContent(prompt);
+      if (content != null && content.isNotEmpty) {
+        await _publishPost(content, isAiGenerated: true);
+        _generatedTopics.add(key);
+      }
+    } catch (e) {
+      debugPrint('[AgentAutonomous] _maybeGenerateKnowledgeTip error: $e');
+    }
+  }
+
+  /// 生成生活建议（每天傍晚）。
+  Future<void> _maybeGenerateLifeAdvice() async {
+    final key = '${DateTime.now().toIso8601String().substring(0, 10)}_life_advice';
+    if (_generatedTopics.contains(key)) return;
+
+    try {
+      final prompt = '生成一条动态，分享一个关于生活的小建议或感悟。'
+          '可以是关于运动、饮食、休息、社交、或者心态调整的。'
+          '语气要温和、不说教，像朋友间的分享。不要超过 150 字。'
+          '直接输出动态内容。';
+      final content = await _generateContent(prompt);
+      if (content != null && content.isNotEmpty) {
+        await _publishPost(content, isAiGenerated: true);
+        _generatedTopics.add(key);
+      }
+    } catch (e) {
+      debugPrint('[AgentAutonomous] _maybeGenerateLifeAdvice error: $e');
     }
   }
 
@@ -226,7 +331,9 @@ class AgentAutonomousService extends ChangeNotifier {
   }
 
   /// 释放资源。
+  @override
   void dispose() {
     stopDailyGeneration();
+    super.dispose();
   }
 }

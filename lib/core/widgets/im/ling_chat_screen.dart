@@ -83,7 +83,10 @@ class LingChatScreen extends StatefulWidget {
   /// Called when a media message (image/location/file) is sent to an AI
   /// conversation. Receives the conversation and a text description of
   /// the media for the agent to process.
-  final void Function(LingConversation conv, String aiText)? onAiMessage;
+  /// Callback when the user sends a message to an AI conversation.
+  /// [images] is an optional list of image URLs for vision/multimodal.
+  final void Function(LingConversation conv, String aiText,
+      {List<String>? images})? onAiMessage;
 
   const LingChatScreen({
     super.key,
@@ -779,10 +782,19 @@ class _LingChatScreenState extends State<LingChatScreen> {
     // Route to AI if needed.
     final isAiConv = widget.conversation.id == ChatService.aiAssistantId;
     if (isAiConv) {
+      // Send image URL to Agent for vision/multimodal understanding.
+      // If the image is a cloud URL, the vision-capable LLM can see it.
+      // If it's a local path, fall back to text description.
+      final isUrl = mediaUrl.startsWith('http://') ||
+          mediaUrl.startsWith('https://');
       final aiText = caption != null && caption.isNotEmpty
-          ? '$caption\n[图片: $mediaUrl]'
-          : '[用户发送了一张图片: $mediaUrl]';
-      widget.onAiMessage?.call(widget.conversation, aiText);
+          ? caption
+          : (isUrl ? '请描述这张图片的内容。' : '[用户发送了一张图片，但无法查看本地图片]');
+      widget.onAiMessage?.call(
+        widget.conversation,
+        aiText,
+        images: isUrl ? [mediaUrl] : null,
+      );
     }
   }
 

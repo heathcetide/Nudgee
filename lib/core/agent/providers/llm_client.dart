@@ -63,12 +63,25 @@ abstract class LLMClient {
 ///
 /// Simple representation used by [LLMClient] — not tied to any specific
 /// provider's message format.
+///
+/// Supports multimodal content: user messages can include [images]
+/// (URLs or base64 data URIs) for vision-capable models.
 class LlmMessage {
   /// Role: 'system', 'user', 'assistant', or 'tool'.
   final String role;
 
   /// Text content (for user/assistant/system messages).
   final String? content;
+
+  /// Image URLs or data URIs attached to a user message (vision/multimodal).
+  ///
+  /// Each entry should be either:
+  /// - A public URL (e.g. 'https://example.com/image.jpg')
+  /// - A base64 data URI (e.g. 'data:image/jpeg;base64,...')
+  ///
+  /// Only used for role='user' messages. Vision-capable models
+  /// (e.g. GPT-4o, Claude 3, Gemini) will see these images.
+  final List<String>? images;
 
   /// Tool calls made by the assistant (only for role='assistant').
   final List<ToolCall>? toolCalls;
@@ -86,6 +99,7 @@ class LlmMessage {
   const LlmMessage.system(String text)
       : role = 'system',
         content = text,
+        images = null,
         toolCalls = null,
         toolCallId = null,
         name = null,
@@ -95,6 +109,20 @@ class LlmMessage {
   const LlmMessage.user(String text)
       : role = 'user',
         content = text,
+        images = null,
+        toolCalls = null,
+        toolCallId = null,
+        name = null,
+        isError = null;
+
+  /// Creates a user message with images (multimodal/vision).
+  ///
+  /// [text] is the text prompt, [images] is a list of image URLs or
+  /// base64 data URIs.
+  const LlmMessage.userWithImages(String text, List<String> images)
+      : role = 'user',
+        content = text,
+        images = images,
         toolCalls = null,
         toolCallId = null,
         name = null,
@@ -104,6 +132,7 @@ class LlmMessage {
   const LlmMessage.assistant({String? text, List<ToolCall>? toolCalls})
       : role = 'assistant',
         content = text,
+        images = null,
         toolCalls = toolCalls,
         toolCallId = null,
         name = null,
@@ -117,6 +146,7 @@ class LlmMessage {
     bool isError = false,
   })  : role = 'tool',
         content = content,
+        images = null,
         toolCalls = null,
         toolCallId = toolCallId,
         name = name,
@@ -126,6 +156,7 @@ class LlmMessage {
   const LlmMessage({
     required this.role,
     this.content,
+    this.images,
     this.toolCalls,
     this.toolCallId,
     this.name,
