@@ -551,6 +551,7 @@ class _ChatPageState extends State<ChatPage> {
           userMap: _userMap,
           currentUserId: _currentUserId,
           onSend: (text) => _onSend(conv, text),
+          onAiMessage: (c, aiText) => _streamAgentReply(c, aiText),
           onLoadMore: () => _onLoadMore(conv),
           forwardConversations: _convController.conversations,
           onForward: (msg, targetIds) => _onForward(msg, targetIds),

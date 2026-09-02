@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:icons_plus/icons_plus.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:nudgee/core/models/im/im.dart';
 import 'package:nudgee/core/services/chat_service.dart';
@@ -578,6 +577,18 @@ class LingMessageBubble extends StatelessWidget {
       case LingMessageType.text:
         return _buildText(context, textColor);
       case LingMessageType.image:
+        // Image + text combined (like QQ)
+        if (message.text != null && message.text!.isNotEmpty) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildImage(context),
+              const SizedBox(height: 6),
+              _buildText(context, textColor),
+            ],
+          );
+        }
         return _buildImage(context);
       case LingMessageType.audio:
         return _buildAudio(context, textColor);
@@ -797,13 +808,12 @@ class LingMessageBubble extends StatelessWidget {
     final lat = (meta['latitude'] as num?)?.toDouble() ?? 0.0;
     final lng = (meta['longitude'] as num?)?.toDouble() ?? 0.0;
 
-    // AMap web URL — shows interactive map, no API key needed.
+    // AMap web URL — opens interactive map, no API key needed.
     final amapUrl =
         'https://uri.amap.com/marker?position=$lng,$lat&name=${Uri.encodeComponent(name)}&coordinate=wgs84&callnative=0';
 
     return GestureDetector(
       onTap: () {
-        // Single tap to open full-screen map viewer.
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => LingWebViewPage(
@@ -814,22 +824,65 @@ class LingMessageBubble extends StatelessWidget {
         );
       },
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 220),
+        constraints: const BoxConstraints(maxWidth: 240),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Map placeholder area with gradient + pin
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
               child: Container(
                 width: double.infinity,
                 height: 120,
-                color: theme.colorScheme.surfaceContainerHighest,
-                child: _LocationMapPreview(url: amapUrl),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      theme.colorScheme.primaryContainer.withOpacity(0.3),
+                      theme.colorScheme.surfaceContainerHighest,
+                    ],
+                  ),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Grid pattern background
+                    CustomPaint(
+                      size: const Size(double.infinity, 120),
+                      painter: _MapGridPainter(
+                        color: theme.colorScheme.outline.withOpacity(0.15),
+                      ),
+                    ),
+                    // Pin
+                    const Icon(Icons.location_on, color: Colors.red, size: 36),
+                    // "点击查看地图" hint
+                    Positioned(
+                      bottom: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Text(
+                          '点击查看地图',
+                          style: TextStyle(color: Colors.white, fontSize: 11),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            Padding(
+            // Location name
+            Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
+              ),
               child: Row(
                 children: [
                   Icon(Icons.location_on, size: 14, color: textColor.withOpacity(0.6)),
@@ -1721,72 +1774,28 @@ class _CollapsibleContentState extends State<_CollapsibleContent> {
   }
 }
 
-/// A lightweight inline map preview using WebView to render AMap.
-///
-/// Shows a non-interactive AMap preview inside a chat bubble.
-/// The parent [GestureDetector] handles tap to open the full map.
-class _LocationMapPreview extends StatefulWidget {
-  final String url;
+/// A simple grid pattern painter for the map placeholder background.
+class _MapGridPainter extends CustomPainter {
+  final Color color;
 
-  const _LocationMapPreview({required this.url});
+  const _MapGridPainter({required this.color});
 
   @override
-  State<_LocationMapPreview> createState() => _LocationMapPreviewState();
-}
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 0.5;
 
-class _LocationMapPreviewState extends State<_LocationMapPreview> {
-  late final WebViewController _controller;
-  bool _loaded = false;
-  bool _failed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.transparent)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageFinished: (_) {
-            if (mounted) setState(() => _loaded = true);
-          },
-          onWebResourceError: (_) {
-            if (mounted) setState(() => _failed = true);
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse(widget.url));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    if (_failed) {
-      return Center(
-        child: Icon(Icons.map_outlined,
-            size: 40, color: theme.colorScheme.outline),
-      );
+    const spacing = 20.0;
+    for (double x = 0; x < size.width; x += spacing) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        WebViewWidget(controller: _controller),
-        if (!_loaded)
-          Center(
-            child: SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: theme.colorScheme.outline,
-              ),
-            ),
-          ),
-        // Pin overlay (always visible on top of the map)
-        const Center(
-          child: Icon(Icons.location_on, color: Colors.red, size: 28),
-        ),
-      ],
-    );
+    for (double y = 0; y < size.height; y += spacing) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
   }
+
+  @override
+  bool shouldRepaint(covariant _MapGridPainter oldDelegate) =>
+      color != oldDelegate.color;
 }

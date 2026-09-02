@@ -12,8 +12,12 @@ import 'package:nudgee/core/controllers/im/ling_chat_controller.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/models/im/im.dart';
 import 'package:nudgee/core/services/agent_service.dart';
+import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/core/services/chat_service.dart';
+import 'package:nudgee/core/services/file_storage_service.dart';
+import 'package:nudgee/core/services/qiniu_storage_service.dart';
 import 'package:nudgee/core/services/shared_prefs_service.dart';
+import 'package:nudgee/features/common/utils/functions.dart';
 import 'package:nudgee/core/widgets/feedback/ling_avatar.dart';
 import 'package:nudgee/core/widgets/im/ling_chat_background.dart';
 import 'package:nudgee/core/widgets/im/ling_chat_input.dart';
@@ -73,6 +77,11 @@ class LingChatScreen extends StatefulWidget {
   /// Called when the draft text changes (for saving draft to conversation list).
   final ValueChanged<String?>? onDraftChanged;
 
+  /// Called when a media message (image/location/file) is sent to an AI
+  /// conversation. Receives the conversation and a text description of
+  /// the media for the agent to process.
+  final void Function(LingConversation conv, String aiText)? onAiMessage;
+
   const LingChatScreen({
     super.key,
     required this.conversation,
@@ -95,6 +104,7 @@ class LingChatScreen extends StatefulWidget {
     this.forwardConversations,
     this.onForward,
     this.onDraftChanged,
+    this.onAiMessage,
   });
 
   @override
@@ -626,16 +636,116 @@ class _LingChatScreenState extends State<LingChatScreen> {
         ? await picker.pickImage(source: ImageSource.camera)
         : await picker.pickImage(source: ImageSource.gallery);
     if (file == null) return;
+    if (!mounted) return;
 
-    widget.controller.addMessage(LingMessage(
+    // Read and compress the image.
+    final bytes = await file.readAsBytes();
+    final compressed = await getCompressedImage(
+      bytes,
+      minHeight: 1920,
+      minWidth: 1920,
+      quality: 85,
+    );
+
+    // Get image dimensions.
+    final decoded = await decodeImageFromList(compressed);
+    final imgWidth = decoded.width.toDouble();
+    final imgHeight = decoded.height.toDouble();
+
+    // Upload to Qiniu cloud storage.
+    final auth = sl<AuthService>();
+    final user = auth.currentUser.value;
+    final qiniu = sl<QiniuStorageService>();
+    final fileStorage = sl<FileStorageService>();
+
+    String? cloudUrl;
+    String? localPath;
+
+    // Save locally first for instant display.
+    final fileName =
+        'img_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    localPath = await fileStorage.saveBytes(
+      FileStorageService.dirCache,
+      fileName,
+      compressed,
+    );
+
+    // Upload to cloud if configured.
+    if (user != null && qiniu.isConfigured) {
+      final imgKey =
+          'nudgee/${user.id}/images/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      cloudUrl = await qiniu.uploadBytes(imgKey, compressed);
+    }
+
+    // Use cloud URL if available (for other devices), else local path.
+    final mediaUrl = cloudUrl ?? localPath ?? file.path;
+
+    // Prompt for optional caption text.
+    if (!mounted) return;
+    final caption = await _showImageCaptionDialog(context);
+
+    // Create message with image + optional text.
+    final msg = LingMessage(
       id: 'local_${DateTime.now().millisecondsSinceEpoch}',
       conversationId: widget.conversation.id,
       authorId: widget.currentUserId,
       type: LingMessageType.image,
-      mediaUrl: file.path,
+      text: (caption != null && caption.isNotEmpty) ? caption : null,
+      mediaUrl: mediaUrl,
+      width: imgWidth,
+      height: imgHeight,
       createdAt: DateTime.now(),
       status: LingMessageStatus.sent,
-    ));
+    );
+    widget.controller.addMessage(msg);
+
+    // Persist to ChatService.
+    await sl<ChatService>().sendMessage(
+      conversationId: widget.conversation.id,
+      authorId: widget.currentUserId,
+      text: caption ?? '',
+      type: LingMessageType.image,
+      mediaUrl: mediaUrl,
+    );
+
+    // Route to AI if needed.
+    final isAiConv = widget.conversation.id == ChatService.aiAssistantId;
+    if (isAiConv) {
+      final aiText = caption != null && caption.isNotEmpty
+          ? '$caption\n[图片: $mediaUrl]'
+          : '[用户发送了一张图片: $mediaUrl]';
+      widget.onAiMessage?.call(widget.conversation, aiText);
+    }
+  }
+
+  /// Show a dialog to optionally add text caption to an image.
+  Future<String?> _showImageCaptionDialog(BuildContext context) {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('发送图片'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: '添加文字说明（可选）',
+            border: OutlineInputBorder(),
+          ),
+          maxLines: 3,
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, ''),
+            child: const Text('直接发送'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('发送'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _sendFile() async {
@@ -643,16 +753,34 @@ class _LingChatScreenState extends State<LingChatScreen> {
     if (result == null || result.files.isEmpty) return;
 
     final file = result.files.first;
-    widget.controller.addMessage(LingMessage(
+    final msg = LingMessage(
       id: 'local_${DateTime.now().millisecondsSinceEpoch}',
       conversationId: widget.conversation.id,
       authorId: widget.currentUserId,
       type: LingMessageType.file,
       mediaName: file.name,
       mediaSize: file.size,
+      mediaUrl: file.path,
       createdAt: DateTime.now(),
       status: LingMessageStatus.sent,
-    ));
+    );
+    widget.controller.addMessage(msg);
+
+    // Persist to ChatService.
+    await sl<ChatService>().sendMessage(
+      conversationId: widget.conversation.id,
+      authorId: widget.currentUserId,
+      text: file.name,
+      type: LingMessageType.file,
+      mediaUrl: file.path,
+    );
+
+    // Route to AI if needed.
+    final isAiConv = widget.conversation.id == ChatService.aiAssistantId;
+    if (isAiConv) {
+      final aiText = '[用户发送了文件: ${file.name} (${file.size} bytes)]';
+      widget.onAiMessage?.call(widget.conversation, aiText);
+    }
   }
 
   Future<void> _sendLocation() async {
@@ -768,11 +896,12 @@ class _LingChatScreenState extends State<LingChatScreen> {
       );
       if (confirmed != true) return;
 
-      widget.controller.addMessage(LingMessage(
+      final msg = LingMessage(
         id: 'local_${DateTime.now().millisecondsSinceEpoch}',
         conversationId: widget.conversation.id,
         authorId: widget.currentUserId,
         type: LingMessageType.custom,
+        text: locationName,
         metadata: {
           'latitude': position.latitude,
           'longitude': position.longitude,
@@ -780,7 +909,24 @@ class _LingChatScreenState extends State<LingChatScreen> {
         },
         createdAt: DateTime.now(),
         status: LingMessageStatus.sent,
-      ));
+      );
+      widget.controller.addMessage(msg);
+
+      // Persist to ChatService.
+      await sl<ChatService>().sendMessage(
+        conversationId: widget.conversation.id,
+        authorId: widget.currentUserId,
+        text: locationName,
+        type: LingMessageType.custom,
+      );
+
+      // Route to AI if needed.
+      final isAiConv = widget.conversation.id == ChatService.aiAssistantId;
+      if (isAiConv) {
+        final aiText =
+            '[用户发送了位置: $locationName (纬度: ${position.latitude}, 经度: ${position.longitude})]';
+        widget.onAiMessage?.call(widget.conversation, aiText);
+      }
     } catch (e) {
       if (mounted) Navigator.pop(context); // 关闭加载框
       if (mounted) {
