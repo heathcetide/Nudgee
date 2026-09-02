@@ -10,7 +10,6 @@ import 'package:nudgee/core/services/chat_service.dart';
 import 'package:nudgee/core/widgets/feedback/ling_avatar.dart';
 import 'package:nudgee/core/widgets/feedback/ling_file_viewer.dart';
 import 'package:nudgee/core/widgets/feedback/ling_image_viewer.dart';
-import 'package:nudgee/core/widgets/feedback/ling_location_viewer.dart';
 import 'package:nudgee/core/widgets/feedback/ling_web_view_page.dart';
 import 'package:nudgee/core/widgets/im/ling_link_preview.dart';
 import 'package:nudgee/core/widgets/im/ling_link_preview_fetcher.dart';
@@ -798,90 +797,75 @@ class LingMessageBubble extends StatelessWidget {
     final lng = (meta['longitude'] as num?)?.toDouble() ?? 0.0;
 
     // OSM static map (free, no API key needed).
-    // Uses staticmap.eu which renders OSM tiles.
     final staticMapUrl =
         'https://staticmap.openstreetmap.de/staticmap.php?center=$lat,$lng&zoom=16&size=220x120&markers=$lat,$lng,red-pushpin';
 
-    return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => LingLocationViewer(
-              latitude: lat,
-              longitude: lng,
-              locationName: name,
-            ),
-          ),
-        );
-      },
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 220),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-              child: Container(
-                width: double.infinity,
-                height: 120,
-                color: theme.colorScheme.surfaceContainerHighest,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Inline static map preview
-                    CachedNetworkImage(
-                      imageUrl: staticMapUrl,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 220,
-                      memCacheHeight: 120,
-                      placeholder: (_, __) => Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: textColor.withOpacity(0.4),
-                          ),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 220),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            child: Container(
+              width: double.infinity,
+              height: 120,
+              color: theme.colorScheme.surfaceContainerHighest,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Inline static map preview
+                  CachedNetworkImage(
+                    imageUrl: staticMapUrl,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 220,
+                    memCacheHeight: 120,
+                    placeholder: (_, __) => Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: textColor.withOpacity(0.4),
                         ),
                       ),
-                      errorWidget: (_, __, ___) => Center(
-                        child: Icon(Icons.map_outlined,
-                            size: 40, color: textColor.withOpacity(0.3)),
-                      ),
                     ),
-                    // Pin overlay
-                    const Center(
-                      child: Icon(
-                        Icons.location_on,
-                        color: Colors.red,
-                        size: 28,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              child: Row(
-                children: [
-                  Icon(Icons.location_on, size: 14, color: textColor.withOpacity(0.6)),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      name,
-                      style: theme.textTheme.bodySmall?.copyWith(color: textColor),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    errorWidget: (_, __, ___) => Center(
+                      child: Icon(Icons.map_outlined,
+                          size: 40, color: textColor.withOpacity(0.3)),
                     ),
                   ),
-                  Icon(Icons.chevron_right, size: 16, color: textColor.withOpacity(0.4)),
+                  // Pin overlay
+                  const Center(
+                    child: Icon(
+                      Icons.location_on,
+                      color: Colors.red,
+                      size: 28,
+                    ),
+                  ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Row(
+              children: [
+                Icon(Icons.location_on, size: 14, color: textColor.withOpacity(0.6)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: theme.textTheme.bodySmall?.copyWith(color: textColor),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

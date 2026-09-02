@@ -4,22 +4,16 @@ import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 
 import 'package:nudgee/core/controllers/im/ling_chat_controller.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/models/im/im.dart';
 import 'package:nudgee/core/services/agent_service.dart';
-import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/core/services/chat_service.dart';
-import 'package:nudgee/core/services/file_storage_service.dart';
-import 'package:nudgee/core/services/qiniu_storage_service.dart';
 import 'package:nudgee/core/services/shared_prefs_service.dart';
-import 'package:nudgee/features/common/utils/functions.dart';
 import 'package:nudgee/core/widgets/feedback/ling_avatar.dart';
 import 'package:nudgee/core/widgets/im/ling_chat_background.dart';
 import 'package:nudgee/core/widgets/im/ling_chat_input.dart';
@@ -176,113 +170,31 @@ class _LingChatScreenState extends State<LingChatScreen> {
     }
   }
 
-  /// Pick a custom image from gallery, compress, upload to object storage,
-  /// save locally, and apply as chat background.
-  Future<void> _pickCustomBackground() async {
-    try {
-      final result = await AssetPicker.pickAssets(
-        context,
-        pickerConfig: const AssetPickerConfig(
-          maxAssets: 1,
-          requestType: RequestType.image,
-        ),
-      );
-      if (result == null || result.isEmpty) return;
-      if (!mounted) return;
-
-      SmartDialog.showLoading(msg: '正在处理图片...');
-
-      final asset = result[0];
-      final bytes = await asset.originBytes;
-      if (bytes == null) {
-        SmartDialog.dismiss();
-        SmartDialog.showNotify(
-            msg: '图片读取失败', notifyType: NotifyType.error);
-        return;
-      }
-
-      // Compress for chat background (max 1080p, quality 85).
-      final compressed = await getCompressedImage(
-        bytes,
-        minHeight: 1920,
-        minWidth: 1080,
-        quality: 85,
-      );
-
-      // ── 1. Upload to Qiniu (cloud object storage) ──
-      SmartDialog.showLoading(msg: '正在上传到云端...');
-      final auth = sl<AuthService>();
-      final user = auth.currentUser.value;
-      final qiniu = sl<QiniuStorageService>();
-      final fileStorage = sl<FileStorageService>();
-
-      String? cloudUrl;
-      if (user != null && qiniu.isConfigured) {
-        final bgKey =
-            'nudgee/${user.id}/chat_bg/${widget.conversation.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        cloudUrl = await qiniu.uploadBytes(bgKey, compressed);
-      }
-
-      // ── 2. Save to local file system ──
-      final fileName =
-          '${widget.conversation.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final localPath = await fileStorage.saveBytes(
-        FileStorageService.dirChatBg,
-        fileName,
-        compressed,
-      );
-
-      SmartDialog.dismiss();
-
-      if (localPath == null && cloudUrl == null) {
-        SmartDialog.showNotify(
-            msg: '背景保存失败', notifyType: NotifyType.error);
-        return;
-      }
-
-      // Prefer local path for instant display; fall back to cloud URL.
-      final imageUrl = localPath ?? cloudUrl;
-
-      if (!mounted) return;
-      setState(() {
-        _bgType = LingChatBackgroundType.image;
-        _bgIndex = -1; // custom image, not a preset
-        _bgImageUrl = imageUrl;
-      });
-      _saveBackground(-1, LingChatBackgroundType.image, imageUrl: imageUrl);
-
-      SmartDialog.showNotify(
-          msg: '背景设置成功', notifyType: NotifyType.success);
-      Navigator.pop(context);
-    } catch (e, st) {
-      debugPrint('[ChatBg] pick error: $e\n$st');
-      SmartDialog.dismiss();
-      SmartDialog.showNotify(
-          msg: '背景设置失败: $e', notifyType: NotifyType.error);
-    }
-  }
-
   void _openWallpaperPicker(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => LingWallpaperPicker(
           selectedType: _bgType,
           selectedIndex: _bgIndex,
-          hasCustomImage: _bgType == LingChatBackgroundType.image &&
-              _bgImageUrl != null,
-          onSelected: (index, type) {
+          selectedImageUrl: _bgImageUrl,
+          onSelected: (entry) {
+            // For presets, find the index; for custom images, use -1.
+            final presetIdx = lingWallpaperPresets.indexOf(entry);
+            final idx = presetIdx >= 0 ? presetIdx : -1;
+
             setState(() {
-              _bgIndex = index;
-              _bgType = type;
-              _bgImageUrl = null;
+              _bgType = entry.type;
+              _bgIndex = idx;
+              _bgImageUrl = entry.imageUrl;
             });
-            _saveBackground(index, type);
-            Navigator.pop(context);
+            _saveBackground(
+              idx,
+              entry.type,
+              imageUrl: entry.imageUrl,
+            );
           },
-          onPickCustomImage: _pickCustomBackground,
           onReset: () {
             _resetBackground();
-            Navigator.pop(context);
           },
         ),
       ),
@@ -311,7 +223,7 @@ class _LingChatScreenState extends State<LingChatScreen> {
             .firstOrNull;
 
         // Build background from selected preset.
-        // For custom image backgrounds (_bgIndex < 0), use a dummy preset.
+        // For custom image backgrounds (_bgIndex < 0), _bgImageUrl is used.
         final bgPreset = (_bgIndex >= 0 && _bgIndex < lingWallpaperPresets.length)
             ? lingWallpaperPresets[_bgIndex]
             : lingWallpaperPresets[0];
