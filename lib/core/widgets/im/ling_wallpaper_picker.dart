@@ -18,7 +18,9 @@ class LingWallpaperPreset {
 }
 
 /// All available wallpaper presets.
+/// The first preset (index 0) uses null color to follow the theme surface.
 const List<LingWallpaperPreset> lingWallpaperPresets = [
+  LingWallpaperPreset(type: LingChatBackgroundType.color, color: null),
   LingWallpaperPreset(type: LingChatBackgroundType.color, color: Color(0xFFFFFFFF)),
   LingWallpaperPreset(type: LingChatBackgroundType.color, color: Color(0xFFF8FAFC)),
   LingWallpaperPreset(type: LingChatBackgroundType.color, color: Color(0xFFE0F2FE)),
@@ -193,7 +195,7 @@ class _WallpaperTile extends StatelessWidget {
           Container(
             decoration: BoxDecoration(
               color: preset.type == LingChatBackgroundType.color
-                  ? preset.color
+                  ? (preset.color ?? theme.colorScheme.surface)
                   : null,
               gradient: preset.type == LingChatBackgroundType.gradient
                   ? preset.gradient

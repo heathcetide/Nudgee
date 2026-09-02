@@ -57,7 +57,12 @@ class LingAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final diameter = size.value;
-    final bg = backgroundColor ?? _generateColor(theme);
+    // Local asset images (e.g. logo) usually have their own shape/transparent
+    // background, so we skip the colored circle behind them.
+    final isAssetImage = imageUrl != null && imageUrl!.startsWith('asset://');
+    final bg = isAssetImage
+        ? Colors.transparent
+        : (backgroundColor ?? _generateColor(theme));
     final fg = foregroundColor ?? Colors.white;
 
     Widget avatar = Container(
