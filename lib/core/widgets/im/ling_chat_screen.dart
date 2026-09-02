@@ -8,13 +8,16 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:nudgee/core/constants/app_constants.dart';
 import 'package:nudgee/core/controllers/im/ling_chat_controller.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/models/im/im.dart';
+import 'package:nudgee/core/agent/permission/permission.dart';
 import 'package:nudgee/core/services/agent_service.dart';
 import 'package:nudgee/core/services/auth_service.dart';
 import 'package:nudgee/core/services/chat_service.dart';
 import 'package:nudgee/core/services/file_storage_service.dart';
+import 'package:nudgee/core/services/permission_service.dart';
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
 import 'package:nudgee/core/services/shared_prefs_service.dart';
 import 'package:nudgee/features/common/utils/functions.dart';
@@ -452,6 +455,15 @@ class _LingChatScreenState extends State<LingChatScreen> {
                   _showModelSwitcher(context);
                 },
               ),
+              ListTile(
+                leading: const Icon(Icons.shield_outlined),
+                title: const Text('权限模式'),
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showPermissionModePicker(context);
+                },
+              ),
             ],
             ListTile(
               leading: const Icon(Icons.wallpaper_outlined),
@@ -487,6 +499,62 @@ class _LingChatScreenState extends State<LingChatScreen> {
         onSelected: (model) {
           Navigator.pop(ctx);
           widget.onSwitchModel?.call(model);
+        },
+      ),
+    );
+  }
+
+  /// Show permission mode picker bottom sheet.
+  void _showPermissionModePicker(BuildContext context) {
+    final permService = sl<PermissionService>();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => ListenableBuilder(
+        listenable: permService,
+        builder: (ctx, _) {
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(AppConstants.spacingMd),
+                  child: Row(
+                    children: [
+                      Icon(Icons.shield_outlined,
+                          color: Theme.of(ctx).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text('权限模式',
+                          style: Theme.of(ctx).textTheme.titleMedium),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                ...PermissionMode.values.map((mode) {
+                  return RadioListTile<PermissionMode>(
+                    value: mode,
+                    groupValue: permService.mode,
+                    onChanged: (m) {
+                      if (m != null) {
+                        permService.setMode(m);
+                        Navigator.pop(ctx);
+                      }
+                    },
+                    title: Row(
+                      children: [
+                        Icon(PermissionService.modeIcon(mode), size: 20),
+                        const SizedBox(width: 8),
+                        Text(PermissionService.modeLabel(mode)),
+                      ],
+                    ),
+                    subtitle: Text(PermissionService.modeDescription(mode)),
+                    activeColor: Theme.of(ctx).colorScheme.primary,
+                  );
+                }),
+                const SizedBox(height: AppConstants.spacingSm),
+              ],
+            ),
+          );
         },
       ),
     );

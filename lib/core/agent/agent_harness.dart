@@ -68,6 +68,9 @@ class AgentHarness {
   /// Optional trace factory — called per run to create a fresh trace.
   final AgentTrace Function()? traceFactory;
 
+  /// Optional confirmation handler for interactive permission prompts.
+  final Future<bool> Function(ToolCall call, String reason)? onConfirmation;
+
   /// Underlying orchestrator.
   late final Orchestrator orchestrator;
 
@@ -88,6 +91,7 @@ class AgentHarness {
     this.skillRegistry,
     this.memoryManager,
     this.traceFactory,
+    this.onConfirmation,
     this.llmModel = 'gpt-5.4-mini',
   }) {
     orchestrator = Orchestrator(
@@ -96,6 +100,7 @@ class AgentHarness {
       permissionContext: permissionContext,
       memoryManager: memoryManager,
       traceFactory: traceFactory,
+      onConfirmation: onConfirmation,
     );
 
     if (skillRegistry != null) {

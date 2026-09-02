@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:nudgee/core/agent/agent_config.dart';
 import 'package:nudgee/core/agent/agent_event.dart';
 import 'package:nudgee/core/agent/agent_stats.dart';
@@ -40,6 +42,12 @@ class AgentCore {
   /// structured trace entries during execution for debugging and observability.
   final AgentTrace? trace;
 
+  /// Optional confirmation handler. When a tool call requires user
+  /// confirmation (permission decision is "ask"), this handler is called.
+  /// It should return `true` to allow, `false` to deny.
+  /// If not provided, the tool call is auto-denied (headless mode).
+  final Future<bool> Function(ToolCall call, String reason)? onConfirmation;
+
   /// Creates an [AgentCore].
   AgentCore({
     required this.config,
@@ -48,6 +56,7 @@ class AgentCore {
     required this.contextGovernor,
     required this.permissionContext,
     this.trace,
+    this.onConfirmation,
   });
 
   /// Runs the ReAct loop with [userInput] and conversation [history].
@@ -290,27 +299,53 @@ class AgentCore {
 
           if (decision.isAsk) {
             yield AgentEvent.humanConfirmation(call, decision.message);
-            trace?.recordPermissionDenied(toolName: call.name, reason: 'Confirmation required (headless mode)');
-            // In Phase 1, we auto-deny (no interactive UI yet)
-            // Phase 2 will add a real confirmation dialog
-            messages.add(LlmMessage.tool(
-              toolCallId: call.id,
-              name: call.name,
-              content: 'Confirmation required but not available in headless mode. '
-                  'Please proceed without this tool or ask the user directly.',
-              isError: true,
-            ));
-            yield AgentEvent.toolResult(
-              call.name,
-              ToolResult.error('Confirmation required'),
-            );
-            trace?.recordToolResult(
-              toolName: call.name,
-              toolCallId: call.id,
-              success: false,
-              error: 'Confirmation required',
-            );
-            continue;
+
+            // If a confirmation handler is provided, ask the user.
+            // Otherwise, auto-deny (headless mode).
+            bool approved = false;
+            if (onConfirmation != null) {
+              try {
+                approved = await onConfirmation!(call, decision.message);
+              } catch (e) {
+                debugPrint('[AgentCore] confirmation handler error: $e');
+                approved = false;
+              }
+            }
+
+            if (approved) {
+              trace?.recordPermissionCheck(
+                toolName: call.name,
+                decision: 'allow',
+                mode: permissionContext.mode.name,
+              );
+              // Fall through to execute the tool below.
+            } else {
+              trace?.recordPermissionDenied(
+                  toolName: call.name,
+                  reason: onConfirmation != null
+                      ? 'User denied confirmation'
+                      : 'Confirmation required (headless mode)');
+              messages.add(LlmMessage.tool(
+                toolCallId: call.id,
+                name: call.name,
+                content: onConfirmation != null
+                    ? 'User denied this operation.'
+                    : 'Confirmation required but not available in headless mode. '
+                        'Please proceed without this tool or ask the user directly.',
+                isError: true,
+              ));
+              yield AgentEvent.toolResult(
+                call.name,
+                ToolResult.error('Permission denied by user'),
+              );
+              trace?.recordToolResult(
+                toolName: call.name,
+                toolCallId: call.id,
+                success: false,
+                error: 'Permission denied',
+              );
+              continue;
+            }
           }
 
           // Execute the tool

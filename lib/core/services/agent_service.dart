@@ -10,6 +10,7 @@ import 'package:nudgee/core/agent/trace/agent_trace.dart';
 import 'package:nudgee/core/config/app_config.dart';
 import 'package:nudgee/core/di/injector.dart' as di;
 import 'package:nudgee/core/services/local_database_service.dart';
+import 'package:nudgee/core/services/permission_service.dart';
 import 'package:nudgee/core/services/workspace_service.dart';
 
 /// Agent service — integrates AgentHarness with tools, skills, memory, and LLM config.
@@ -44,6 +45,12 @@ class AgentService {
 
   /// Last run's trace (for debugging/observability).
   AgentTrace? _lastTrace;
+
+  /// Optional confirmation handler — set by the UI layer to enable
+  /// interactive permission prompts. When a tool requires confirmation,
+  /// this handler is called with the tool call and reason.
+  /// Return `true` to allow, `false` to deny.
+  Future<bool> Function(ToolCall call, String reason)? onConfirmation;
 
   bool _initialized = false;
   String _currentModel = '';
@@ -143,14 +150,25 @@ class AgentService {
       );
 
       // ── Build AgentHarness ──
+      // Use PermissionService for live permission mode management.
+      // Falls back to bypassPermissions if PermissionService is not registered.
+      PermissionContext permContext;
+      try {
+        permContext = di.sl<PermissionService>().context;
+      } catch (_) {
+        debugPrint('[AgentService] PermissionService not available, using bypass');
+        permContext =
+            PermissionContext.fixed(PermissionMode.bypassPermissions);
+      }
+
       _harness = AgentHarness(
         llmClient: _llmClient!,
         toolRegistry: _toolRegistry!,
         skillRegistry: _skillRegistry,
         memoryManager: _memoryManager,
-        permissionContext:
-            PermissionContext.fixed(PermissionMode.bypassPermissions),
+        permissionContext: permContext,
         traceFactory: () => AgentTrace(),
+        onConfirmation: onConfirmation,
         llmModel: _currentModel,
       );
       _harness!.registerAgent(_agentConfig!);

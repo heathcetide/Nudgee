@@ -36,6 +36,9 @@ class Orchestrator {
   /// if this factory is set, so each run gets its own trace.
   final AgentTrace Function()? traceFactory;
 
+  /// Optional confirmation handler for interactive permission prompts.
+  final Future<bool> Function(ToolCall call, String reason)? onConfirmation;
+
   /// Registered Agent configurations, keyed by ID.
   final Map<String, AgentConfig> _agents = {};
 
@@ -46,6 +49,7 @@ class Orchestrator {
     required this.permissionContext,
     this.memoryManager,
     this.traceFactory,
+    this.onConfirmation,
   });
 
   /// Registers an Agent configuration.
@@ -94,6 +98,7 @@ class Orchestrator {
       ),
       permissionContext: permissionContext,
       trace: trace,
+      onConfirmation: onConfirmation,
     );
 
     yield* core.run(

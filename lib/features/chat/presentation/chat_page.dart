@@ -189,6 +189,13 @@ class _ChatPageState extends State<ChatPage> {
     final controller = _chatControllers[conv.id];
     if (controller == null) return;
 
+    // Set up the confirmation handler for interactive permission prompts.
+    // This shows a dialog when a tool requires user confirmation.
+    agentService.onConfirmation = (call, reason) async {
+      if (!mounted) return false;
+      return _showToolConfirmationDialog(call, reason);
+    };
+
     // Use custom system prompt for template-based conversations,
     // or the default Echo Agent prompt for the main AI conversation.
     final systemPrompt = _convSystemPrompts[conv.id] ??
@@ -514,6 +521,76 @@ class _ChatPageState extends State<ChatPage> {
       },
       cancelOnError: true,
     );
+  }
+
+  /// Shows a confirmation dialog when a tool requires user permission.
+  ///
+  /// Returns `true` if the user approves, `false` if denied.
+  Future<bool> _showToolConfirmationDialog(ToolCall call, String reason) async {
+    if (!mounted) return false;
+
+    // Format the tool arguments for display.
+    final argsStr = call.arguments.entries
+        .map((e) => '  ${e.key}: ${e.value}')
+        .join('\n');
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.shield_outlined,
+                color: Theme.of(ctx).colorScheme.primary),
+            const SizedBox(width: 8),
+            const Text('权限确认'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('AI 助手想要执行以下操作：',
+                style: Theme.of(ctx).textTheme.bodyMedium),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('工具: ${call.name}',
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  if (argsStr.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text('参数:\n$argsStr',
+                        style: Theme.of(ctx).textTheme.bodySmall),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(reason, style: Theme.of(ctx).textTheme.bodySmall),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('拒绝'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('允许'),
+          ),
+        ],
+      ),
+    );
+
+    return result ?? false;
   }
 
   // ── 会话操作 ──────────────────────────────────────────────────────────

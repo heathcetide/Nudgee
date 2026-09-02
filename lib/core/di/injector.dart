@@ -17,6 +17,7 @@ import 'package:nudgee/core/services/app_lifecycle_service.dart';
 import 'package:nudgee/core/services/app_update_service.dart';
 import 'package:nudgee/core/services/ai_service.dart';
 import 'package:nudgee/core/services/agent_service.dart';
+import 'package:nudgee/core/services/permission_service.dart';
 import 'package:nudgee/core/services/workspace_service.dart';
 import 'package:nudgee/core/services/cloud_sandbox_service.dart';
 import 'package:nudgee/core/services/auth_service.dart';
@@ -165,6 +166,12 @@ Future<void> initDependencies() async {
     sl<AiService>().init();
   });
   debugPrint('[Init] AiService registered (configured: ${AppConfig.hasAi})');
+
+  // ── Permission Service (agent permission mode management) ───────────
+  _safeRegister(() {
+    sl.registerLazySingleton<PermissionService>(() => PermissionService());
+  });
+  debugPrint('[Init] PermissionService registered');
 
   // ── Agent Service (Full Agent Stack — AgentCore + Tools) ─────────────
   _safeRegister(() {
