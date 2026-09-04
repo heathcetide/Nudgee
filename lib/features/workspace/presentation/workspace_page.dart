@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:flutter_highlight/themes/monokai-sublime.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:highlight/languages/javascript.dart';
 import 'package:highlight/languages/json.dart';
@@ -15,6 +16,8 @@ import 'package:nudgee/core/agent/tools/builtin/js_executor_tool.dart';
 import 'package:nudgee/core/di/injector.dart';
 import 'package:nudgee/core/extensions/context_extensions.dart';
 import 'package:nudgee/core/services/workspace_service.dart';
+import 'package:nudgee/core/widgets/feedback/ling_mermaid_viewer.dart';
+import 'package:nudgee/core/widgets/feedback/ling_web_view_page.dart';
 import 'package:nudgee/features/workspace/presentation/html_preview_page.dart';
 
 /// 个人空间页面 — 浏览和管理 AI 工作区文件。
@@ -379,12 +382,15 @@ class _WorkspacePageState extends State<WorkspacePage> {
   void _showFileViewer(WorkspaceEntry entry) async {
     final content = await _workspace.readFile(entry.relativePath);
     if (!mounted) return;
+    final isMd = entry.name.toLowerCase().endsWith('.md') ||
+        entry.name.toLowerCase().endsWith('.markdown');
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => _FileViewerPage(
           name: entry.name,
           content: content ?? '(文件为空)',
           isCode: _isCodeFile(entry.name),
+          isMarkdown: isMd,
         ),
       ),
     );
@@ -566,11 +572,13 @@ class _FileViewerPage extends StatefulWidget {
   final String name;
   final String content;
   final bool isCode;
+  final bool isMarkdown;
 
   const _FileViewerPage({
     required this.name,
     required this.content,
     required this.isCode,
+    this.isMarkdown = false,
   });
 
   @override
@@ -579,6 +587,7 @@ class _FileViewerPage extends StatefulWidget {
 
 class _FileViewerPageState extends State<_FileViewerPage> {
   late final CodeController _controller;
+  bool _showSource = false;
 
   @override
   void initState() {
@@ -599,8 +608,37 @@ class _FileViewerPageState extends State<_FileViewerPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
+    // Markdown files: render as markdown by default, with toggle to source
+    if (widget.isMarkdown && !_showSource) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(widget.name),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.code),
+              tooltip: '查看源码',
+              onPressed: () => setState(() => _showSource = true),
+            ),
+          ],
+        ),
+        body: _buildMarkdownView(theme),
+      );
+    }
+
+    // Code or source view
     return Scaffold(
-      appBar: AppBar(title: Text(widget.name)),
+      appBar: AppBar(
+        title: Text(widget.name),
+        actions: [
+          if (widget.isMarkdown)
+            IconButton(
+              icon: const Icon(Icons.visibility_outlined),
+              tooltip: '查看渲染',
+              onPressed: () => setState(() => _showSource = false),
+            ),
+        ],
+      ),
       body: CodeTheme(
         data: CodeThemeData(
           styles: isDark ? monokaiSublimeTheme : monokaiSublimeTheme,
@@ -618,6 +656,115 @@ class _FileViewerPageState extends State<_FileViewerPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMarkdownView(ThemeData theme) {
+    final segments = _splitMermaidBlocks(widget.content);
+
+    if (segments.length == 1 && segments.first.$1 == 'text') {
+      return SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: MarkdownBody(
+            data: segments.first.$2,
+            selectable: true,
+            styleSheet: _mdStyle(theme),
+            onTapLink: (url, _, __) {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => LingWebViewPage(url: url, title: url),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final seg in segments) ...[
+              if (seg.$1 == 'text' && seg.$2.isNotEmpty)
+                MarkdownBody(
+                  data: seg.$2,
+                  selectable: true,
+                  styleSheet: _mdStyle(theme),
+                  onTapLink: (url, _, __) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => LingWebViewPage(url: url, title: url),
+                      ),
+                    );
+                  },
+                )
+              else if (seg.$1 == 'mermaid')
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: LingMermaidPreview(mermaidCode: seg.$2),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<(String, String)> _splitMermaidBlocks(String text) {
+    final result = <(String, String)>[];
+    final regex = RegExp(r'```mermaid\n([\s\S]*?)```');
+    int lastEnd = 0;
+    for (final match in regex.allMatches(text)) {
+      if (match.start > lastEnd) {
+        result.add(('text', text.substring(lastEnd, match.start).trim()));
+      }
+      result.add(('mermaid', match.group(1)!.trim()));
+      lastEnd = match.end;
+    }
+    if (lastEnd < text.length) {
+      result.add(('text', text.substring(lastEnd).trim()));
+    }
+    if (result.isEmpty) {
+      result.add(('text', text));
+    }
+    return result;
+  }
+
+  MarkdownStyleSheet _mdStyle(ThemeData theme) {
+    return MarkdownStyleSheet(
+      p: theme.textTheme.bodyMedium,
+      h1: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+      h2: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+      h3: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+      h4: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+      code: theme.textTheme.bodySmall?.copyWith(
+        fontFamily: 'monospace',
+        backgroundColor: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
+      ),
+      codeblockDecoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withAlpha(60),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      codeblockPadding: const EdgeInsets.all(12),
+      blockquoteDecoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(color: theme.colorScheme.primary.withAlpha(100), width: 3),
+        ),
+      ),
+      a: theme.textTheme.bodyMedium?.copyWith(
+        color: theme.colorScheme.primary,
+        decoration: TextDecoration.underline,
+      ),
+      tableHead: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+      tableBody: theme.textTheme.bodyMedium,
+      tableColumnWidth: const FlexColumnWidth(),
+      tableCellsPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      tableHeadAlign: TextAlign.center,
+      listIndent: 24,
     );
   }
 }
