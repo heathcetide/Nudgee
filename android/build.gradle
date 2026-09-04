@@ -17,6 +17,18 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// Fix: 为引用 flutter.xxx 的旧插件注入 flutter 扩展属性
+subprojects { subproject ->
+    subproject.ext {
+        flutter = [
+            compileSdkVersion: 36,
+            minSdkVersion: 21,
+            targetSdkVersion: 34,
+            ndkVersion: ""
+        ]
+    }
+}
+
 // Fix: 为缺少 namespace 的旧插件注入 namespace（AGP 8+ 要求）
 subprojects { subproject ->
     subproject.plugins.withId('com.android.library') {
