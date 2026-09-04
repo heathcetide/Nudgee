@@ -147,6 +147,9 @@ class MockLLMClient implements LLMClient {
   List<String> availableModels() => const ['mock-model'];
 
   @override
+  Future<List<String>> fetchModels() async => const ['mock-model'];
+
+  @override
   void dispose() {}
 }
 
