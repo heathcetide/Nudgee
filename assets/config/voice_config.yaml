@@ -1,0 +1,33 @@
+# Voice Service Configuration
+#
+# Configure ASR (speech recognition) and TTS (text-to-speech) providers.
+# Supported ASR vendors: volcengine, native
+# Supported TTS providers: volcengine, openai, native
+#
+# API keys should be kept secret. For production, consider loading
+# from environment variables or a secure backend.
+
+asr:
+  vendor: native          # volcengine | native
+  # For volcengine:
+  # app_id: "your-volc-app-id"
+  # token: "your-volc-token"
+  # cluster: "volcengine_input_common"
+  language: "zh-CN"
+  enable_punctuation: true
+
+tts:
+  provider: native        # volcengine | openai | native
+  # For volcengine:
+  # app_id: "your-volc-app-id"
+  # access_token: "your-volc-access-token"
+  # cluster: "volcano_tts"
+  # voice_type: "BV700_streaming"
+  # For OpenAI:
+  # api_key: "your-openai-api-key"
+  # base_url: "https://api.openai.com/v1"
+  # model: "tts-1"
+  # voice_type: "alloy"
+  speed_ratio: 1.0
+  volume_ratio: 1.0
+  pitch_ratio: 1.0
