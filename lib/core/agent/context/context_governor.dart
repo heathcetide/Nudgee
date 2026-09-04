@@ -1,4 +1,5 @@
 import 'package:nudgee/core/agent/agent_config.dart';
+import 'package:nudgee/core/agent/compaction/autocompact.dart';
 import 'package:nudgee/core/agent/compaction/microcompact.dart';
 import 'package:nudgee/core/agent/memory/memory_manager.dart';
 import 'package:nudgee/core/agent/providers/llm_client.dart';
@@ -28,6 +29,9 @@ class ContextGovernor {
   /// Optional memory manager for injecting long-term memory into the prompt.
   final MemoryManager? memoryManager;
 
+  /// Optional autocompact for Level 2 LLM-based summarization.
+  final Autocompact? autocompact;
+
   /// Creates a [ContextGovernor].
   ContextGovernor({
     required this.systemPrompt,
@@ -35,6 +39,7 @@ class ContextGovernor {
     Microcompact? microcompact,
     MessageSanitizer? sanitizer,
     this.memoryManager,
+    this.autocompact,
   })  : _microcompact = microcompact ?? Microcompact(),
         _sanitizer = sanitizer ?? MessageSanitizer();
 
@@ -42,11 +47,13 @@ class ContextGovernor {
   factory ContextGovernor.fromConfig(
     AgentConfig config, {
     MemoryManager? memoryManager,
+    Autocompact? autocompact,
   }) {
     return ContextGovernor(
       systemPrompt: config.systemPrompt,
       contextWindow: 64000,  // DeepSeek default
       memoryManager: memoryManager,
+      autocompact: autocompact,
     );
   }
 
@@ -54,8 +61,13 @@ class ContextGovernor {
   ///
   /// Steps:
   /// 1. Sanitize the conversation history
-  /// 2. Apply microcompact
-  /// 3. Return messages (system prompt is passed separately to LLM client)
+  /// 2. Apply microcompact (Level 1 — local, fast)
+  /// 3. If still over window, apply autocompact (Level 2 — LLM summarization)
+  /// 4. Enforce hard window limit as last resort
+  ///
+  /// Note: [buildContextAsync] should be used when [autocompact] is set,
+  /// as it requires an LLM call. [buildContext] is synchronous and skips
+  /// autocompact.
   List<LlmMessage> buildContext(List<LlmMessage> history) {
     // 1. Sanitize
     var messages = _sanitizer.sanitize(history);
@@ -63,10 +75,38 @@ class ContextGovernor {
     // 2. Microcompact
     messages = _microcompact.compact(messages);
 
-    // 3. Enforce window (rough estimate)
+    // 3. Enforce window (rough estimate) — fallback truncation
     final tokens = _microcompact.estimateTotalTokens(messages);
     if (tokens > contextWindow) {
       // Aggressive: drop oldest messages (keep last 10)
+      final keepCount = messages.length > 10 ? 10 : messages.length;
+      messages = messages.sublist(messages.length - keepCount);
+    }
+
+    return messages;
+  }
+
+  /// Async version of [buildContext] that also applies autocompact (Level 2)
+  /// when microcompact alone is insufficient.
+  ///
+  /// Use this when [autocompact] is configured.
+  Future<List<LlmMessage>> buildContextAsync(List<LlmMessage> history) async {
+    // 1. Sanitize
+    var messages = _sanitizer.sanitize(history);
+
+    // 2. Microcompact (Level 1)
+    messages = _microcompact.compact(messages);
+
+    // 3. Check if we still need compaction
+    final tokens = _microcompact.estimateTotalTokens(messages);
+    if (tokens > contextWindow && autocompact != null) {
+      // Apply autocompact (Level 2 — LLM summarization)
+      messages = await autocompact!.compact(messages);
+    }
+
+    // 4. Hard window limit as last resort
+    final finalTokens = _microcompact.estimateTotalTokens(messages);
+    if (finalTokens > contextWindow) {
       final keepCount = messages.length > 10 ? 10 : messages.length;
       messages = messages.sublist(messages.length - keepCount);
     }

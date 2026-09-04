@@ -8,7 +8,7 @@ import 'package:nudgee/core/agent/providers/llm_client.dart';
 ///
 /// This is the first level of LingAgent's two-tier compaction strategy:
 /// - Level 1 (this): Microcompact — local, fast, zero cost
-/// - Level 2: Autocompact — LLM-based summarization (Phase 3)
+/// - Level 2: Autocompact — LLM-based summarization (see [Autocompact])
 class Microcompact {
   /// Number of recent tool results to keep in full.
   static const int keepLastNResults = 3;

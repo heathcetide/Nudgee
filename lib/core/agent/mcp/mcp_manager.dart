@@ -18,7 +18,7 @@ import 'package:nudgee/core/agent/tools/tool_registry.dart';
 /// Server types:
 /// - [InProcessMcpServer] — wraps built-in tools (no network)
 /// - [RemoteHttpMcpServer] — connects to remote servers via HTTP
-/// - (future) stdio MCP server for desktop
+/// - [StdioMcpServer] — connects to MCP servers via child process (desktop)
 class McpManager {
   /// Registered servers by ID.
   final Map<String, McpServerInterface> _servers = {};

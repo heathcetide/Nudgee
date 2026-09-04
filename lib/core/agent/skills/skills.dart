@@ -11,8 +11,10 @@ export 'package:nudgee/core/agent/skills/agent_skill.dart';
 export 'package:nudgee/core/agent/skills/skill_registry.dart';
 export 'package:nudgee/core/agent/skills/skill_executor.dart';
 export 'package:nudgee/core/agent/skills/builtin_skills.dart';
+export 'package:nudgee/core/agent/skills/oss_trend_analysis_skill.dart';
 
 import 'package:nudgee/core/agent/skills/builtin_skills.dart';
+import 'package:nudgee/core/agent/skills/oss_trend_analysis_skill.dart';
 import 'package:nudgee/core/agent/skills/skill_registry.dart';
 
 /// Registers all built-in skills into the given [registry].
@@ -21,11 +23,13 @@ import 'package:nudgee/core/agent/skills/skill_registry.dart';
 /// - weekly_planner: plan a week of activities
 /// - fitness_plan: create a personalized fitness plan
 /// - daily_briefing: get a personalized daily summary
+/// - oss_trend_analysis: deep analysis of trending open-source projects
 void registerBuiltinSkills(SkillRegistry registry) {
   registry.registerAll([
     WeeklyPlannerSkill(),
     FitnessPlanSkill(),
     DailyBriefingSkill(),
+    OssTrendAnalysisSkill(),
   ]);
 }
 
@@ -34,4 +38,5 @@ const List<String> builtinSkillIds = [
   'weekly_planner',
   'fitness_plan',
   'daily_briefing',
+  'oss_trend_analysis',
 ];

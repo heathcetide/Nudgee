@@ -24,9 +24,6 @@ import 'package:nudgee/core/agent/agent.dart';
 /// controller.state.addListener(() => print(controller.state.value));
 /// ```
 class AgentController extends ChangeNotifier {
-  /// The agent core to run.
-  final AgentCore agent;
-
   /// The current run state.
   final ValueNotifier<AgentRunState> state =
       ValueNotifier<AgentRunState>(AgentRunState.idle);
@@ -48,7 +45,13 @@ class AgentController extends ChangeNotifier {
   final _pendingEvents = <AgentEvent>[];
 
   /// Creates an [AgentController].
-  AgentController({required this.agent});
+  AgentController({this.agent});
+
+  /// The agent core to run (optional if using [startStream]).
+  final AgentCore? agent;
+
+  /// Whether this controller can run via [start] (requires [agent]).
+  bool get hasAgent => agent != null;
 
   /// Whether the controller is currently running.
   bool get isRunning => state.value == AgentRunState.running;
@@ -69,13 +72,17 @@ class AgentController extends ChangeNotifier {
     required String userInput,
     String? extraSystemContext,
   }) {
+    if (agent == null) {
+      throw StateError('AgentController.start requires an agent. '
+          'Use startStream() for stream-based runs.');
+    }
     cancel();
     _reset();
 
     state.value = AgentRunState.running;
     notifyListeners();
 
-    _sub = agent
+    _sub = agent!
         .run(
           userInput: userInput,
           extraSystemContext: extraSystemContext,
@@ -89,13 +96,40 @@ class AgentController extends ChangeNotifier {
           },
           onDone: () {
             if (state.value == AgentRunState.running) {
-              // Stream ended without DoneEvent — treat as done
               state.value = AgentRunState.done;
               notifyListeners();
             }
           },
           cancelOnError: true,
         );
+  }
+
+  /// Starts a run from a pre-existing event stream (e.g. from [AgentHarness.runWithSkills]).
+  ///
+  /// This allows [AgentService] to use [AgentController] for lifecycle
+  /// management (pause/resume/cancel) without needing a direct [AgentCore] reference.
+  void startStream(Stream<AgentEvent> eventStream) {
+    cancel();
+    _reset();
+
+    state.value = AgentRunState.running;
+    notifyListeners();
+
+    _sub = eventStream.listen(
+      _handleEvent,
+      onError: (e) {
+        state.value = AgentRunState.error;
+        error = e.toString();
+        notifyListeners();
+      },
+      onDone: () {
+        if (state.value == AgentRunState.running) {
+          state.value = AgentRunState.done;
+          notifyListeners();
+        }
+      },
+      cancelOnError: true,
+    );
   }
 
   /// Pauses event processing. Events are buffered and flushed on resume.

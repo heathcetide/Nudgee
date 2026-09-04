@@ -22,7 +22,7 @@ class MemoryManager {
   final LLMClient llmClient;
 
   /// Model to use for summarization and extraction.
-  final String llmModel;
+  String llmModel;
 
   /// Current user ID.
   String userId;

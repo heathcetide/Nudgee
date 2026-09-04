@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 
 import 'package:nudgee/core/agent/agent_config.dart';
 import 'package:nudgee/core/agent/agent_event.dart';
+import 'package:nudgee/core/agent/cost_tracker.dart';
+import 'package:nudgee/core/agent/guard/guard_rails.dart';
 import 'package:nudgee/core/agent/memory/memory_manager.dart';
 import 'package:nudgee/core/agent/orchestrator.dart';
 import 'package:nudgee/core/agent/permission/permission.dart';
@@ -71,17 +73,23 @@ class AgentHarness {
   /// Optional confirmation handler for interactive permission prompts.
   final Future<bool> Function(ToolCall call, String reason)? onConfirmation;
 
+  /// Optional guardrails for safety checks.
+  final GuardRails? guardRails;
+
+  /// Optional cost tracker for budget enforcement.
+  final CostTracker? costTracker;
+
   /// Underlying orchestrator.
   late final Orchestrator orchestrator;
 
   /// Skill executor (lazy-init if skillRegistry is set).
-  late final SkillExecutor? skillExecutor;
+  late SkillExecutor? skillExecutor;
 
   /// Skill matcher (lazy-init if skillRegistry is set).
-  late final SkillMatcher? skillMatcher;
+  late SkillMatcher? skillMatcher;
 
   /// LLM model for skill matching and execution.
-  final String llmModel;
+  String llmModel;
 
   /// Creates an [AgentHarness].
   AgentHarness({
@@ -92,6 +100,8 @@ class AgentHarness {
     this.memoryManager,
     this.traceFactory,
     this.onConfirmation,
+    this.guardRails,
+    this.costTracker,
     this.llmModel = 'gpt-5.4-mini',
   }) {
     orchestrator = Orchestrator(
@@ -101,6 +111,8 @@ class AgentHarness {
       memoryManager: memoryManager,
       traceFactory: traceFactory,
       onConfirmation: onConfirmation,
+      guardRails: guardRails,
+      costTracker: costTracker,
     );
 
     if (skillRegistry != null) {
@@ -123,6 +135,24 @@ class AgentHarness {
   /// Registers an Agent configuration.
   void registerAgent(AgentConfig config) {
     orchestrator.registerAgent(config);
+  }
+
+  /// Updates the LLM model used for skill matching and execution.
+  /// Recreates the skill matcher and executor with the new model.
+  void updateLlmModel(String model) {
+    llmModel = model;
+    if (skillRegistry != null) {
+      skillExecutor = SkillExecutor(
+        toolRegistry: toolRegistry,
+        llmClient: llmClient,
+        llmModel: model,
+      );
+      skillMatcher = SkillMatcher(
+        llmClient: llmClient,
+        registry: skillRegistry!,
+        model: model,
+      );
+    }
   }
 
   /// Registers multiple Agent configurations.
@@ -153,13 +183,23 @@ class AgentHarness {
     );
   }
 
-  /// Runs the default Agent.
+  /// Runs a specific Agent by ID (or the default if [agentId] is null).
   Stream<AgentEvent> run({
     required String userInput,
     List<LlmMessage> history = const [],
     String? extraSystemContext,
     List<String>? images,
+    String? agentId,
   }) {
+    if (agentId != null) {
+      return orchestrator.runAgent(
+        agentId: agentId,
+        userInput: userInput,
+        history: history,
+        extraSystemContext: extraSystemContext,
+        images: images,
+      );
+    }
     return orchestrator.run(
       userInput: userInput,
       history: history,
@@ -234,12 +274,22 @@ class AgentHarness {
     String userId = 'default',
     String? extraSystemContext,
     List<String>? images,
+    List<String>? allowedSkillIds,
+    String? agentId,
   }) async* {
     // Step 1: Try to match a skill
     AgentSkill? matchedSkill;
     if (skillMatcher != null) {
       try {
         matchedSkill = await skillMatcher!.match(userInput);
+        // Filter by allowed skill IDs if specified
+        if (matchedSkill != null && allowedSkillIds != null) {
+          if (!allowedSkillIds.contains(matchedSkill.id)) {
+            debugPrint('[AgentHarness] skill "${matchedSkill.id}" not in '
+                'allowedSkillIds, skipping');
+            matchedSkill = null;
+          }
+        }
       } catch (e) {
         debugPrint('[AgentHarness] skill match error: $e');
       }
@@ -252,6 +302,7 @@ class AgentHarness {
         history: history,
         extraSystemContext: extraSystemContext,
         images: images,
+        agentId: agentId,
       );
       return;
     }
@@ -298,6 +349,7 @@ class AgentHarness {
       history: history,
       extraSystemContext: combinedContext,
       images: images,
+      agentId: agentId,
     );
   }
 

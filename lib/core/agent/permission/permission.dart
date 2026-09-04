@@ -65,21 +65,81 @@ class PermissionDecision {
 }
 
 /// Allow/deny rule for a specific tool.
+///
+/// The optional [specifier] enables granular matching based on tool
+/// arguments. Supported specifier formats:
+/// - `null` — matches any call to [toolName]
+/// - `arg:key=value` — matches when the argument `key` equals `value`
+/// - `arg:key~=value` — matches when the argument `key` contains `value`
+/// - `arg:key=~regex` — matches when the argument `key` matches `regex`
 class PermissionRule {
   /// Tool name (e.g. 'schedule.add', or '*' for all).
   final String toolName;
 
-  /// Optional specifier (e.g. specific argument pattern).
-  /// Currently unused; reserved for future granular rules.
+  /// Optional specifier for granular argument-based matching.
+  ///
+  /// Formats:
+  /// - `arg:key=value` — argument equals value
+  /// - `arg:key~=value` — argument contains value
+  /// - `arg:key=~regex` — argument matches regex
   final String? specifier;
 
   /// Creates a [PermissionRule].
   const PermissionRule(this.toolName, [this.specifier]);
 
-  /// Whether this rule matches [toolName].
-  bool matches(String toolName) {
-    if (this.toolName == '*') return true;
-    return this.toolName == toolName;
+  /// Whether this rule matches [toolName] with optional [arguments].
+  bool matches(String toolName, [Map<String, dynamic>? arguments]) {
+    if (this.toolName == '*') {
+      return _matchesSpecifier(arguments);
+    }
+    if (this.toolName != toolName) return false;
+    return _matchesSpecifier(arguments);
+  }
+
+  /// Checks whether the specifier matches the given arguments.
+  bool _matchesSpecifier(Map<String, dynamic>? arguments) {
+    if (specifier == null) return true;
+    if (arguments == null) return false;
+
+    final spec = specifier!;
+
+    // arg:key=value (exact match)
+    if (spec.startsWith('arg:')) {
+      final rest = spec.substring(4);
+
+      // Check for ~= (contains)
+      final containsIdx = rest.indexOf('~=');
+      if (containsIdx != -1) {
+        final key = rest.substring(0, containsIdx);
+        final value = rest.substring(containsIdx + 2);
+        final argValue = arguments[key]?.toString() ?? '';
+        return argValue.contains(value);
+      }
+
+      // Check for =~ (regex)
+      final regexIdx = rest.indexOf('=~');
+      if (regexIdx != -1) {
+        final key = rest.substring(0, regexIdx);
+        final pattern = rest.substring(regexIdx + 2);
+        final argValue = arguments[key]?.toString() ?? '';
+        try {
+          return RegExp(pattern).hasMatch(argValue);
+        } catch (_) {
+          return false;
+        }
+      }
+
+      // Check for = (exact match)
+      final eqIdx = rest.indexOf('=');
+      if (eqIdx != -1) {
+        final key = rest.substring(0, eqIdx);
+        final value = rest.substring(eqIdx + 1);
+        final argValue = arguments[key]?.toString() ?? '';
+        return argValue == value;
+      }
+    }
+
+    return false;
   }
 
   @override
@@ -120,21 +180,23 @@ class PermissionContext {
   /// [toolName] — the tool being called.
   /// [requiresConfirmation] — whether the tool declares it needs confirmation.
   /// [isMutation] — whether the tool modifies state.
+  /// [arguments] — optional tool arguments for granular rule matching.
   PermissionDecision check({
     required String toolName,
     bool requiresConfirmation = false,
     bool isMutation = false,
+    Map<String, dynamic>? arguments,
   }) {
     // 1. Check deny rules first
     for (final rule in denyRules) {
-      if (rule.matches(toolName)) {
+      if (rule.matches(toolName, arguments)) {
         return PermissionDecision.deny('Blocked by deny rule: $rule');
       }
     }
 
     // 2. Check allow rules
     for (final rule in allowRules) {
-      if (rule.matches(toolName)) {
+      if (rule.matches(toolName, arguments)) {
         return PermissionDecision.allow();
       }
     }

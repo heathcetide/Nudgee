@@ -6,7 +6,7 @@ import 'package:nudgee/core/agent/tools/agent_tool.dart';
 /// This is the contract for both:
 /// - [InProcessMcpServer] — wraps built-in services (no network)
 /// - [RemoteHttpMcpServer] — connects to remote MCP server via HTTP
-/// - (future) stdio MCP server for desktop
+/// - [StdioMcpServer] — connects to MCP server via child process (desktop)
 ///
 /// The [McpManager] interacts with all servers through this interface,
 /// so in-process and remote servers are treated uniformly.

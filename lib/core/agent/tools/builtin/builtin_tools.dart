@@ -22,6 +22,9 @@ export 'package:nudgee/core/agent/tools/builtin/realtime_tools.dart';
 // GitHub search tool
 export 'package:nudgee/core/agent/tools/builtin/github_search_tool.dart';
 
+// GitHub repo detail tool
+export 'package:nudgee/core/agent/tools/builtin/github_repo_tool.dart';
+
 // Git operations tool
 export 'package:nudgee/core/agent/tools/builtin/git_tool.dart';
 
@@ -45,6 +48,7 @@ import 'package:nudgee/core/agent/tools/builtin/memory_tools.dart';
 import 'package:nudgee/core/agent/tools/builtin/web_search_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/realtime_tools.dart';
 import 'package:nudgee/core/agent/tools/builtin/github_search_tool.dart';
+import 'package:nudgee/core/agent/tools/builtin/github_repo_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/git_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/js_executor_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/workspace_fs_tool.dart';
@@ -53,6 +57,7 @@ import 'package:nudgee/core/agent/tools/builtin/datetime_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/tool_search_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/ask_user_tool.dart';
 import 'package:nudgee/core/agent/tools/builtin/todo_write_tool.dart';
+import 'package:nudgee/core/config/app_config.dart';
 
 /// Registers all built-in business tools into the given [registry].
 ///
@@ -64,6 +69,7 @@ import 'package:nudgee/core/agent/tools/builtin/todo_write_tool.dart';
 /// - user.profile
 /// - web.search
 /// - github.search
+/// - github.repo
 /// - workspace.fs / workspace.js.exec
 /// - tool.search
 /// - ask_user
@@ -107,8 +113,12 @@ void registerBuiltinTools(ToolRegistry registry, {WorkspaceService? workspace}) 
   registry.register(WebWeatherTool());
   registry.register(WebStockTool());
 
-  // GitHub search
-  registry.register(GitHubSearchTool());
+  // GitHub search (pass git token for authenticated API access)
+  final githubToken = AppConfig.hasGit ? AppConfig.git!.token : null;
+  registry.register(GitHubSearchTool(token: githubToken));
+
+  // GitHub repo details
+  registry.register(GitHubRepoTool(token: githubToken));
 
   // Git operations (read/write/branch/PR/issue via REST API)
   registry.register(GitTool());

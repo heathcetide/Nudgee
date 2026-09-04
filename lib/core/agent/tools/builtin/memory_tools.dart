@@ -1,8 +1,12 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
+import 'package:nudgee/core/agent/memory/memory_models.dart';
 import 'package:nudgee/core/agent/tools/agent_tool.dart';
 import 'package:nudgee/core/agent/tools/tool_result.dart';
 import 'package:nudgee/core/di/injector.dart';
+import 'package:nudgee/core/services/agent_service.dart';
 import 'package:nudgee/core/services/shared_prefs_service.dart';
 import 'package:nudgee/core/services/user_storage_service.dart';
 
@@ -104,8 +108,26 @@ class MemorySaveTool extends AgentTool {
     }
 
     try {
+      // 1. Save to MemoryManager (Hive) — used by buildMemoryContext()
+      //    for system prompt injection.
+      final agentService = sl<AgentService>();
+      final memoryManager = agentService.memoryManager;
+      if (memoryManager != null) {
+        final memCategory = _parseCategory(category);
+        final item = MemoryItem.now(
+          key: key,
+          category: memCategory,
+          value: value,
+          confidence: 0.9,
+          source: 'user_explicit',
+          userId: memoryManager.userId,
+        );
+        await memoryManager.saveMemory(item);
+        debugPrint('[MemorySaveTool] Saved to MemoryManager: $key');
+      }
+
+      // 2. Also save to SharedPreferences as backup
       final prefs = sl<SharedPrefsService>();
-      // Store in a dedicated namespace
       final storageKey = 'agent_memory_$key';
       final memoryEntry = jsonEncode({
         'key': key,
@@ -120,6 +142,13 @@ class MemorySaveTool extends AgentTool {
     } catch (e) {
       return ToolResult.error('Failed to save memory: $e');
     }
+  }
+
+  MemoryCategory _parseCategory(String name) {
+    return MemoryCategory.values.firstWhere(
+      (c) => c.name == name,
+      orElse: () => MemoryCategory.context,
+    );
   }
 
   String _truncate(String s, int max) =>
@@ -155,11 +184,24 @@ class MemoryQueryTool extends AgentTool {
   @override
   Future<ToolResult> execute(Map<String, dynamic> args) async {
     try {
-      final prefs = sl<SharedPrefsService>();
       final key = args['key'] as String?;
+
+      // 1. Try MemoryManager (Hive) first — this is the primary store
+      final agentService = sl<AgentService>();
+      final memoryManager = agentService.memoryManager;
 
       if (key != null) {
         // Retrieve specific memory
+        if (memoryManager != null) {
+          final item = memoryManager.getMemory(key);
+          if (item != null) {
+            return ToolResult.success(
+                'Memory [$key]: ${item.value} '
+                '(category: ${item.category.name}, saved: ${item.updatedAt})');
+          }
+        }
+        // Fallback to SharedPreferences
+        final prefs = sl<SharedPrefsService>();
         final storageKey = 'agent_memory_$key';
         final raw = prefs.getString(storageKey);
         if (raw == null) {
@@ -170,15 +212,47 @@ class MemoryQueryTool extends AgentTool {
             'Memory [$key]: ${entry['value']} '
             '(category: ${entry['category']}, saved: ${entry['savedAt']})');
       } else {
-        // List all memories — we need to scan prefs keys
-        // Since SharedPrefsService doesn't expose getAllKeys,
-        // we use a known prefix pattern
-        return const ToolResult.success(
-            'Listing all memories requires key enumeration. '
-            'Please provide a specific key to query.');
+        // List all memories
+        final lines = <String>[];
+
+        // From MemoryManager
+        if (memoryManager != null && memoryManager.isCacheLoaded) {
+          for (final item in memoryManager.longTerm) {
+            lines.add('- [${item.category.name}] ${item.key}: ${_truncate(item.value, 80)}');
+          }
+        }
+
+        // Also from SharedPreferences (for items saved before the fix)
+        final prefs = sl<SharedPrefsService>();
+        final allKeys = prefs.getKeys();
+        for (final k in allKeys) {
+          if (k.startsWith('agent_memory_')) {
+            final raw = prefs.getString(k);
+            if (raw != null) {
+              try {
+                final entry = jsonDecode(raw) as Map<String, dynamic>;
+                final memKey = entry['key'] as String? ?? k.substring('agent_memory_'.length);
+                // Skip if already listed from MemoryManager
+                if (memoryManager != null && memoryManager.getMemory(memKey) != null) {
+                  continue;
+                }
+                lines.add('- [${entry['category'] ?? 'context'}] $memKey: ${_truncate(entry['value'] as String? ?? '', 80)}');
+              } catch (_) {}
+            }
+          }
+        }
+
+        if (lines.isEmpty) {
+          return const ToolResult.success('No memories saved yet.');
+        }
+        return ToolResult.success(
+            'Saved memories (${lines.length}):\n${lines.join('\n')}');
       }
     } catch (e) {
       return ToolResult.error('Failed to query memory: $e');
     }
   }
+
+  String _truncate(String s, int max) =>
+      s.length <= max ? s : '${s.substring(0, max)}...';
 }

@@ -4,6 +4,8 @@ import 'package:nudgee/core/agent/agent_config.dart';
 import 'package:nudgee/core/agent/agent_core.dart';
 import 'package:nudgee/core/agent/agent_event.dart';
 import 'package:nudgee/core/agent/context/context_governor.dart';
+import 'package:nudgee/core/agent/cost_tracker.dart';
+import 'package:nudgee/core/agent/guard/guard_rails.dart';
 import 'package:nudgee/core/agent/memory/memory_manager.dart';
 import 'package:nudgee/core/agent/permission/permission.dart';
 import 'package:nudgee/core/agent/providers/llm_client.dart';
@@ -39,6 +41,12 @@ class Orchestrator {
   /// Optional confirmation handler for interactive permission prompts.
   final Future<bool> Function(ToolCall call, String reason)? onConfirmation;
 
+  /// Optional guardrails for safety checks.
+  final GuardRails? guardRails;
+
+  /// Optional cost tracker for budget enforcement.
+  final CostTracker? costTracker;
+
   /// Registered Agent configurations, keyed by ID.
   final Map<String, AgentConfig> _agents = {};
 
@@ -50,6 +58,8 @@ class Orchestrator {
     this.memoryManager,
     this.traceFactory,
     this.onConfirmation,
+    this.guardRails,
+    this.costTracker,
   });
 
   /// Registers an Agent configuration.
@@ -100,6 +110,8 @@ class Orchestrator {
       permissionContext: permissionContext,
       trace: trace,
       onConfirmation: onConfirmation,
+      guardRails: guardRails,
+      costTracker: costTracker,
     );
 
     yield* core.run(

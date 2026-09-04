@@ -6,6 +6,8 @@ import 'package:nudgee/core/agent/agent_config.dart';
 import 'package:nudgee/core/agent/agent_event.dart';
 import 'package:nudgee/core/agent/agent_stats.dart';
 import 'package:nudgee/core/agent/context/context_governor.dart';
+import 'package:nudgee/core/agent/cost_tracker.dart';
+import 'package:nudgee/core/agent/guard/guard_rails.dart';
 import 'package:nudgee/core/agent/permission/permission.dart';
 import 'package:nudgee/core/agent/providers/llm_client.dart';
 import 'package:nudgee/core/agent/tools/agent_tool.dart';
@@ -48,6 +50,12 @@ class AgentCore {
   /// If not provided, the tool call is auto-denied (headless mode).
   final Future<bool> Function(ToolCall call, String reason)? onConfirmation;
 
+  /// Optional guardrails for safety checks on tool calls and output.
+  final GuardRails? guardRails;
+
+  /// Optional cost tracker for budget enforcement.
+  final CostTracker? costTracker;
+
   /// Creates an [AgentCore].
   AgentCore({
     required this.config,
@@ -57,6 +65,8 @@ class AgentCore {
     required this.permissionContext,
     this.trace,
     this.onConfirmation,
+    this.guardRails,
+    this.costTracker,
   });
 
   /// Runs the ReAct loop with [userInput] and conversation [history].
@@ -169,12 +179,22 @@ class AgentCore {
           if (response.content.isNotEmpty) {
             yield AgentEvent.content(response.content);
             contentBuffer.write(response.content);
+
+            // Extract and emit plan from the first step's content
+            if (step == 0) {
+              final planSteps = _extractPlan(response.content);
+              if (planSteps.isNotEmpty) {
+                yield AgentEvent.plan(planSteps);
+                trace?.recordInfo('Plan: ${planSteps.length} steps',
+                    data: {'steps': planSteps.map((s) => s.description).toList()});
+              }
+            }
           }
 
           if (!response.hasToolCalls) {
             // No tool calls — we're done
             stopwatch.stop();
-            stats = stats.copyWith(duration: stopwatch.elapsed);
+            stats = _finalizeStats(stats, stopwatch.elapsed);
             trace?.recordRunEnd(stats: stats, finalReply: response.content);
             yield AgentEvent.done(response.content, stats);
             return;
@@ -224,15 +244,25 @@ class AgentCore {
 
           if (contentBuffer.isEmpty) {
             stopwatch.stop();
-            stats = stats.copyWith(duration: stopwatch.elapsed);
+            stats = _finalizeStats(stats, stopwatch.elapsed);
             trace?.recordRunEnd(stats: stats, finalReply: '');
             yield AgentEvent.done('', stats);
             return;
           }
 
+          // Extract and emit plan from the first step's content
+          if (step == 0) {
+            final planSteps = _extractPlan(contentBuffer.toString());
+            if (planSteps.isNotEmpty) {
+              yield AgentEvent.plan(planSteps);
+              trace?.recordInfo('Plan: ${planSteps.length} steps',
+                  data: {'steps': planSteps.map((s) => s.description).toList()});
+            }
+          }
+
           messages.add(LlmMessage.assistant(text: contentBuffer.toString()));
           stopwatch.stop();
-          stats = stats.copyWith(duration: stopwatch.elapsed);
+          stats = _finalizeStats(stats, stopwatch.elapsed);
           trace?.recordRunEnd(stats: stats, finalReply: contentBuffer.toString());
           yield AgentEvent.done(contentBuffer.toString(), stats);
           return;
@@ -249,7 +279,7 @@ class AgentCore {
           if (repeatCount >= 2) {
             // Third occurrence — hard stop
             stopwatch.stop();
-            stats = stats.copyWith(duration: stopwatch.elapsed);
+            stats = _finalizeStats(stats, stopwatch.elapsed);
             yield AgentEvent.error(
               'Loop detected: Agent is repeating the same tool calls after warnings',
               severity: ErrorSeverity.warning,
@@ -278,6 +308,26 @@ class AgentCore {
 
         // Execute tool calls
         for (final call in toolCalls) {
+          // Guardrails check
+          if (guardRails != null) {
+            final guardDecision = guardRails!.checkToolCall(call, stats.toolCalls);
+            if (guardDecision.isBlock) {
+              yield AgentEvent.toolCall(call);
+              trace?.recordWarning('Guardrails blocked tool "${call.name}": ${guardDecision.reason}');
+              messages.add(LlmMessage.tool(
+                toolCallId: call.id,
+                name: call.name,
+                content: 'Blocked by guardrails: ${guardDecision.reason}',
+                isError: true,
+              ));
+              yield AgentEvent.toolResult(
+                call.name,
+                ToolResult.error('Blocked by guardrails: ${guardDecision.reason}'),
+              );
+              continue;
+            }
+          }
+
           yield AgentEvent.toolCall(call);
           trace?.recordToolCall(call);
           stats = stats.copyWith(toolCalls: stats.toolCalls + 1);
@@ -288,6 +338,7 @@ class AgentCore {
             toolName: call.name,
             requiresConfirmation: toolDef?.requiresConfirmation ?? false,
             isMutation: toolDef?.isMutation ?? false,
+            arguments: call.arguments,
           );
 
           trace?.recordPermissionCheck(
@@ -372,8 +423,13 @@ class AgentCore {
 
           // Execute the tool
           final toolStopwatch = Stopwatch()..start();
-          final result = await toolRegistry.execute(call.name, call.arguments);
+          var result = await toolRegistry.execute(call.name, call.arguments);
           toolStopwatch.stop();
+
+          // Apply guardrails output filtering
+          if (guardRails != null) {
+            result = guardRails!.filterToolResult(result);
+          }
 
           yield AgentEvent.toolResult(call.name, result);
           trace?.recordToolResult(
@@ -397,7 +453,7 @@ class AgentCore {
 
       // Max steps reached
       stopwatch.stop();
-      stats = stats.copyWith(duration: stopwatch.elapsed);
+      stats = _finalizeStats(stats, stopwatch.elapsed);
       trace?.recordWarning('Maximum steps (${config.maxSteps}) reached');
       trace?.recordRunEnd(stats: stats, finalReply: 'Max steps reached');
       yield AgentEvent.error(
@@ -411,7 +467,7 @@ class AgentCore {
       );
     } catch (e) {
       stopwatch.stop();
-      stats = stats.copyWith(duration: stopwatch.elapsed);
+      stats = _finalizeStats(stats, stopwatch.elapsed);
       trace?.recordError('Agent error: $e');
       trace?.recordRunEnd(stats: stats, finalReply: '');
       yield AgentEvent.error('Agent error: $e', severity: ErrorSeverity.error);
@@ -423,6 +479,55 @@ class AgentCore {
   List<ToolDefinition> _buildToolDefinitions() {
     if (config.toolNames.isEmpty) return [];
     return toolRegistry.definitionsFor(config.toolNames);
+  }
+
+  /// Finalizes stats with duration and estimated cost.
+  AgentRunStats _finalizeStats(AgentRunStats stats, Duration duration) {
+    var finalized = stats.copyWith(duration: duration);
+    if (costTracker != null) {
+      final cost = costTracker!.calculateCost(finalized, config.model);
+      finalized = finalized.copyWith(estimatedCost: cost);
+      costTracker!.recordRun(finalized, config.model);
+    }
+    return finalized;
+  }
+
+  /// Extracts a plan from the LLM's content.
+  ///
+  /// Detects numbered or bulleted lists that look like execution plans.
+  /// Returns an empty list if no plan-like structure is found.
+  List<PlanStep> _extractPlan(String content) {
+    final steps = <PlanStep>[];
+
+    // Match numbered list: "1. Step description" or "1) Step description"
+    final numberedPattern = RegExp(r'(?:^|\n)\s*(\d+)[\.\)]\s+(.+)');
+    final numberedMatches = numberedPattern.allMatches(content).toList();
+
+    if (numberedMatches.length >= 2) {
+      for (final match in numberedMatches) {
+        final desc = match.group(2)!.trim();
+        if (desc.isNotEmpty && desc.length < 200) {
+          steps.add(PlanStep(description: desc));
+        }
+      }
+      return steps;
+    }
+
+    // Match bullet list: "- Step description" or "* Step description"
+    final bulletPattern = RegExp(r'(?:^|\n)\s*[-\*]\s+(.+)');
+    final bulletMatches = bulletPattern.allMatches(content).toList();
+
+    if (bulletMatches.length >= 2) {
+      for (final match in bulletMatches) {
+        final desc = match.group(1)!.trim();
+        if (desc.isNotEmpty && desc.length < 200) {
+          steps.add(PlanStep(description: desc));
+        }
+      }
+      return steps;
+    }
+
+    return const [];
   }
 
   /// Creates a canonical signature for loop detection.

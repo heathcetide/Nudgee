@@ -7,6 +7,7 @@
 
 // Core models
 export 'package:nudgee/core/agent/agent_config.dart';
+export 'package:nudgee/core/agent/agent_config_loader.dart';
 export 'package:nudgee/core/agent/agent_event.dart';
 export 'package:nudgee/core/agent/agent_session.dart';
 export 'package:nudgee/core/agent/agent_stats.dart';
@@ -19,9 +20,19 @@ export 'package:nudgee/core/agent/orchestrator.dart';
 // Controller (Phase 7)
 export 'package:nudgee/core/agent/agent_controller.dart';
 
+// Checkpoint manager (crash recovery)
+export 'package:nudgee/core/agent/checkpoint_manager.dart';
+
+// Cost tracker (budget enforcement)
+export 'package:nudgee/core/agent/cost_tracker.dart';
+
+// Sub-agent orchestration (multi-agent collaboration)
+export 'package:nudgee/core/agent/sub_agent_orchestrator.dart';
+
 // Context & compaction
 export 'package:nudgee/core/agent/context/context_governor.dart';
 export 'package:nudgee/core/agent/compaction/microcompact.dart';
+export 'package:nudgee/core/agent/compaction/autocompact.dart';
 
 // Sanitize
 export 'package:nudgee/core/agent/sanitize/message_sanitizer.dart';
@@ -50,6 +61,9 @@ export 'package:nudgee/core/agent/skills/skills.dart';
 
 // MCP system (Phase 5)
 export 'package:nudgee/core/agent/mcp/mcp.dart';
+
+// Guard rails
+export 'package:nudgee/core/agent/guard/guard.dart';
 
 // Sandbox execution (Phase 6)
 export 'package:nudgee/core/agent/sandbox/sandbox.dart';
