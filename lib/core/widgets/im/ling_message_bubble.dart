@@ -11,6 +11,7 @@ import 'package:nudgee/core/widgets/feedback/ling_avatar.dart';
 import 'package:nudgee/core/widgets/feedback/ling_file_viewer.dart';
 import 'package:nudgee/core/widgets/feedback/ling_image_viewer.dart';
 import 'package:nudgee/core/widgets/feedback/ling_web_view_page.dart';
+import 'package:nudgee/core/widgets/feedback/ling_mermaid_viewer.dart';
 import 'package:nudgee/core/widgets/im/ling_link_preview.dart';
 import 'package:nudgee/core/widgets/im/ling_link_preview_fetcher.dart';
 import 'package:nudgee/core/widgets/im/ling_message_reaction.dart';
@@ -585,7 +586,7 @@ class LingMessageBubble extends StatelessWidget {
             children: [
               _buildImage(context),
               const SizedBox(height: 6),
-              _buildText(context, textColor),
+              _buildText(context, textColor, suppressLinkPreview: true),
             ],
           );
         }
@@ -612,7 +613,8 @@ class LingMessageBubble extends StatelessWidget {
     caseSensitive: false,
   );
 
-  Widget _buildText(BuildContext context, Color textColor) {
+  Widget _buildText(BuildContext context, Color textColor,
+      {bool suppressLinkPreview = false}) {
     final text = message.text ?? '';
 
     // AI assistant messages are rendered as Markdown.
@@ -630,6 +632,13 @@ class LingMessageBubble extends StatelessWidget {
     }
     if (renderAsMarkdown) {
       return _buildMarkdownText(context, textColor, text);
+    }
+
+    if (suppressLinkPreview) {
+      return Text(
+        text,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor),
+      );
     }
 
     final urlMatch = _urlRegex.firstMatch(text);
@@ -655,86 +664,156 @@ class LingMessageBubble extends StatelessWidget {
     );
   }
 
+  /// Split markdown text into segments of text and mermaid code blocks.
+  ///
+  /// Mermaid blocks are fenced code blocks with `mermaid` as the language:
+  /// ```mermaid
+  /// graph TD; A-->B;
+  /// ```
+  List<_MdSegment> _splitMermaidBlocks(String text) {
+    final segments = <_MdSegment>[];
+    final mermaidRegex = RegExp(r'```mermaid\n([\s\S]*?)```');
+    int lastEnd = 0;
+
+    for (final match in mermaidRegex.allMatches(text)) {
+      // Text before the mermaid block
+      if (match.start > lastEnd) {
+        segments.add(_MdSegment(_SegmentType.text, text.substring(lastEnd, match.start).trim()));
+      }
+      // The mermaid code itself
+      segments.add(_MdSegment(_SegmentType.mermaid, match.group(1)!.trim()));
+      lastEnd = match.end;
+    }
+
+    // Remaining text after the last mermaid block
+    if (lastEnd < text.length) {
+      segments.add(_MdSegment(_SegmentType.text, text.substring(lastEnd).trim()));
+    }
+
+    // If nothing was found, return the whole text as a single segment
+    if (segments.isEmpty) {
+      segments.add(_MdSegment(_SegmentType.text, text));
+    }
+
+    return segments;
+  }
+
   /// Build Markdown-formatted text for AI messages.
   ///
-  /// Uses [MarkdownBody] from flutter_markdown to render rich content
-  /// (headers, lists, code blocks, bold, links, etc.).
+  /// Extracts mermaid code blocks and renders them as interactive
+  /// [LingMermaidPreview] widgets, with the remaining markdown rendered
+  /// via [MarkdownBody].
   Widget _buildMarkdownText(BuildContext context, Color textColor, String text) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
-    // For outgoing (AI) messages on primary-colored bubbles, use onPrimary.
-    // For incoming AI messages on surface bubbles, use onSurface.
-    return MarkdownBody(
-      data: text,
-      selectable: true,
-      styleSheet: MarkdownStyleSheet(
-        p: theme.textTheme.bodyMedium?.copyWith(color: textColor),
-        h1: theme.textTheme.headlineSmall?.copyWith(
-            color: textColor, fontWeight: FontWeight.bold),
-        h2: theme.textTheme.titleLarge?.copyWith(
-            color: textColor, fontWeight: FontWeight.bold),
-        h3: theme.textTheme.titleMedium?.copyWith(
-            color: textColor, fontWeight: FontWeight.bold),
-        h4: theme.textTheme.titleSmall?.copyWith(
-            color: textColor, fontWeight: FontWeight.bold),
-        h5: theme.textTheme.labelLarge?.copyWith(
-            color: textColor, fontWeight: FontWeight.bold),
-        h6: theme.textTheme.labelMedium?.copyWith(
-            color: textColor, fontWeight: FontWeight.bold),
-        listBullet: theme.textTheme.bodyMedium?.copyWith(color: textColor),
-        strong: theme.textTheme.bodyMedium
-            ?.copyWith(color: textColor, fontWeight: FontWeight.bold),
-        em: theme.textTheme.bodyMedium
-            ?.copyWith(color: textColor, fontStyle: FontStyle.italic),
-        blockquote: theme.textTheme.bodyMedium?.copyWith(
-            color: textColor.withOpacity(0.8),
-            fontStyle: FontStyle.italic),
-        blockquoteDecoration: BoxDecoration(
-          border: Border(
-            left: BorderSide(
-              color: textColor.withOpacity(0.3),
-              width: 3,
+    final segments = _splitMermaidBlocks(text);
+
+    // No mermaid blocks — render as single MarkdownBody
+    if (segments.length == 1 && segments.first.type == _SegmentType.text) {
+      return MarkdownBody(
+        data: segments.first.content,
+        selectable: true,
+        styleSheet: _markdownStyle(theme, textColor),
+        onTapLink: (url, _, __) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => LingWebViewPage(url: url, title: url),
             ),
+          );
+        },
+      );
+    }
+
+    // Has mermaid blocks — render as column of mixed widgets
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final seg in segments) ...[
+          if (seg.type == _SegmentType.text && seg.content.isNotEmpty)
+            MarkdownBody(
+              data: seg.content,
+              selectable: true,
+              styleSheet: _markdownStyle(theme, textColor),
+              onTapLink: (url, _, __) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => LingWebViewPage(url: url, title: url),
+                  ),
+                );
+              },
+            )
+          else if (seg.type == _SegmentType.mermaid)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: LingMermaidPreview(mermaidCode: seg.content),
+            ),
+        ],
+      ],
+    );
+  }
+
+  /// Build the markdown style sheet shared by all MarkdownBody instances.
+  MarkdownStyleSheet _markdownStyle(ThemeData theme, Color textColor) {
+    final isDark = theme.brightness == Brightness.dark;
+    return MarkdownStyleSheet(
+      p: theme.textTheme.bodyMedium?.copyWith(color: textColor),
+      h1: theme.textTheme.headlineSmall?.copyWith(
+          color: textColor, fontWeight: FontWeight.bold),
+      h2: theme.textTheme.titleLarge?.copyWith(
+          color: textColor, fontWeight: FontWeight.bold),
+      h3: theme.textTheme.titleMedium?.copyWith(
+          color: textColor, fontWeight: FontWeight.bold),
+      h4: theme.textTheme.titleSmall?.copyWith(
+          color: textColor, fontWeight: FontWeight.bold),
+      h5: theme.textTheme.labelLarge?.copyWith(
+          color: textColor, fontWeight: FontWeight.bold),
+      h6: theme.textTheme.labelMedium?.copyWith(
+          color: textColor, fontWeight: FontWeight.bold),
+      listBullet: theme.textTheme.bodyMedium?.copyWith(color: textColor),
+      strong: theme.textTheme.bodyMedium
+          ?.copyWith(color: textColor, fontWeight: FontWeight.bold),
+      em: theme.textTheme.bodyMedium
+          ?.copyWith(color: textColor, fontStyle: FontStyle.italic),
+      blockquote: theme.textTheme.bodyMedium?.copyWith(
+          color: textColor.withOpacity(0.8),
+          fontStyle: FontStyle.italic),
+      blockquoteDecoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(
+            color: textColor.withOpacity(0.3),
+            width: 3,
           ),
         ),
-        code: theme.textTheme.bodySmall?.copyWith(
-          color: textColor,
-          fontFamily: 'monospace',
-          fontFamilyFallback: const ['Courier', 'Menlo', 'Monaco'],
-          backgroundColor: textColor.withOpacity(0.1),
-        ),
-        codeblockDecoration: BoxDecoration(
-          color: isDark
-              ? textColor.withOpacity(0.08)
-              : textColor.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        codeblockPadding: const EdgeInsets.all(12),
-        tableHead: theme.textTheme.bodyMedium
-            ?.copyWith(color: textColor, fontWeight: FontWeight.bold),
-        tableBody: theme.textTheme.bodyMedium?.copyWith(color: textColor),
-        tableColumnWidth: const FlexColumnWidth(),
-        tableCellsPadding: const EdgeInsets.symmetric(
-            horizontal: 10, vertical: 6),
-        tableHeadAlign: TextAlign.center,
-        a: theme.textTheme.bodyMedium?.copyWith(
-          color: isOutgoing
-              ? theme.colorScheme.onPrimary
-              : theme.colorScheme.primary,
-          decoration: TextDecoration.underline,
-        ),
-        listBulletPadding: const EdgeInsets.symmetric(horizontal: 4),
-        listIndent: 24,
       ),
-      onTapLink: (url, _, __) {
-        // Open links in web view
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => LingWebViewPage(url: url, title: url),
-          ),
-        );
-      },
+      code: theme.textTheme.bodySmall?.copyWith(
+        color: textColor,
+        fontFamily: 'monospace',
+        fontFamilyFallback: const ['Courier', 'Menlo', 'Monaco'],
+        backgroundColor: textColor.withOpacity(0.1),
+      ),
+      codeblockDecoration: BoxDecoration(
+        color: isDark
+            ? textColor.withOpacity(0.08)
+            : textColor.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      codeblockPadding: const EdgeInsets.all(12),
+      tableHead: theme.textTheme.bodyMedium
+          ?.copyWith(color: textColor, fontWeight: FontWeight.bold),
+      tableBody: theme.textTheme.bodyMedium?.copyWith(color: textColor),
+      tableColumnWidth: const FlexColumnWidth(),
+      tableCellsPadding: const EdgeInsets.symmetric(
+          horizontal: 10, vertical: 6),
+      tableHeadAlign: TextAlign.center,
+      a: theme.textTheme.bodyMedium?.copyWith(
+        color: isOutgoing
+            ? theme.colorScheme.onPrimary
+            : theme.colorScheme.primary,
+        decoration: TextDecoration.underline,
+      ),
+      listBulletPadding: const EdgeInsets.symmetric(horizontal: 4),
+      listIndent: 24,
     );
   }
 
@@ -1740,31 +1819,101 @@ class _CollapsibleContentState extends State<_CollapsibleContent> {
   /// Full view — Markdown for AI messages, SelectableText for plain text.
   Widget _renderFull(ThemeData theme) {
     if (widget.isAiMessage) {
-      return MarkdownBody(
-        data: widget.text,
-        selectable: true,
-        styleSheet: MarkdownStyleSheet(
-          p: theme.textTheme.bodyMedium?.copyWith(color: widget.textColor),
-          h1: theme.textTheme.headlineSmall?.copyWith(
-              color: widget.textColor, fontWeight: FontWeight.bold),
-          h2: theme.textTheme.titleLarge?.copyWith(
-              color: widget.textColor, fontWeight: FontWeight.bold),
-          h3: theme.textTheme.titleMedium?.copyWith(
-              color: widget.textColor, fontWeight: FontWeight.bold),
-          code: theme.textTheme.bodySmall?.copyWith(
-              fontFamily: 'monospace',
-              color: widget.textColor,
-              backgroundColor: theme.colorScheme.surfaceContainerHighest
-                  .withAlpha(60)),
-          codeblockDecoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
-            borderRadius: BorderRadius.circular(6),
+      // Check for mermaid blocks
+      final mermaidRegex = RegExp(r'```mermaid\n([\s\S]*?)```');
+      final hasMermaid = mermaidRegex.hasMatch(widget.text);
+
+      if (!hasMermaid) {
+        // No mermaid — render as single MarkdownBody
+        return MarkdownBody(
+          data: widget.text,
+          selectable: true,
+          styleSheet: MarkdownStyleSheet(
+            p: theme.textTheme.bodyMedium?.copyWith(color: widget.textColor),
+            h1: theme.textTheme.headlineSmall?.copyWith(
+                color: widget.textColor, fontWeight: FontWeight.bold),
+            h2: theme.textTheme.titleLarge?.copyWith(
+                color: widget.textColor, fontWeight: FontWeight.bold),
+            h3: theme.textTheme.titleMedium?.copyWith(
+                color: widget.textColor, fontWeight: FontWeight.bold),
+            code: theme.textTheme.bodySmall?.copyWith(
+                fontFamily: 'monospace',
+                color: widget.textColor,
+                backgroundColor: theme.colorScheme.surfaceContainerHighest
+                    .withAlpha(60)),
+            codeblockDecoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            a: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.primary,
+              decoration: TextDecoration.underline,
+            ),
           ),
-          a: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.primary,
-            decoration: TextDecoration.underline,
-          ),
-        ),
+        );
+      }
+
+      // Has mermaid blocks — split and render mixed widgets
+      final segments = <_MdSegment>[];
+      int lastEnd = 0;
+      for (final match in mermaidRegex.allMatches(widget.text)) {
+        if (match.start > lastEnd) {
+          segments.add(_MdSegment(_SegmentType.text,
+              widget.text.substring(lastEnd, match.start).trim()));
+        }
+        segments.add(_MdSegment(_SegmentType.mermaid, match.group(1)!.trim()));
+        lastEnd = match.end;
+      }
+      if (lastEnd < widget.text.length) {
+        segments.add(_MdSegment(
+            _SegmentType.text, widget.text.substring(lastEnd).trim()));
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final seg in segments) ...[
+            if (seg.type == _SegmentType.text && seg.content.isNotEmpty)
+              MarkdownBody(
+                data: seg.content,
+                selectable: true,
+                styleSheet: MarkdownStyleSheet(
+                  p: theme.textTheme.bodyMedium
+                      ?.copyWith(color: widget.textColor),
+                  h1: theme.textTheme.headlineSmall?.copyWith(
+                      color: widget.textColor,
+                      fontWeight: FontWeight.bold),
+                  h2: theme.textTheme.titleLarge?.copyWith(
+                      color: widget.textColor,
+                      fontWeight: FontWeight.bold),
+                  h3: theme.textTheme.titleMedium?.copyWith(
+                      color: widget.textColor,
+                      fontWeight: FontWeight.bold),
+                  code: theme.textTheme.bodySmall?.copyWith(
+                      fontFamily: 'monospace',
+                      color: widget.textColor,
+                      backgroundColor: theme
+                          .colorScheme.surfaceContainerHighest
+                          .withAlpha(60)),
+                  codeblockDecoration: BoxDecoration(
+                    color:
+                        theme.colorScheme.surfaceContainerHighest.withAlpha(80),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  a: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              )
+            else if (seg.type == _SegmentType.mermaid)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: LingMermaidPreview(mermaidCode: seg.content),
+              ),
+          ],
+        ],
       );
     }
     return SelectableText(
@@ -1772,6 +1921,17 @@ class _CollapsibleContentState extends State<_CollapsibleContent> {
       style: theme.textTheme.bodyMedium?.copyWith(color: widget.textColor),
     );
   }
+}
+
+/// Segment type for markdown text splitting.
+enum _SegmentType { text, mermaid }
+
+/// A segment of markdown content — either plain text or mermaid code.
+class _MdSegment {
+  final _SegmentType type;
+  final String content;
+
+  const _MdSegment(this.type, this.content);
 }
 
 /// A simple grid pattern painter for the map placeholder background.

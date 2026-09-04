@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -693,6 +695,7 @@ class _LingChatScreenState extends State<LingChatScreen> {
   }
 
   Future<void> _sendImage({bool camera = false}) async {
+    debugPrint('[ChatScreen] _sendImage called, camera=$camera');
     // 请求权限
     if (camera) {
       await _requestPermission(Permission.camera, '相机');
@@ -709,92 +712,135 @@ class _LingChatScreenState extends State<LingChatScreen> {
     if (file == null) return;
     if (!mounted) return;
 
-    // Read and compress the image.
-    final bytes = await file.readAsBytes();
-    final compressed = await getCompressedImage(
-      bytes,
-      minHeight: 1920,
-      minWidth: 1920,
-      quality: 85,
-    );
+    try {
+      // Read original bytes.
+      final originalBytes = await file.readAsBytes();
 
-    // Get image dimensions.
-    final decoded = await decodeImageFromList(compressed);
-    final imgWidth = decoded.width.toDouble();
-    final imgHeight = decoded.height.toDouble();
+      // Compress — fallback to original if compression fails or returns empty.
+      Uint8List compressed;
+      try {
+        final result = await getCompressedImage(
+          originalBytes,
+          minHeight: 1920,
+          minWidth: 1920,
+          quality: 85,
+        );
+        compressed = result.isNotEmpty ? result : originalBytes;
+      } catch (e) {
+        debugPrint('[ChatScreen] Image compression failed, using original: $e');
+        compressed = originalBytes;
+      }
 
-    // Upload to Qiniu cloud storage.
-    final auth = sl<AuthService>();
-    final user = auth.currentUser.value;
-    final qiniu = sl<QiniuStorageService>();
-    final fileStorage = sl<FileStorageService>();
+      // Get image dimensions.
+      double imgWidth = 200.0;
+      double imgHeight = 150.0;
+      try {
+        final decoded = await decodeImageFromList(compressed);
+        imgWidth = decoded.width.toDouble();
+        imgHeight = decoded.height.toDouble();
+      } catch (e) {
+        debugPrint('[ChatScreen] Image decode failed, using defaults: $e');
+      }
 
-    String? cloudUrl;
-    String? localPath;
+      // Upload to Qiniu cloud storage — always use object storage, no local fallback.
+      final auth = sl<AuthService>();
+      final user = auth.currentUser.value;
+      final userId = user?.id ?? 'anonymous';
+      final qiniu = sl<QiniuStorageService>();
 
-    // Save locally first for instant display.
-    final fileName =
-        'img_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    localPath = await fileStorage.saveBytes(
-      FileStorageService.dirCache,
-      fileName,
-      compressed,
-    );
+      if (!qiniu.isConfigured) {
+        debugPrint('[ChatScreen] Qiniu not configured, cannot upload image');
+        if (mounted) {
+          SmartDialog.showNotify(
+            msg: '对象存储未配置，无法上传图片',
+            notifyType: NotifyType.error,
+          );
+        }
+        return;
+      }
 
-    // Upload to cloud if configured.
-    if (user != null && qiniu.isConfigured) {
-      final imgKey =
-          'nudgee/${user.id}/images/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      cloudUrl = await qiniu.uploadBytes(imgKey, compressed);
-    }
+      String? cloudUrl;
+      try {
+        final imgKey =
+            'nudgee/$userId/images/${DateTime.now().millisecondsSinceEpoch}.jpg';
+        cloudUrl = await qiniu.uploadBytes(imgKey, compressed);
+      } catch (e) {
+        debugPrint('[ChatScreen] Cloud upload failed: $e');
+      }
 
-    // Use cloud URL if available (for other devices), else local path.
-    final mediaUrl = cloudUrl ?? localPath ?? file.path;
+      if (cloudUrl == null) {
+        debugPrint('[ChatScreen] Cloud upload returned null');
+        if (mounted) {
+          SmartDialog.showNotify(
+            msg: '图片上传失败',
+            notifyType: NotifyType.error,
+          );
+        }
+        return;
+      }
 
-    // Prompt for optional caption text.
-    if (!mounted) return;
-    final caption = await _showImageCaptionDialog(context);
+      final mediaUrl = cloudUrl;
 
-    // Create message with image + optional text.
-    final msg = LingMessage(
-      id: 'local_${DateTime.now().millisecondsSinceEpoch}',
-      conversationId: widget.conversation.id,
-      authorId: widget.currentUserId,
-      type: LingMessageType.image,
-      text: (caption != null && caption.isNotEmpty) ? caption : null,
-      mediaUrl: mediaUrl,
-      width: imgWidth,
-      height: imgHeight,
-      createdAt: DateTime.now(),
-      status: LingMessageStatus.sent,
-    );
-    widget.controller.addMessage(msg);
+      // Prompt for optional caption text.
+      if (!mounted) return;
+      final caption = await _showImageCaptionDialog(context);
 
-    // Persist to ChatService.
-    await sl<ChatService>().sendMessage(
-      conversationId: widget.conversation.id,
-      authorId: widget.currentUserId,
-      text: caption ?? '',
-      type: LingMessageType.image,
-      mediaUrl: mediaUrl,
-    );
-
-    // Route to AI if needed.
-    final isAiConv = widget.conversation.id == ChatService.aiAssistantId;
-    if (isAiConv) {
-      // Send image URL to Agent for vision/multimodal understanding.
-      // If the image is a cloud URL, the vision-capable LLM can see it.
-      // If it's a local path, fall back to text description.
-      final isUrl = mediaUrl.startsWith('http://') ||
-          mediaUrl.startsWith('https://');
-      final aiText = caption != null && caption.isNotEmpty
-          ? caption
-          : (isUrl ? '请描述这张图片的内容。' : '[用户发送了一张图片，但无法查看本地图片]');
-      widget.onAiMessage?.call(
-        widget.conversation,
-        aiText,
-        images: isUrl ? [mediaUrl] : null,
+      // Create message with image + optional text.
+      final msg = LingMessage(
+        id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+        conversationId: widget.conversation.id,
+        authorId: widget.currentUserId,
+        type: LingMessageType.image,
+        text: (caption != null && caption.isNotEmpty) ? caption : null,
+        mediaUrl: mediaUrl,
+        width: imgWidth,
+        height: imgHeight,
+        createdAt: DateTime.now(),
+        status: LingMessageStatus.sent,
       );
+      widget.controller.addMessage(msg);
+
+      // Persist to ChatService.
+      await sl<ChatService>().sendMessage(
+        conversationId: widget.conversation.id,
+        authorId: widget.currentUserId,
+        text: caption ?? '',
+        type: LingMessageType.image,
+        mediaUrl: mediaUrl,
+      );
+
+      // Route to AI if needed — check both default AI assistant and agent conversations.
+      final agentService = sl<AgentService>();
+      final isAiConv = widget.conversation.id == ChatService.aiAssistantId ||
+          agentService.isAgentConversation(widget.conversation.id);
+      if (isAiConv) {
+        final aiText = caption != null && caption.isNotEmpty
+            ? caption
+            : '用户发送了一张图片，请根据图片内容和文字说明进行分析。';
+
+        // Use base64 data URI for the LLM — the LLM API server cannot
+        // download Qiniu CDN URLs (403), so we inline the image as base64.
+        String? agentImageDataUri;
+        try {
+          agentImageDataUri = 'data:image/jpeg;base64,${base64Encode(compressed)}';
+        } catch (e) {
+          debugPrint('[ChatScreen] Failed to encode image for agent: $e');
+        }
+
+        widget.onAiMessage?.call(
+          widget.conversation,
+          aiText,
+          images: agentImageDataUri != null ? [agentImageDataUri] : null,
+        );
+      }
+    } catch (e, stack) {
+      debugPrint('[ChatScreen] _sendImage error: $e\n$stack');
+      if (mounted) {
+        SmartDialog.showNotify(
+          msg: '图片发送失败: $e',
+          notifyType: NotifyType.error,
+        );
+      }
     }
   }
 
