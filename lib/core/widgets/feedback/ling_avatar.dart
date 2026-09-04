@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 /// Avatar size preset.
 enum LingAvatarSize {
@@ -124,6 +125,18 @@ class LingAvatar extends StatelessWidget {
         return Image.asset(
           imageUrl!.substring(8),
           fit: BoxFit.cover,
+        );
+      }
+      // SVG support — use flutter_svg for .svg URLs.
+      if (imageUrl!.toLowerCase().endsWith('.svg')) {
+        return Center(
+          child: SvgPicture.network(
+            imageUrl!,
+            width: size.value * 0.5,
+            height: size.value * 0.5,
+            colorFilter: ColorFilter.mode(fg, BlendMode.srcIn),
+            placeholderBuilder: (_) => _buildInitials(theme, fg),
+          ),
         );
       }
       return CachedNetworkImage(
