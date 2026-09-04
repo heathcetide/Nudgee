@@ -11,6 +11,9 @@ import 'package:nudgee/core/models/im/ling_chat_user.dart';
 import 'package:nudgee/core/models/im/ling_conversation.dart';
 import 'package:nudgee/core/models/im/ling_enums.dart';
 import 'package:nudgee/core/models/im/ling_message.dart';
+import 'package:nudgee/core/agent/agent_config.dart';
+import 'package:nudgee/core/di/injector.dart' as di;
+import 'package:nudgee/core/services/agent_service.dart';
 import 'package:nudgee/core/services/qiniu_storage_service.dart';
 
 /// 聊天服务 — SQLite 本地存储 + 七牛云同步。
@@ -81,6 +84,7 @@ class ChatService extends ChangeNotifier {
       await _openDb();
       await _loadFromDb();
       await _ensureAiAssistant();
+      await _ensureAgentConversations();
       debugPrint('[ChatService] loaded ${_conversations.length} conversations from SQLite');
     } catch (e) {
       _lastError = e.toString();
@@ -264,6 +268,135 @@ class ChatService extends ChangeNotifier {
     _conversations.insert(0, conv);
     _messages[aiAssistantId] = [welcomeMsg];
     notifyListeners();
+  }
+
+  /// Ensures conversations exist for all registered agents.
+  ///
+  /// Called from [init] after [_ensureAiAssistant]. Fetches the agent list
+  /// from [AgentService] (which loads from JSON) and creates a conversation
+  /// for each agent that doesn't already have one.
+  Future<void> _ensureAgentConversations() async {
+    try {
+      final agentService = di.sl<AgentService>();
+      // Give AgentService time to load agents from JSON (async).
+      // If agents aren't loaded yet, retry shortly.
+      int retries = 0;
+      while (agentService.agents.length <= 1 && retries < 10) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        retries++;
+      }
+      final agents = agentService.agents;
+      if (agents.length <= 1) {
+        debugPrint('[ChatService] AgentService has ${agents.length} agent(s), '
+            'skipping ensureAgentConversations');
+        return;
+      }
+      await ensureAgentConversations(agents);
+    } catch (e) {
+      debugPrint('[ChatService] _ensureAgentConversations error: $e');
+    }
+  }
+
+  /// Ensures conversations exist for all registered agents.
+  ///
+  /// Called after agents are loaded from JSON. Creates a conversation
+  /// for each agent if it doesn't already exist. The default agent
+  /// (nudgee-assistant) maps to the legacy `ai_assistant` conversation.
+  Future<void> ensureAgentConversations(List<AgentConfig> agents) async {
+    if (_db == null) return;
+
+    final me = LingChatUser(
+      id: _userId ?? 'me',
+      name: '我',
+      status: LingUserStatus.online,
+    );
+
+    bool changed = false;
+
+    for (final agent in agents) {
+      // Skip the default agent — it maps to the legacy ai_assistant conversation
+      // which is already created by _ensureAiAssistant().
+      if (agent.id == 'nudgee-assistant') continue;
+
+      final existing = _conversations.where((c) => c.id == agent.id).firstOrNull;
+      if (existing != null) {
+        // Update name/avatar if agent config changed.
+        bool needsUpdate = false;
+        if (existing.name != agent.name) needsUpdate = true;
+        if (existing.avatarUrl != (agent.icon ?? '')) needsUpdate = true;
+
+        if (needsUpdate) {
+          final aiMember = LingChatUser(
+            id: agent.id,
+            name: agent.name,
+            avatarUrl: agent.icon ?? '',
+            status: LingUserStatus.online,
+          );
+          final updatedMembers = existing.members.map((m) {
+            return m.id == agent.id ? aiMember : m;
+          }).toList();
+          final updated = existing.copyWith(
+            name: agent.name,
+            avatarUrl: agent.icon ?? '',
+            members: updatedMembers,
+          );
+          final idx = _conversations.indexWhere((c) => c.id == agent.id);
+          if (idx >= 0) _conversations[idx] = updated;
+          await _saveConversation(updated);
+          changed = true;
+        }
+        continue;
+      }
+
+      // Create new conversation for this agent.
+      final ai = LingChatUser(
+        id: agent.id,
+        name: agent.name,
+        avatarUrl: agent.icon ?? '',
+        status: LingUserStatus.online,
+      );
+
+      final welcomeText = agent.description != null
+          ? '你好！我是${agent.name}。\n${agent.description}'
+          : '你好！我是${agent.name}。有什么可以帮你的吗？';
+
+      final welcomeMsg = LingMessage(
+        id: '${agent.id}_welcome',
+        conversationId: agent.id,
+        authorId: agent.id,
+        type: LingMessageType.text,
+        text: welcomeText,
+        createdAt: DateTime.now(),
+        status: LingMessageStatus.read,
+      );
+
+      final conv = LingConversation(
+        id: agent.id,
+        name: agent.name,
+        type: LingConversationType.single,
+        avatarUrl: agent.icon ?? '',
+        members: [me, ai],
+        lastMessage: welcomeMsg,
+        unreadCount: 0,
+      );
+
+      await _saveConversation(conv);
+      await _saveMessage(welcomeMsg);
+      _conversations.add(conv);
+      _messages[agent.id] = [welcomeMsg];
+      changed = true;
+      debugPrint('[ChatService] Created conversation for agent: ${agent.id}');
+    }
+
+    if (changed) {
+      // Sort: default agent (ai_assistant) first, then others by name.
+      _conversations.sort((a, b) {
+        if (a.id == aiAssistantId) return -1;
+        if (b.id == aiAssistantId) return 1;
+        return a.name.compareTo(b.name);
+      });
+      notifyListeners();
+    }
   }
 
   // ── CRUD: 消息 ────────────────────────────────────────────────────────

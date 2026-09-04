@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'package:nudgee/core/agent/agent.dart';
+import 'package:nudgee/core/agent/agent_config_loader.dart';
 import 'package:nudgee/core/agent/providers/providers.dart';
 import 'package:nudgee/core/agent/skills/skills.dart';
 import 'package:nudgee/core/agent/memory/memory.dart';
@@ -11,6 +12,7 @@ import 'package:nudgee/core/config/app_config.dart';
 import 'package:nudgee/core/models/prompt_template.dart';
 import 'package:nudgee/core/di/injector.dart' as di;
 import 'package:nudgee/core/services/local_database_service.dart';
+import 'package:nudgee/core/services/chat_service.dart';
 import 'package:nudgee/core/services/agent_permission_service.dart';
 import 'package:nudgee/core/services/workspace_service.dart';
 
@@ -46,6 +48,12 @@ class AgentService {
 
   /// Last run's trace (for debugging/observability).
   AgentTrace? _lastTrace;
+
+  /// Active agent controller for the current run (if any).
+  AgentController? _activeController;
+
+  /// The active agent controller, or null if no run is in progress.
+  AgentController? get activeController => _activeController;
 
   /// Optional confirmation handler — set by the UI layer to enable
   /// interactive permission prompts. When a tool requires confirmation,
@@ -108,6 +116,10 @@ class AgentService {
       _llmClient = _createLlmClient(cfg);
       _toolRegistry = ToolRegistry();
 
+      // Fetch available models from /v1/models and use the first one
+      // as the default model, overriding the config default.
+      _fetchAndApplyDefaultModel();
+
       // Try to get WorkspaceService from DI (may not be registered yet)
       WorkspaceService? workspace;
       try {
@@ -142,15 +154,6 @@ class AgentService {
         debugPrint('[AgentService] MemoryManager init skipped: $e');
       }
 
-      _agentConfig = AgentConfig(
-        id: 'nudgee-assistant',
-        name: 'Echo Agent',
-        systemPrompt: ChatServiceSystemPrompt.defaultPrompt,
-        model: _currentModel,
-        toolNames: builtinToolNames,
-        maxSteps: 10,
-      );
-
       // ── Build AgentHarness ──
       // Use AgentPermissionService for live permission mode management.
       // Falls back to bypassPermissions if AgentPermissionService is not registered.
@@ -173,17 +176,21 @@ class AgentService {
         onConfirmation: onConfirmation,
         llmModel: _currentModel,
       );
-      _harness!.registerAgent(_agentConfig!);
 
-      // ── Register additional built-in Agents ──
-      _registerBuiltinAgents();
+      // ── Load agent configs from JSON files ──
+      // Async load from assets/agents/*.json — non-blocking.
+      // The default agent is set once loaded.
+      // _fetchAndApplyDefaultModel() will trigger a reload after
+      // the model list is fetched, so agents get the correct model.
+      _loadAgentConfigs();
 
       _initialized = true;
       debugPrint('[AgentService] Initialized with model=$_currentModel, '
           'tools=${_toolRegistry!.names.length}, '
           'skills=${_skillRegistry!.length}, '
           'memory=${_memoryManager != null ? "on" : "off"}, '
-          'trace=on');
+          'trace=on, '
+          'agents=loading...');
     } catch (e, stack) {
       debugPrint('[AgentService] init() FAILED: $e');
       debugPrint('[AgentService] stack: $stack');
@@ -198,92 +205,92 @@ class AgentService {
     init();
   }
 
-  /// Registers built-in multi-agents beyond the default Echo Agent.
+  /// Fetches available models from /v1/models and applies the first
+  /// model as the default [_currentModel]. This overrides the config
+  /// default (which may not be accessible with the current API key).
+  Future<void> _fetchAndApplyDefaultModel() async {
+    try {
+      final models = await fetchModels();
+      if (models.isNotEmpty) {
+        final firstModel = models.first;
+        debugPrint('[AgentService] Fetched ${models.length} models, '
+            'using first: $firstModel');
+        _currentModel = firstModel;
+
+        // Update harness llmModel (used by SkillMatcher & SkillExecutor).
+        _harness?.updateLlmModel(firstModel);
+
+        // Update memory manager model.
+        if (_memoryManager != null) {
+          _memoryManager!.llmModel = firstModel;
+        }
+
+        // Reload agent configs so all agents use the fetched model.
+        await _loadAgentConfigs();
+      }
+    } catch (e) {
+      debugPrint('[AgentService] Failed to fetch models: $e');
+    }
+  }
+
+  /// Loads all agent configs from `assets/agents/*.json`.
   ///
-  /// Each agent has a different persona, tool set, and system prompt.
-  /// The UI can let the user switch between agents via [switchAgent].
-  void _registerBuiltinAgents() {
-    // ── Code Assistant ──
-    _harness!.registerAgent(AgentConfig(
-      id: 'code-assistant',
-      name: '代码助手',
-      icon: '💻',
-      description: '专注编程问题：代码审查、调试、架构设计、算法实现。',
-      systemPrompt: '你是一位资深软件工程师，擅长多语言编程、代码审查、'
-          '调试和系统设计。请给出专业、准确、可操作的建议。'
-          '涉及代码时用 markdown 代码块格式化。使用用户的语言回复。\n\n'
-          '你可以使用以下工具：\n'
-          '- workspace.js.exec: 执行 JavaScript 验证逻辑\n'
-          '- workspace.fs: 读写代码文件\n'
-          '- cloud.exec: 在云端沙箱执行 Node.js/Python/Go\n'
-          '- github.search: 搜索 GitHub 仓库和代码\n'
-          '- git: Git 仓库操作\n'
-          '- web.search: 搜索技术文档\n'
-          '- datetime: 时间相关计算',
-      model: _currentModel,
-      toolNames: const [
-        'workspace.js.exec', 'workspace.fs', 'cloud.exec',
-        'github.search', 'git', 'web.search', 'datetime',
-        'tool.search', 'ask_user', 'todo.write',
-      ],
-      maxSteps: 15,
-      temperature: 0.3,
-      isBuiltin: true,
-    ));
+  /// Called asynchronously during [init] — agents are registered
+  /// as soon as the JSON files are parsed. The default agent
+  /// (marked `is_default: true` or falling back to the first one)
+  /// becomes the active [_agentConfig].
+  ///
+  /// If loading fails, falls back to a hardcoded default Echo Agent.
+  Future<void> _loadAgentConfigs() async {
+    try {
+      final loader = AgentConfigLoader();
+      final configs = await loader.loadAll();
 
-    // ── Life Coach ──
-    _harness!.registerAgent(AgentConfig(
-      id: 'life-coach',
-      name: '生活教练',
-      icon: '🌿',
-      description: '健康、习惯、情绪管理、生活规划。',
-      systemPrompt: '你是一位温暖的生活教练，擅长健康习惯养成、情绪管理、'
-          '时间管理和生活规划。用共情的方式倾听，给出温和但务实的建议。'
-          '不要说教，像朋友一样聊天。使用用户的语言回复。\n\n'
-          '你可以使用以下工具：\n'
-          '- schedule.add/query/remove: 管理日程\n'
-          '- memory.save/query: 记住用户的目标和偏好\n'
-          '- web.search: 搜索健康/生活相关信息\n'
-          '- datetime: 日期计算',
+      if (configs.isEmpty) {
+        debugPrint('[AgentService] No agent configs found in assets, '
+            'using fallback default');
+        _initFallbackDefault();
+        return;
+      }
+
+      // Register all agents and track the effective configs.
+      final effectiveConfigs = <AgentConfig>[];
+      for (final config in configs) {
+        // Override model with current model if the config uses default
+        final effectiveConfig = config.model == 'deepseek-chat' && _currentModel.isNotEmpty
+            ? config.copyWith(model: _currentModel)
+            : config;
+        _harness!.registerAgent(effectiveConfig);
+        effectiveConfigs.add(effectiveConfig);
+      }
+
+      // Set default agent as active (use the effective config with correct model)
+      _agentConfig = effectiveConfigs.first;
+      debugPrint('[AgentService] Loaded ${configs.length} agent(s) from JSON: '
+          '${configs.map((c) => c.id).join(", ")}');
+      debugPrint('[AgentService] Default agent: ${_agentConfig!.id} (${_agentConfig!.name})');
+    } catch (e, stack) {
+      debugPrint('[AgentService] _loadAgentConfigs failed: $e');
+      debugPrint('[AgentService] stack: $stack');
+      _initFallbackDefault();
+    }
+  }
+
+  /// Fallback: creates a hardcoded default Echo Agent.
+  ///
+  /// Only used if JSON loading fails entirely.
+  void _initFallbackDefault() {
+    _agentConfig = AgentConfig(
+      id: 'nudgee-assistant',
+      name: 'Echo Agent',
+      icon: '🤖',
+      systemPrompt: ChatServiceSystemPrompt.defaultPrompt,
       model: _currentModel,
-      toolNames: const [
-        'schedule.add', 'schedule.query', 'schedule.remove',
-        'memory.save', 'memory.query', 'user.profile',
-        'web.search', 'datetime',
-        'tool.search', 'ask_user', 'todo.write',
-      ],
+      toolNames: builtinToolNames,
       maxSteps: 10,
-      temperature: 0.7,
       isBuiltin: true,
-    ));
-
-    // ── Research Analyst ──
-    _harness!.registerAgent(AgentConfig(
-      id: 'research-analyst',
-      name: '研究分析师',
-      icon: '🔬',
-      description: '深度研究、数据分析、报告撰写。',
-      systemPrompt: '你是一位严谨的研究分析师，擅长搜集信息、分析数据、'
-          '撰写结构化报告。回复要客观、有数据支撑、逻辑清晰。'
-          '使用 markdown 格式化报告。使用用户的语言回复。\n\n'
-          '你可以使用以下工具：\n'
-          '- web.search: 搜索网络信息\n'
-          '- github.search: 搜索开源项目\n'
-          '- workspace.js.exec: 数据处理和计算\n'
-          '- workspace.fs: 保存报告文件\n'
-          '- memory.save/query: 保存研究结论\n'
-          '- datetime: 时间分析',
-      model: _currentModel,
-      toolNames: const [
-        'web.search', 'github.search',
-        'workspace.js.exec', 'workspace.fs',
-        'memory.save', 'memory.query',
-        'datetime', 'tool.search', 'ask_user', 'todo.write',
-      ],
-      maxSteps: 20,
-      temperature: 0.4,
-      isBuiltin: true,
-    ));
+    );
+    _harness?.registerAgent(_agentConfig!);
   }
 
   /// All registered agent configurations.
@@ -295,6 +302,37 @@ class AgentService {
   /// The currently active agent config.
   AgentConfig get currentAgent => _agentConfig!;
 
+  /// Checks if a conversation ID corresponds to a registered agent.
+  ///
+  /// Handles backward compatibility: `ai_assistant` maps to the default
+  /// agent (`nudgee-assistant`).
+  bool isAgentConversation(String conversationId) {
+    if (conversationId == 'ai_assistant') return true;
+    return _harness?.orchestrator.getAgent(conversationId) != null;
+  }
+
+  /// Gets the agent config for a conversation ID.
+  ///
+  /// Returns null if the conversation is not an agent conversation.
+  /// Handles backward compatibility: `ai_assistant` maps to the default agent.
+  AgentConfig? getAgentByConversationId(String conversationId) {
+    if (conversationId == 'ai_assistant') {
+      return _harness?.orchestrator.getAgent('nudgee-assistant') ??
+          _agentConfig;
+    }
+    return _harness?.orchestrator.getAgent(conversationId);
+  }
+
+  /// Switches to the agent for a given conversation ID.
+  ///
+  /// Returns true if the switch was successful.
+  /// Handles backward compatibility: `ai_assistant` maps to the default agent.
+  bool switchAgentForConversation(String conversationId) {
+    final agent = getAgentByConversationId(conversationId);
+    if (agent == null) return false;
+    return switchAgent(agent.id);
+  }
+
   /// Switches to a different agent by ID.
   /// Returns true if the switch was successful.
   bool switchAgent(String agentId) {
@@ -304,9 +342,11 @@ class AgentService {
       return false;
     }
     _agentConfig = agent;
+    // Update current model to the agent's configured model.
+    _currentModel = agent.model;
     // Clear history when switching agents (different persona).
     _history.clear();
-    debugPrint('[AgentService] Switched to agent: ${agent.id} (${agent.name})');
+    debugPrint('[AgentService] Switched to agent: ${agent.id} (${agent.name}), model=${agent.model}');
     return true;
   }
 
@@ -446,7 +486,7 @@ class AgentService {
         id: _agentConfig!.id,
         name: _agentConfig!.name,
         systemPrompt: effectivePrompt,
-        model: _currentModel,
+        model: _agentConfig!.model,
         toolNames: _agentConfig!.toolNames,
         maxSteps: _agentConfig!.maxSteps,
       );
@@ -504,7 +544,60 @@ class AgentService {
       userId: _memoryManager?.userId ?? 'default',
       extraSystemContext: combinedExtra,
       images: images,
+      allowedSkillIds: _agentConfig?.skillIds,
+      agentId: _agentConfig?.id,
     );
+  }
+
+  /// Runs the agent with an [AgentController] for lifecycle management.
+  ///
+  /// Returns the [AgentController] which provides:
+  /// - [AgentController.state] — observable run state (running/paused/done/error)
+  /// - [AgentController.events] — accumulated events
+  /// - [AgentController.pause] / [AgentController.resume] — pause/resume event processing
+  /// - [AgentController.cancel] — cancel the current run
+  /// - [AgentController.stats] — run statistics (set on done)
+  /// - [AgentController.finalReply] — the final reply (set on done)
+  ///
+  /// The controller is also accessible via [activeController].
+  AgentController runWithController(
+    String userInput, {
+    String? systemPrompt,
+    String? extraSystemContext,
+    String? toolPrompt,
+    List<FewShotExample>? fewShotExamples,
+    Map<String, String>? templateVariables,
+    List<String>? images,
+  }) {
+    final stream = run(
+      userInput,
+      systemPrompt: systemPrompt,
+      extraSystemContext: extraSystemContext,
+      toolPrompt: toolPrompt,
+      fewShotExamples: fewShotExamples,
+      templateVariables: templateVariables,
+      images: images,
+    );
+
+    _activeController = AgentController();
+    _activeController!.startStream(stream);
+    return _activeController!;
+  }
+
+  /// Cancels the current agent run (if any).
+  void cancelRun() {
+    _activeController?.cancel();
+    _activeController = null;
+  }
+
+  /// Pauses the current agent run (if any).
+  void pauseRun() {
+    _activeController?.pause();
+  }
+
+  /// Resumes the current agent run (if any).
+  void resumeRun() {
+    _activeController?.resume();
   }
 
   /// Resets the conversation history and optionally changes the system prompt.

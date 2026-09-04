@@ -46,6 +46,9 @@ import 'package:nudgee/core/services/shared_prefs_service.dart';
 import 'package:nudgee/core/services/user_cache_service.dart';
 import 'package:nudgee/core/services/user_storage_service.dart';
 import 'package:nudgee/core/services/upload_service.dart';
+import 'package:nudgee/core/voice/voice.dart';
+import 'package:nudgee/core/agent/scheduler/agent_task_scheduler.dart';
+import 'package:nudgee/core/agent/scheduler/builtin_scheduled_tasks.dart';
 
 /// Global service locator instance.
 final GetIt sl = GetIt.instance;
@@ -338,6 +341,43 @@ Future<void> initDependencies() async {
   _safeRegister(() => sl.registerLazySingleton<ApiCacheService>(
         () => ApiCacheService(),
       ));
+
+  // ── Voice Service (ASR + TTS) ────────────────────────────────────────
+  _safeRegister(() {
+    final voiceService = VoiceService();
+    sl.registerLazySingleton<VoiceService>(() => voiceService);
+  });
+
+  // ── Agent Task Scheduler ─────────────────────────────────────────────
+  try {
+    VoiceService? voiceService;
+    try {
+      voiceService = sl<VoiceService>();
+    } catch (_) {}
+
+    WorkspaceService? workspaceService;
+    try {
+      workspaceService = sl<WorkspaceService>();
+    } catch (_) {}
+
+    QiniuStorageService? qiniuService;
+    try {
+      qiniuService = sl<QiniuStorageService>();
+    } catch (_) {}
+
+    final scheduler = AgentTaskScheduler(
+      agentService: sl<AgentService>(),
+      prefs: sl<SharedPrefsService>(),
+      voiceService: voiceService,
+      workspaceService: workspaceService,
+      qiniuService: qiniuService,
+    );
+    await registerBuiltinScheduledTasks(scheduler);
+    scheduler.start();
+    sl.registerLazySingleton<AgentTaskScheduler>(() => scheduler);
+  } catch (e) {
+    debugPrint('DI: AgentTaskScheduler registration failed: $e');
+  }
 
   debugPrint('[Init] initDependencies complete');
 }
